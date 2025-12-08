@@ -18,4 +18,184 @@
     }
 
     #commentForm {
-      display:
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 20px;
+    }
+
+    #commentForm input, #commentForm textarea, #commentForm button {
+      margin: 5px 0;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #ff69b4;
+      outline: none;
+      font-size: 14px;
+    }
+
+    #commentForm button {
+      background-color: #ff69b4;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    #commentForm button:hover {
+      background-color: #ff85c1;
+    }
+
+    .post {
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 15px;
+      padding: 10px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: flex-start;
+      box-shadow: 0 0 10px #ffb6c1;
+      animation: sparkle 2s infinite;
+    }
+
+    .post img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-right: 10px;
+      border: 2px solid #ff69b4;
+    }
+
+    .post-content {
+      flex: 1;
+    }
+
+    .post-content .name {
+      font-weight: bold;
+      color: #d148a3;
+    }
+
+    .post-content .time {
+      font-size: 12px;
+      color: #888;
+      margin-left: 10px;
+    }
+
+    .post-number {
+      font-weight: bold;
+      margin-right: 10px;
+      color: #d148a3;
+    }
+
+    .reactions {
+      margin-top: 5px;
+      font-size: 14px;
+    }
+
+    .reaction-button {
+      cursor: pointer;
+      margin-right: 10px;
+      padding: 2px 5px;
+      border-radius: 5px;
+      border: 1px solid #ff69b4;
+      background-color: #ffe4e1;
+      transition: 0.2s;
+    }
+
+    .reaction-button:hover {
+      background-color: #ffb6c1;
+    }
+
+    @keyframes sparkle {
+      0% { box-shadow: 0 0 5px #ffb6c1; }
+      50% { box-shadow: 0 0 15px #ff69b4; }
+      100% { box-shadow: 0 0 5px #ffb6c1; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>うさ★キラ掲示板</h1>
+
+<form id="commentForm">
+  <input type="text" id="name" placeholder="名前" value="名もなき兎" />
+  <input type="text" id="icon" placeholder="アイコン画像URL" value="usagi.png.jpeg" />
+  <textarea id="comment" placeholder="コメントを書こう"></textarea>
+  <button type="submit">投稿</button>
+</form>
+
+<div id="posts"></div>
+
+<script>
+  const postsDiv = document.getElementById("posts");
+  const form = document.getElementById("commentForm");
+
+  function loadPosts() {
+    let stored = localStorage.getItem("usakila_posts");
+    if(!stored) return [];
+    try {
+      return JSON.parse(stored);
+    } catch(e) {
+      console.error("LocalStorageデータ読み込みエラー", e);
+      return [];
+    }
+  }
+
+  function savePosts(posts) {
+    localStorage.setItem("usakila_posts", JSON.stringify(posts));
+  }
+
+  function renderPosts(posts) {
+    postsDiv.innerHTML = "";
+    posts.forEach((p, index) => {
+      const div = document.createElement("div");
+      div.className = "post";
+      div.innerHTML = `
+        <div class="post-number">${index + 1}</div>
+        <img src="${p.icon}" alt="アイコン">
+        <div class="post-content">
+          <span class="name">${p.name}</span>
+          <span class="time">${p.time}</span>
+          <div class="comment-text">${p.comment}</div>
+          <div class="reactions">
+            <span class="reaction-button" data-type="carrot">🥕 ${p.reactions.carrot}</span>
+            <span class="reaction-button" data-type="spark">✨ ${p.reactions.spark}</span>
+          </div>
+        </div>
+      `;
+      postsDiv.appendChild(div);
+
+      // リアクションボタンにクリックイベント追加
+      div.querySelectorAll(".reaction-button").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const type = btn.getAttribute("data-type");
+          p.reactions[type]++;
+          savePosts(posts);
+          renderPosts(posts);
+        });
+      });
+    });
+  }
+
+  // 初期ロード
+  let posts = loadPosts();
+  // 投稿オブジェクトに reactions がない場合追加
+  posts.forEach(p => {
+    if(!p.reactions) p.reactions = {carrot:0, spark:0};
+  });
+  renderPosts(posts);
+
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    const name = document.getElementById("name").value || "名無し";
+    const icon = document.getElementById("icon").value || "usagi.png.jpeg";
+    const comment = document.getElementById("comment").value.trim();
+    if(!comment) return;
+
+    const time = new Date().toLocaleString();
+    posts.push({name, icon, comment, time, reactions:{carrot:0, spark:0}});
+    savePosts(posts);
+    renderPosts(posts);
+    document.getElementById("comment").value = "";
+  });
+</script>
+
+</body>
+</html>
