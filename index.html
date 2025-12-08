@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>うさ★キラ掲示板</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 100%; height: 70px; }
+    .post { padding: 8px; border-bottom: 1px solid #ccc; margin: 6px 0; }
+  </style>
+</head>
+<body>
+
+<h1>🐇うさ★キラ掲示板✨</h1>
+
+<textarea id="text"></textarea><br>
+<button onclick="post()">投稿！</button>
+
+<h2>投稿一覧</h2>
+<div id="list"></div>
+
+<!-- Firebase読み込み -->
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+<script>
+  // 🔥 君のFirebase設定を貼る
+  const firebaseConfig = {
+    apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+    authDomain: "keijiban-7c651.firebaseapp.com",
+    projectId: "keijiban-7c651",
+    storageBucket: "keijiban-7c651.firebasestorage.app",
+    messagingSenderId: "342192640264",
+    appId: "1:342192640264:web:a004a725b470741aaf1cbd",
+    measurementId: "G-7E1BZ3BGBR"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  function post() {
+    const text = document.getElementById("text").value;
+    if(text.trim() === "") return;
+    db.collection("posts").add({
+      text: text,
+      time: Date.now()
+    });
+    document.getElementById("text").value = "";
+  }
+
+  db.collection("posts")
+    .orderBy("time", "desc")
+    .onSnapshot(snap => {
+      let html = "";
+      snap.docs.forEach(doc => {
+        html += `<div class='post'>${doc.data().text}</div>`;
+      });
+      document.getElementById("list").innerHTML = html;
+    });
+</script>
+
+</body>
+</html>
