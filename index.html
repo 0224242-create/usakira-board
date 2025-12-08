@@ -1,53 +1,11 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>うさ★キラ掲示板</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-      background: #ffb6d9;
-      overflow-x: hidden;
-    }
+// 投稿を保存
+let posts = JSON.parse(localStorage.getItem("posts") || "[]");
+posts.push({name: "名もなき兎", comment: "こんにちは", time: new Date().toLocaleString()});
+localStorage.setItem("posts", JSON.stringify(posts));
 
-    /* キラキラ背景アニメーション */
-    body::before, body::after {
-      content: "✦ ✧ ✦ ✧ ✦ ✧ ✦ ✧ ✦";
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 200%;
-      height: 100%;
-      font-size: 32px;
-      color: rgba(255, 255, 255, 0.45);
-      pointer-events: none;
-      animation: sparkle 12s linear infinite;
-      white-space: nowrap;
-    }
-    body::after {
-      animation-duration: 18s;
-      opacity: 0.55;
-    }
-    @keyframes sparkle {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
-    }
-
-    textarea { width: 100%; height: 70px; }
-    .post {
-      padding: 8px;
-      border-bottom: 1px solid #ccc;
-      margin: 6px 0;
-      background: rgba(255, 255, 255, 0.7);
-      border-radius: 6px;
-    }
-    .icon {
-      width: 40px;
-      vertical-align: middle;
-      border-radius: 6px;
-    }
-    .time {
+// ページ読み込み時に表示
+let savedPosts = JSON.parse(localStorage.getItem("posts") || "[]");
+savedPosts.forEach(p => showPost(p)); // showPost関数でHTMLに追加
       color: #555;
       font-size: 12px;
       padding-left: 8px;
