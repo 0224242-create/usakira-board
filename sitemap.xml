@@ -1,15 +1,20 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://example.com/</loc>
-    <lastmod>2025-12-08</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://example.com/page1</loc>
-    <lastmod>2025-12-08</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-</urlset>
+name: Generate sitemap
+on: [push]
+jobs:
+  sitemap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: cicirello/generate-sitemap@v1
+        with:
+          base-url-path: "https://0224242-create.github.io/usakira-board/"
+      - run: |
+          if [[ `git status --porcelain sitemap.xml` ]]; then
+            git config --global user.name "github-actions"
+            git config --global user.email "actions@github.com"
+            git add sitemap.xml
+            git commit -m "Update sitemap"
+            git push
+          fi
