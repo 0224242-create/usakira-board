@@ -4,21 +4,62 @@
   <meta charset="UTF-8" />
   <title>うさ★キラ掲示板</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #ffb6d9;
+      overflow-x: hidden;
+    }
+
+    /* キラキラ背景アニメーション */
+    body::before, body::after {
+      content: "✦ ✧ ✦ ✧ ✦ ✧ ✦ ✧ ✦";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 200%;
+      height: 100%;
+      font-size: 32px;
+      color: rgba(255, 255, 255, 0.45);
+      pointer-events: none;
+      animation: sparkle 12s linear infinite;
+      white-space: nowrap;
+    }
+    body::after {
+      animation-duration: 18s;
+      opacity: 0.55;
+    }
+    @keyframes sparkle {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
     textarea { width: 100%; height: 70px; }
-    .post { padding: 8px; border-bottom: 1px solid #ccc; margin: 6px 0; }
-    .icon { width: 40px; vertical-align: middle; border-radius: 6px; }
+    .post {
+      padding: 8px;
+      border-bottom: 1px solid #ccc;
+      margin: 6px 0;
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 6px;
+    }
+    .icon {
+      width: 40px;
+      vertical-align: middle;
+      border-radius: 6px;
+    }
+    .time {
+      color: #555;
+      font-size: 12px;
+      padding-left: 8px;
+    }
   </style>
 </head>
 <body>
 
 <h2>うさ★キラ掲示板</h2>
 
-<!-- 名前入力欄 -->
 <input id="nameInput" placeholder="名前（例: 名もなき兎）">
-
 <br><br>
-<!-- コメント入力欄 -->
 <textarea id="textInput" placeholder="コメントを書いてね"></textarea>
 <br>
 <button onclick="postMessage()">投稿</button>
@@ -26,29 +67,35 @@
 <div id="posts"></div>
 
 <script>
-// 投稿番号カウンター
 let count = 0;
 
 function postMessage() {
   const name = document.getElementById("nameInput").value || "名もなき兎";
   const text = document.getElementById("textInput").value;
-
   if (!text.trim()) return;
 
   count++;
+
+  const now = new Date();
+  const timeString =
+    now.getFullYear() + "/" +
+    (now.getMonth() + 1) + "/" +
+    now.getDate() + " " +
+    now.getHours().toString().padStart(2, "0") + ":" +
+    now.getMinutes().toString().padStart(2, "0") + ":" +
+    now.getSeconds().toString().padStart(2, "0");
 
   const posts = document.getElementById("posts");
   const div = document.createElement("div");
   div.className = "post";
 
-  // 表示内容：番号 + アイコン + 名前 + コメント
   div.innerHTML =
     "#" + count +
     " <img src='usagi.png.jpeg' class='icon'> " +
-    "<strong>" + name + "</strong> ： " + text;
+    "<strong>" + name + "</strong> ： " + text +
+    "<span class='time'>(" + timeString + ")</span>";
 
   posts.prepend(div);
-
   document.getElementById("textInput").value = "";
 }
 </script>
