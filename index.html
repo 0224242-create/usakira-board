@@ -1,25 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>うさ★キラ掲示板</title>
+  <meta charset="UTF-8" />
+  <title>スレッド</title>
   <style>
-    body { font-family: "ヒラギノ角ゴ ProN", sans-serif; padding: 20px; background: #fffafc; color: #222; transition: 0.3s; }
-    h1 { color: #ff7ac6; }
-    textarea { width: 100%; height: 80px; }
-    .thread, .post {
+    body { font-family: "ヒラギノ角ゴ ProN", sans-serif; padding: 20px; background:#fffafc; color:#222; transition:0.3s; }
+    h1 { color:#ff7ac6; }
+    textarea { width: 100%; height: 80px; padding: 6px; font-size: 16px; }
+    .post {
       border: 1px solid #ffd4ea; background: #fff; padding: 12px;
-      border-radius: 8px; margin: 10px 0;
+      border-radius: 8px; margin: 12px 0;
     }
-    .profile-block input { width: 100%; margin: 4px 0; }
-    .reaction { cursor: pointer; margin: 0 6px; font-size: 22px; }
+    .info { margin-bottom: 6px; font-weight: bold; font-size: 17px; }
     .icon { width: 45px; height: 45px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
-    a { color: #0072ff; }
+    .comment { margin-top: 4px; font-size: 17px; }
+    a { color:#0072ff; }
+
+    .reactions { margin-top: 10px; display:flex; gap:16px; font-size: 22px; }
+    .reaction-btn { cursor:pointer; }
 
     /* ダークモード */
-    body.dark { background: #161616; color: #eaeaea; }
-    body.dark .thread, body.dark .post { background: #242424; border-color: #555; }
-    body.dark a { color: #70b6ff; }
+    body.dark { background:#161616; color:#eaeaea; }
+    body.dark .post { background:#242424; border-color:#555; }
+    body.dark a { color:#70b6ff; }
+
     #darkBtn {
       position: fixed; top: 14px; right: 14px; cursor: pointer;
       background: none; font-size: 26px; border: none;
@@ -29,149 +33,128 @@
 <body>
 
 <button id="darkBtn">🌙</button>
-<h1>🐰 うさ★キラ掲示板</h1>
+<h1 id="threadTitle">📌 スレッド</h1>
 
-<!-- スレ作成 -->
-<h2>スレッド作成</h2>
-<input type="text" id="threadTitle" placeholder="スレタイトル"><br>
-<button onclick="createThread()">スレを立てる</button>
+<textarea id="text" placeholder="コメントを入力"></textarea>
+<button id="postBtn" style="margin-top:10px;">投稿</button>
 
-<hr>
+<h2 style="margin-top:30px;">💬 コメント</h2>
+<div id="postList"></div>
 
-<!-- ▼プロフィール -->
-<h2>プロフィール</h2>
-<div class="profile-block">
-  名前：<input type="text" id="profileName">
-  ひとこと：<input type="text" id="profileComment">
-  アイコン画像URL：<input type="text" id="profileIcon">
-  <button onclick="saveProfile()">プロフィール保存</button>
-</div>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getDatabase, ref, push, set, onValue, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-<hr>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+    authDomain: "keijiban-7c651.firebaseapp.com",
+    databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
+    projectId: "keijiban-7c651",
+    storageBucket: "keijiban-7c651.firebasestorage.app",
+    messagingSenderId: "342192640264",
+    appId: "1:342192640264:web:a004a725b470741aaf1cbd",
+    measurementId: "G-7E1BZ3BGBR"
+  };
 
-<!-- ▼スレ一覧 -->
-<h2>スレッド一覧</h2>
-<div id="threadList"></div>
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const params = new URLSearchParams(location.search);
+  const threadId = params.get("id");
 
-<!-- ▼投稿画面 -->
-<div id="threadView" style="display:none;">
-  <h2 id="threadTitleView"></h2>
-  <textarea id="postText" placeholder="書き込み内容"></textarea><br>
-  <button onclick="sendPost()">投稿</button>
-  <button onclick="backToList()">戻る</button>
-  <hr>
-  <div id="postList"></div>
-</div>
-
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-<script>
-/* Firebase */
-const firebaseConfig = {
-  apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-  authDomain: "keijiban-7c651.firebaseapp.com",
-  databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
-  projectId: "keijiban-7c651",
-  storageBucket: "keijiban-7c651.firebasestorage.app",
-  messagingSenderId: "342192640264",
-  appId: "1:342192640264:web:a004a725b470741aaf1cbd",
-  measurementId: "G-7E1BZ3BGBR"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-
-/* ■ユーザーID */
-let userId = localStorage.getItem("userId");
-if (!userId) {
-  userId = "user_" + Math.random().toString(36).substring(2);
-  localStorage.setItem("userId", userId);
-}
-
-/* ■プロフィール */
-const profileRef = db.ref("profiles");
-const defaultIcon = "usagi.png.jpeg";
-
-/* 初期読込 */
-profileRef.child(userId).get().then(snap => {
-  const p = snap.val();
-  if (p) {
-    profileName.value = p.name;
-    profileComment.value = p.comment;
-    profileIcon.value = p.icon;
-  } else {
-    profileIcon.value = defaultIcon;
+  /* テーマ */
+  const darkBtn = document.getElementById("darkBtn");
+  darkBtn.addEventListener("click", () => {
+    document.body.classList.toggle("dark");
+    darkBtn.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+    localStorage.setItem("darkMode", document.body.classList.contains("dark"));
+  });
+  if (localStorage.getItem("darkMode") === "true") {
+    document.body.classList.add("dark");
+    darkBtn.textContent = "☀️";
   }
-});
 
-function saveProfile() {
-  profileRef.child(userId).set({
-    name: profileName.value,
-    comment: profileComment.value,
-    icon: profileIcon.value || defaultIcon
+  /* スレタイトル */
+  onValue(ref(db, `threads/${threadId}/title`), (snapshot) => {
+    const title = snapshot.val();
+    document.getElementById("threadTitle").innerText = `📌 ${title}`;
+    document.title = title;
   });
-  alert("プロフィール保存したよ🐰");
-}
 
-/* ■スレ作成 */
-function createThread() {
-  const title = threadTitle.value.trim();
-  if (!title) return;
-  db.ref("threads").push({ title, owner: userId });
-  threadTitle.value = "";
-}
+  /* 投稿 */
+  const userId = localStorage.getItem("userId");
+  const profileRef = ref(db, `profiles/${userId}`);
+  const defaultIcon = "usagi.png.jpeg";
 
-/* スレ一覧 */
-function loadThreads() {
-  threadList.innerHTML = "";
-  db.ref("threads").on("value", snap => {
-    threadList.innerHTML = "";
-    const data = snap.val();
-    for (let id in data) {
-      const div = document.createElement("div");
-      div.className = "thread";
-      div.innerHTML = `<b>${data[id].title}</b>  
-      <button onclick="openThread('${id}','${data[id].title}','${data[id].owner}')">開く</button>`;
-      threadList.appendChild(div);
-    }
-  });
-}
-loadThreads();
+  document.getElementById("postBtn").addEventListener("click", async () => {
+    let text = document.getElementById("text").value.trim();
+    if (!text) return;
 
-/* ■スレを開く → 別タブ */
-function openThread(id, title, owner) {
-  window.open(`thread.html?id=${id}`, "_blank");
-}
+    // 自動語尾ペコ
+    if (!text.endsWith("ペコ")) text += " ペコ";
 
-/* 戻る */
-function backToList() {
-  threadView.style.display = "none";
-  threadList.style.display = "block";
-}
+    // プロフィール取得
+    let snap = await get(profileRef);
+    let p = snap.val() || { name: "名無し", comment: "", icon: defaultIcon };
 
-/* ■投稿機能（自動語尾ペコ） */
-function sendPost() {
-  let text = postText.value.trim();
-  if (!text) return;
-
-  if (!text.endsWith("ペコ")) text += " ペコ";  // ←追加
-
-  profileRef.child(userId).get().then(snap => {
-    const p = snap.val() || { name: "名無し", comment: "", icon: defaultIcon };
-    db.ref("posts/" + currentThread).push({
-      text,
-      timestamp: Date.now(),
+    const newPost = push(ref(db, `threads/${threadId}/posts`));
+    set(newPost, {
       name: p.name,
-      comment: p.comment,
       icon: p.icon,
-      uid: userId,
-      carrot: 0,
-      star: 0
+      profileComment: p.comment,
+      text: text,
+      createdAt: Date.now(),
+      reactions: { carrot: 0, star: 0 }
+    });
+
+    document.getElementById("text").value = "";
+  });
+
+  /* URL → 自動リンク */
+  function linkify(text) {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.replace(urlRegex, url => `<a href="${url}" target="_blank">${url}</a>`);
+  }
+
+  /* コメント表示 */
+  onValue(ref(db, `threads/${threadId}/posts`), (snapshot) => {
+    const data = snapshot.val();
+    const list = document.getElementById("postList");
+    list.innerHTML = "";
+    if (!data) return;
+
+    const posts = Object.entries(data).sort((a, b) => a[1].createdAt - b[1].createdAt);
+    posts.forEach(([id, p]) => {
+      const div = document.createElement("div");
+      div.className = "post";
+
+      div.innerHTML = `
+        <div class="info">
+          <img class="icon" src="${p.icon}" onerror="this.src='${defaultIcon}'">
+          ${p.name}
+        </div>
+        <div class="comment">${linkify(p.text)}</div>
+        ${p.profileComment ? `<div style="font-size:14px;color:#888;margin-top:6px;">🔹 ${p.profileComment}</div>` : ""}
+      `;
+
+      const reactions = document.createElement("div");
+      reactions.className = "reactions";
+      reactions.innerHTML = `
+        <span class="reaction-btn" data-type="carrot">🥕 ${p.reactions?.carrot ?? 0}</span>
+        <span class="reaction-btn" data-type="star">✨ ${p.reactions?.star ?? 0}</span>
+      `;
+
+      reactions.querySelectorAll(".reaction-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const type = btn.dataset.type;
+          const newCount = (p.reactions?.[type] ?? 0) + 1;
+          update(ref(db, `threads/${threadId}/posts/${id}/reactions`), { [type]: newCount });
+        });
+      });
+
+      div.appendChild(reactions);
+      list.appendChild(div);
     });
   });
-
-  postText.value = "";
-}
-
-/* この下は thread.html 側で使う値保持用 */
-let currentThread = localStorage.getItem("lastThread") || "";
+</script>
+</body>
+</html>
