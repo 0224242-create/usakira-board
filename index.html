@@ -1,113 +1,216 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>うさ★キラ掲示板 – スレ一覧</title>
+  <meta charset="UTF-8">
+  <title>うさ★キラ掲示板</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    .thread { padding: 10px; border-bottom: 1px solid #ccc; margin: 8px 0; cursor: pointer; }
-    .pagination { display: flex; gap: 10px; margin-top: 20px; }
-    button { cursor: pointer; }
+    body { font-family: "ヒラギノ角ゴ ProN", sans-serif; padding: 20px; background: #fffafc; }
+    h1 { color: #ff7ac6; }
+    textarea { width: 100%; height: 80px; }
+    .thread, .post {
+      border: 1px solid #ffd4ea; background: #fff; padding: 12px;
+      border-radius: 8px; margin: 10px 0;
+    }
+    .profile-block input { width: 100%; margin: 4px 0; }
+    .reaction { cursor: pointer; margin: 0 6px; font-size: 22px; }
+    .icon { width: 45px; height: 45px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+    a { color: #0072ff; }
   </style>
 </head>
 <body>
-  <h1>🐰 うさ★キラ掲示板 – スレ一覧</h1>
 
-  <input id="searchBox" placeholder="🔍 スレタイトル検索" style="width:100%; font-size:18px; padding:6px; margin-bottom:12px;">
+<h1>🐰 うさ★キラ掲示板</h1>
 
-  <input id="threadTitle" placeholder="📝 新しいスレタイトルを入力" style="width:100%; font-size:18px; padding:6px;">
-  <button id="createThreadBtn" style="margin-top:10px;">🌟 新規スレを作成</button>
+<!-- スレ作成 -->
+<h2>スレッド作成</h2>
+<input type="text" id="threadTitle" placeholder="スレタイトル"><br>
+<button onclick="createThread()">スレを立てる</button>
 
-  <h2 style="margin-top:30px;">📂 スレ一覧</h2>
-  <div id="threadList"></div>
+<hr>
 
-  <div class="pagination">
-    <button id="prevBtn">◀ 前へ</button>
-    <span id="pageNum"></span>
-    <button id="nextBtn">次へ ▶</button>
-  </div>
+<!-- ▼プロフィール -->
+<h2>プロフィール</h2>
+<div class="profile-block">
+  名前：<input type="text" id="profileName">
+  ひとこと：<input type="text" id="profileComment">
+  アイコン画像URL：<input type="text" id="profileIcon">
+  <button onclick="saveProfile()">プロフィール保存</button>
+</div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, push, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+<hr>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-      authDomain: "keijiban-7c651.firebaseapp.com",
-      databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
-      projectId: "keijiban-7c651",
-      storageBucket: "keijiban-7c651.firebasestorage.app",
-      messagingSenderId: "342192640264",
-      appId: "1:342192640264:web:a004a725b470741aaf1cbd",
-      measurementId: "G-7E1BZ3BGBR"
-    };
+<!-- ▼スレ一覧 -->
+<h2>スレッド一覧</h2>
+<div id="threadList"></div>
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+<!-- ▼投稿画面 -->
+<div id="threadView" style="display:none;">
+  <h2 id="threadTitleView"></h2>
+  <textarea id="postText" placeholder="書き込み内容"></textarea><br>
+  <button onclick="sendPost()">投稿</button>
+  <button onclick="backToList()">戻る</button>
+  <hr>
+  <div id="postList"></div>
+</div>
 
-    // スレ作成
-    document.getElementById("createThreadBtn").addEventListener("click", () => {
-      const title = document.getElementById("threadTitle").value;
-      if (!title) return;
-      const newThread = push(ref(db, "threads"));
-      set(newThread, {
-        title: title,
-        createdAt: Date.now()
-      });
-      document.getElementById("threadTitle").value = "";
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+<script>
+/* Firebase設定 */
+const firebaseConfig = {
+  apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+  authDomain: "keijiban-7c651.firebaseapp.com",
+  databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
+  projectId: "keijiban-7c651",
+  storageBucket: "keijiban-7c651.firebasestorage.app",
+  messagingSenderId: "342192640264",
+  appId: "1:342192640264:web:a004a725b470741aaf1cbd",
+  measurementId: "G-7E1BZ3BGBR"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* ■ユーザーID (ローカル保存) */
+let userId = localStorage.getItem("userId");
+if (!userId) {
+  userId = "user_" + Math.random().toString(36).substring(2);
+  localStorage.setItem("userId", userId);
+}
+
+/* ■プロフィール */
+const profileRef = db.ref("profiles");
+const defaultIcon = "usagi.png.jpeg";
+
+profileRef.child(userId).get().then(snap => {
+  const p = snap.val();
+  if (p) {
+    profileName.value = p.name;
+    profileComment.value = p.comment;
+    profileIcon.value = p.icon;
+  } else {
+    profileIcon.value = defaultIcon;
+  }
+});
+
+function saveProfile() {
+  profileRef.child(userId).set({
+    name: profileName.value,
+    comment: profileComment.value,
+    icon: profileIcon.value || defaultIcon
+  });
+  alert("プロフィール保存したよ🐰");
+}
+
+/* ■スレッド作成 */
+function createThread() {
+  const title = threadTitle.value.trim();
+  if (!title) return;
+  const newThread = db.ref("threads").push({ title, owner: userId });
+  threadTitle.value = "";
+}
+
+/* スレ表示 */
+function loadThreads() {
+  threadList.innerHTML = "";
+  db.ref("threads").on("value", snap => {
+    threadList.innerHTML = "";
+    const data = snap.val();
+    for (let id in data) {
+      const div = document.createElement("div");
+      div.className = "thread";
+      div.innerHTML = `<b>${data[id].title}</b><br>
+      <button onclick="openThread('${id}', '${data[id].title}', '${data[id].owner}')">開く</button>`;
+      threadList.appendChild(div);
+    }
+  });
+}
+loadThreads();
+
+/* ■スレを開く */
+let currentThread = "";
+let currentOwner = "";
+
+function openThread(id, title, owner) {
+  currentThread = id;
+  currentOwner = owner;
+  threadTitleView.textContent = title;
+  threadView.style.display = "block";
+  threadList.style.display = "none";
+  loadPosts();
+}
+
+function backToList() {
+  threadView.style.display = "none";
+  threadList.style.display = "block";
+}
+
+/* ■投稿 */
+function sendPost() {
+  const text = postText.value.trim();
+  if (!text) return;
+
+  profileRef.child(userId).get().then(snap => {
+    const p = snap.val() || { name: "名無し", comment: "", icon: defaultIcon };
+
+    db.ref("posts/" + currentThread).push({
+      text,
+      timestamp: Date.now(),
+      name: p.name,
+      comment: p.comment,
+      icon: p.icon,
+      uid: userId,
+      carrot: 0,
+      star: 0
     });
+  });
 
-    // 検索 & ページング
-    let allThreads = [];
-    let currentPage = 1;
-    const perPage = 8;
+  postText.value = "";
+}
 
-    const renderThreads = () => {
-      const search = document.getElementById("searchBox").value.toLowerCase();
-      const filtered = allThreads.filter(t => t.title.toLowerCase().includes(search));
-      const list = document.getElementById("threadList");
-      list.innerHTML = "";
+/* URLリンク化 */
+function linkify(t) {
+  return t.replace(/https?:\/\/\S+/g, url => `<a href="${url}" target="_blank">${url}</a>`);
+}
 
-      const start = (currentPage - 1) * perPage;
-      const selected = filtered.slice(start, start + perPage);
-      selected.forEach(t => {
-        const div = document.createElement("div");
-        div.className = "thread";
-        div.innerText = t.title;
-        div.addEventListener("click", () => {
-          location.href = `thread.html?id=${t.id}`;
-        });
-        list.appendChild(div);
-      });
+/* ■投稿読み込み */
+function loadPosts() {
+  db.ref("posts/" + currentThread).on("value", snap => {
+    postList.innerHTML = "";
+    const data = snap.val();
+    for (let id in data) {
+      const p = data[id];
+      const div = document.createElement("div");
+      div.className = "post";
 
-      document.getElementById("pageNum").innerText =
-        `${currentPage} / ${Math.max(1, Math.ceil(filtered.length / perPage))}`;
-    };
+      const delBtn = (userId === currentOwner)
+        ? `<button onclick="delPost('${id}')">削除</button>`
+        : "";
 
-    onValue(ref(db, "threads"), (snapshot) => {
-      const data = snapshot.val();
-      allThreads = [];
-      for (const id in data) {
-        allThreads.push({ id, title: data[id].title, createdAt: data[id].createdAt });
-      }
-      allThreads.sort((a, b) => b.createdAt - a.createdAt);
-      renderThreads();
-    });
+      div.innerHTML = `
+        <img src="${p.icon}" class="icon">
+        <b>${p.name}</b> (${p.comment})<br><br>
+        ${linkify(p.text)}<br><br>
+        <span class="reaction" onclick="react('${id}','carrot')">🥕 ${p.carrot}</span>
+        <span class="reaction" onclick="react('${id}','star')">✨ ${p.star}</span>
+        ${delBtn}
+      `;
+      postList.appendChild(div);
+    }
+  });
+}
 
-    document.getElementById("searchBox").addEventListener("input", () => {
-      currentPage = 1;
-      renderThreads();
-    });
+/* ■リアクション */
+function react(id, type) {
+  const ref = db.ref(`posts/${currentThread}/${id}/${type}`);
+  ref.transaction(v => (v || 0) + 1);
+}
 
-    document.getElementById("prevBtn").addEventListener("click", () => {
-      if (currentPage > 1) currentPage--;
-      renderThreads();
-    });
-
-    document.getElementById("nextBtn").addEventListener("click", () => {
-      currentPage++;
-      renderThreads();
-    });
-  </script>
+/* ■削除(主だけ) */
+function delPost(id) {
+  db.ref(`posts/${currentThread}/${id}`).remove();
+}
+</script>
 </body>
 </html>
