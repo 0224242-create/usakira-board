@@ -1,35 +1,79 @@
-<script>
-  const postsDiv = document.getElementById("posts");
-  const form = document.getElementById("commentForm");
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>うさ★キラ掲示板</title>
+<style>
+body { font-family: 'Arial', sans-serif; background: linear-gradient(135deg,#ffc0cb,#ffb6c1); margin:0; padding:20px;}
+h1 { text-align:center; color:#fff; text-shadow:2px 2px #ff69b4; }
+#commentForm { display:flex; flex-direction:column; margin-bottom:20px; }
+#commentForm input,#commentForm textarea,#commentForm button { margin:5px 0; padding:10px; border-radius:10px; border:1px solid #ff69b4; outline:none; font-size:14px; }
+#commentForm button { background-color:#ff69b4; color:white; font-weight:bold; cursor:pointer; transition:.3s; }
+#commentForm button:hover { background-color:#ff85c1; }
+.post { background: rgba(255,255,255,0.8); border-radius:15px; padding:10px; margin-bottom:10px; display:flex; align-items:flex-start; box-shadow:0 0 10px #ffb6c1; position:relative; }
+.post img { width:40px; height:40px; border-radius:50%; margin-right:10px; border:2px solid #ff69b4; }
+.post-content { flex:1; }
+.post-content .name { font-weight:bold; color:#d148a3; }
+.post-content .time { font-size:12px; color:#888; margin-left:10px; }
+.post-number { font-weight:bold; margin-right:10px; color:#d148a3; }
+.reactions { margin-top:5px; font-size:14px; }
+.reaction-button { cursor:pointer; margin-right:10px; padding:2px 5px; border-radius:5px; border:1px solid #ff69b4; background-color:#ffe4e1; transition:.2s; }
+.reaction-button:hover { background-color:#ffb6c1; }
+.delete-button { position:absolute; top:5px; right:5px; cursor:pointer; font-size:12px; color:#d148a3; border:none; background:none; }
+</style>
+</head>
+<body>
 
+<h1>うさ★キラ掲示板</h1>
+
+<form id="commentForm">
+<input type="text" id="name" placeholder="名前" value="名もなき兎"/>
+<input type="text" id="icon" placeholder="アイコンURL" value="usagi.png.jpeg"/>
+<textarea id="comment" placeholder="コメントを書こう"></textarea>
+<button type="submit">投稿</button>
+</form>
+
+<div id="posts"></div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+  // ★Firebaseの設定（自分のプロジェクト情報に置き換えてください）★
   const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    databaseURL: "YOUR_DATABASE_URL",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "ここにAPIキー",
+    authDomain: "プロジェクトID.firebaseapp.com",
+    databaseURL: "https://プロジェクトID-default-rtdb.firebaseio.com",
+    projectId: "プロジェクトID",
+    storageBucket: "プロジェクトID.appspot.com",
+    messagingSenderId: "送信者ID",
+    appId: "アプリID"
   };
 
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
+  const postsDiv = document.getElementById("posts");
+  const form = document.getElementById("commentForm");
+
+  // コメント内のURLをリンク化
   function linkify(text) {
     const urlPattern = /(https?:\/\/[^\s]+)/g;
     return text.replace(urlPattern, '<a href="$1" target="_blank">$1</a>');
   }
 
-  function renderPosts(data) {
+  // 投稿を描画
+  function renderPosts(data){
     postsDiv.innerHTML = "";
     const posts = data ? Object.values(data) : [];
-    posts.forEach((p, index) => {
-      if(!p.reactions) p.reactions = {carrot:0, spark:0};
-      const div = document.createElement("div");
-      div.className = "post";
+    posts.forEach((p,index)=>{
+      if(!p.reactions) p.reactions={carrot:0,spark:0};
+      const div=document.createElement("div");
+      div.className="post";
       const commentHtml = linkify(p.comment + " ペコ");
-      div.innerHTML = `
-        <div class="post-number">${index + 1}</div>
+      div.innerHTML=`
+        <div class="post-number">${index+1}</div>
         <img src="${p.icon}" alt="アイコン">
         <div class="post-content">
           <span class="name">${p.name}</span>
@@ -44,21 +88,21 @@
       `;
       postsDiv.appendChild(div);
 
-      // リアクション処理
-      div.querySelectorAll(".reaction-button").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const type = btn.getAttribute("data-type");
+      // リアクション
+      div.querySelectorAll(".reaction-button").forEach(btn=>{
+        btn.addEventListener("click",()=>{
+          const type=btn.getAttribute("data-type");
           p.reactions[type]++;
           db.ref("posts").child(p.id).set(p);
         });
       });
 
-      // 削除ボタン
-      div.querySelector(".delete-button").addEventListener("click", () => {
-        const currentUser = document.getElementById("name").value || "名無し";
-        if(currentUser === p.author) {
+      // 削除ボタン（自分だけ）
+      div.querySelector(".delete-button").addEventListener("click",()=>{
+        const currentUser=document.getElementById("name").value||"名無し";
+        if(currentUser===p.author){
           db.ref("posts").child(p.id).remove();
-        } else {
+        }else{
           alert("自分の投稿しか削除できません");
         }
       });
@@ -66,32 +110,32 @@
   }
 
   // 投稿をリアルタイムで監視
-  db.ref("posts").on("value", snapshot => {
+  db.ref("posts").on("value",snapshot=>{
     renderPosts(snapshot.val());
   });
 
-  // 投稿
-  form.addEventListener("submit", function(e){
+  // 投稿処理
+  form.addEventListener("submit",e=>{
     e.preventDefault();
-    const name = document.getElementById("name").value || "名無し";
-    const icon = document.getElementById("icon").value || "usagi.png.jpeg";
-    const comment = document.getElementById("comment").value.trim();
+    const name=document.getElementById("name").value||"名無し";
+    const icon=document.getElementById("icon").value||"usagi.png.jpeg";
+    const comment=document.getElementById("comment").value.trim();
     if(!comment) return;
-
-    const time = new Date().toLocaleString();
-    const newPostRef = db.ref("posts").push();
-    const id = newPostRef.key;
-
+    const time=new Date().toLocaleString();
+    const newPostRef=db.ref("posts").push();
+    const id=newPostRef.key;
     newPostRef.set({
       id,
-      author: name, // 投稿者を保存
+      author:name,
       name,
       icon,
       comment,
       time,
-      reactions: {carrot:0, spark:0}
+      reactions:{carrot:0,spark:0}
     });
-
-    document.getElementById("comment").value = "";
+    document.getElementById("comment").value="";
   });
 </script>
+
+</body>
+</html>
