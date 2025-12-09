@@ -40,15 +40,15 @@ h1 { text-align:center; color:#fff; text-shadow:2px 2px #ff69b4; }
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-  // ★Firebaseの設定（自分のプロジェクト情報に置き換えてください）★
+  // ★Firebase設定（自分のウェブアプリ情報に置き換えてください）★
   const firebaseConfig = {
-    apiKey: "ここにAPIキー",
-    authDomain: "プロジェクトID.firebaseapp.com",
-    databaseURL: "https://プロジェクトID-default-rtdb.firebaseio.com",
-    projectId: "プロジェクトID",
-    storageBucket: "プロジェクトID.appspot.com",
-    messagingSenderId: "送信者ID",
-    appId: "アプリID"
+    apiKey: "ここにFirebaseのapiKey",
+    authDomain: "keijiban-7c651.firebaseapp.com",
+    databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com/",
+    projectId: "keijiban-7c651",
+    storageBucket: "keijiban-7c651.appspot.com",
+    messagingSenderId: "ここにFirebaseのmessagingSenderId",
+    appId: "ここにFirebaseのappId"
   };
 
   firebase.initializeApp(firebaseConfig);
@@ -57,13 +57,11 @@ h1 { text-align:center; color:#fff; text-shadow:2px 2px #ff69b4; }
   const postsDiv = document.getElementById("posts");
   const form = document.getElementById("commentForm");
 
-  // コメント内のURLをリンク化
   function linkify(text) {
     const urlPattern = /(https?:\/\/[^\s]+)/g;
     return text.replace(urlPattern, '<a href="$1" target="_blank">$1</a>');
   }
 
-  // 投稿を描画
   function renderPosts(data){
     postsDiv.innerHTML = "";
     const posts = data ? Object.values(data) : [];
@@ -88,7 +86,6 @@ h1 { text-align:center; color:#fff; text-shadow:2px 2px #ff69b4; }
       `;
       postsDiv.appendChild(div);
 
-      // リアクション
       div.querySelectorAll(".reaction-button").forEach(btn=>{
         btn.addEventListener("click",()=>{
           const type=btn.getAttribute("data-type");
@@ -97,7 +94,6 @@ h1 { text-align:center; color:#fff; text-shadow:2px 2px #ff69b4; }
         });
       });
 
-      // 削除ボタン（自分だけ）
       div.querySelector(".delete-button").addEventListener("click",()=>{
         const currentUser=document.getElementById("name").value||"名無し";
         if(currentUser===p.author){
@@ -109,12 +105,10 @@ h1 { text-align:center; color:#fff; text-shadow:2px 2px #ff69b4; }
     });
   }
 
-  // 投稿をリアルタイムで監視
   db.ref("posts").on("value",snapshot=>{
     renderPosts(snapshot.val());
   });
 
-  // 投稿処理
   form.addEventListener("submit",e=>{
     e.preventDefault();
     const name=document.getElementById("name").value||"名無し";
