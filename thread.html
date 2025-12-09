@@ -6,24 +6,24 @@
   <style>
     body { font-family: sans-serif; padding: 20px; }
     textarea { width: 100%; height: 70px; }
-    .post { padding: 8px; border-bottom: 1px solid #ccc; margin: 6px 0; }
+    .post { padding: 10px; border-bottom: 1px solid #ccc; margin: 8px 0; }
+    .reactions { margin-top: 6px; display: flex; gap: 10px; }
+    .reaction-btn { cursor: pointer; font-size: 20px; }
   </style>
 </head>
 <body>
-  <h1 id="threadTitle">スレッド</h1>
-  <button onclick="location.href='index.html'">← スレ一覧へ</button>
+  <h1 id="threadTitle">📌 スレッド</h1>
 
-  <h3 style="margin-top:25px;">コメントを書く</h3>
-  <input id="nameInput" placeholder="名前" style="width:100%; padding:6px;">
-  <textarea id="messageInput" placeholder="コメント"></textarea><br>
-  <button id="sendBtn">投稿</button>
+  <textarea id="name" placeholder="名前（空白可）"></textarea>
+  <textarea id="text" placeholder="コメントを入力"></textarea>
+  <button id="postBtn" style="margin-top: 10px;">投稿</button>
 
-  <h3 style="margin-top:30px;">コメント一覧</h3>
+  <h2 style="margin-top:30px;">💬 コメント</h2>
   <div id="postList"></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, push, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, push, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -39,40 +39,71 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const threadId = new URLSearchParams(location.search).get("id");
-    const threadRef = ref(db, `threads/${threadId}`);
-    const postRef = ref(db, `threads/${threadId}/posts`);
+    // URLの ID を取得
+    const params = new URLSearchParams(location.search);
+    const threadId = params.get("id");
 
-    onValue(threadRef, (snapshot) => {
-      const data = snapshot.val();
-      document.getElementById("threadTitle").innerText = data.title;
+    // スレタイトル表示
+    onValue(ref(db, `threads/${threadId}/title`), (snapshot) => {
+      const title = snapshot.val();
+      document.getElementById("threadTitle").innerText = `📌 ${title}`;
+      document.title = title;
     });
 
-    document.getElementById("sendBtn").addEventListener("click", () => {
-      const name = document.getElementById("nameInput").value || "名無し";
-      const msg  = document.getElementById("messageInput").value;
-      if (!msg) return;
-      const newPost = push(postRef);
+    // 投稿
+    document.getElementById("postBtn").addEventListener("click", () => {
+      const name = document.getElementById("name").value || "匿名";
+      const text = document.getElementById("text").value;
+      if (!text) return;
+
+      const newPost = push(ref(db, `threads/${threadId}/posts`));
       set(newPost, {
         name: name,
-        message: msg,
+        text: text,
         createdAt: Date.now(),
-        reactions: { ninjin: 0, kirakira: 0 }
+        reactions: { carrot: 0, star: 0 }
       });
-      document.getElementById("messageInput").value = "";
+
+      document.getElementById("text").value = "";
     });
 
-    onValue(postRef, (snapshot) => {
+    // URL → リンク化
+    function linkify(text) {
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      return text.replace(urlRegex, url => `<a href="${url}" target="_blank">${url}</a>`);
+    }
+
+    // コメント表示
+    onValue(ref(db, `threads/${threadId}/posts`), (snapshot) => {
       const data = snapshot.val();
       const list = document.getElementById("postList");
       list.innerHTML = "";
       if (!data) return;
-      for (const id in data) {
-        const p = document.createElement("div");
-        p.className = "post";
-        p.innerHTML = `<b>${data[id].name}</b><br>${data[id].message}`;
-        list.appendChild(p);
-      }
+
+      const posts = Object.entries(data).sort((a, b) => a[1].createdAt - b[1].createdAt);
+      posts.forEach(([id, p]) => {
+        const div = document.createElement("div");
+        div.className = "post";
+        div.innerHTML = `<b>${p.name}</b><br>${linkify(p.text)}`;
+
+        const reactions = document.createElement("div");
+        reactions.className = "reactions";
+        reactions.innerHTML = `
+          <span class="reaction-btn" data-type="carrot">🥕 ${p.reactions?.carrot ?? 0}</span>
+          <span class="reaction-btn" data-type="star">✨ ${p.reactions?.star ?? 0}</span>
+        `;
+
+        reactions.querySelectorAll(".reaction-btn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const type = btn.dataset.type;
+            const newCount = (p.reactions?.[type] ?? 0) + 1;
+            update(ref(db, `threads/${threadId}/posts/${id}/reactions`), { [type]: newCount });
+          });
+        });
+
+        div.appendChild(reactions);
+        list.appendChild(div);
+      });
     });
   </script>
 </body>
