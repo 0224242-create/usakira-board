@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>牢獄BAN管理ページ</title>
+  <style>
+    body {
+      font-family: "Consolas", monospace;
+      background: linear-gradient(#1a1a1a, #0d0d0d);
+      color: #d4d4d4;
+      padding: 20px;
+      text-shadow: 0px 0px 3px black;
+    }
+
+    h2, h3 {
+      font-weight: normal;
+      border-left: 6px solid #444;
+      padding-left: 8px;
+      margin-bottom: 10px;
+    }
+
+    h2::before {
+      content: "⚙️";
+      margin-right: 6px;
+    }
+
+    input {
+      background: #111;
+      color: #e0e0e0;
+      border: 2px solid #444;
+      padding: 8px;
+      width: 240px;
+    }
+
+    button {
+      padding: 8px 12px;
+      background: #222;
+      border: 2px solid #777;
+      color: #ddd;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #333;
+      border-color: #aaa;
+    }
+
+    #msg {
+      margin: 8px 0;
+      color: #86ff73;
+    }
+
+    /* 牢獄の格子背景 */
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      background-image:
+        repeating-linear-gradient(
+          90deg,
+          rgba(255,255,255,0.08) 0px,
+          rgba(255,255,255,0.08) 2px,
+          transparent 2px,
+          transparent 120px
+        ),
+        repeating-linear-gradient(
+          0deg,
+          rgba(255,255,255,0.05) 0px,
+          rgba(255,255,255,0.05) 2px,
+          transparent 2px,
+          transparent 120px
+        );
+      z-index: 5;
+    }
+
+    .user-item {
+      margin: 6px 0;
+      padding: 10px;
+      border: 2px solid #444;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .user-item strong {
+      color: #ff7070;
+      font-size: 18px;
+    }
+
+    .user-item button {
+      border-color: #d07878;
+    }
+    .user-item button:hover {
+      border-color: #ff9e9e;
+      background: #3b0e0e;
+    }
+
+  </style>
+</head>
+<body>
+  <h2>BAN 牢獄管理</h2>
+
+  <h3>BAN追加（新たな囚人を投入）</h3>
+  <input id="banInput" placeholder="ユーザーIDを入力" />
+  <button id="banBtn">収監</button>
+  <p id="msg"></p>
+
+  <h3>収監中のユーザー</h3>
+  <div id="banList"></div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "★",
+      authDomain: "★",
+      databaseURL: "★",
+      projectId: "★",
+      storageBucket: "★",
+      messagingSenderId: "★",
+      appId: "★"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const banInput = document.getElementById("banInput");
+    const banBtn = document.getElementById("banBtn");
+    const banListDiv = document.getElementById("banList");
+    const msg = document.getElementById("msg");
+
+    function loadBanList() {
+      db.ref("bannedUsers").on("value", (snap) => {
+        banListDiv.innerHTML = "";
+        const data = snap.val();
+        if (!data) {
+          banListDiv.innerHTML = "<p>収監者なし。</p>";
+          return;
+        }
+        Object.keys(data).forEach(uid => {
+          const item = document.createElement("div");
+          item.className = "user-item";
+          item.innerHTML = `
+            <strong>${uid}</strong>
+            <button onclick="unban('${uid}')">釈放</button>
+          `;
+          banListDiv.appendChild(item);
+        });
+      });
+    }
+
+    banBtn.onclick = () => {
+      const uid = banInput.value.trim();
+      if (!uid) return;
+      db.ref("bannedUsers/" + uid).set(true);
+      msg.textContent = uid + " を収監しました";
+      banInput.value = "";
+    };
+
+    window.unban = (uid) => {
+      db.ref("bannedUsers/" + uid).remove();
+      msg.textContent = uid + " を釈放しました";
+    };
+
+    loadBanList();
+  </script>
+</body>
+</html>
