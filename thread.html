@@ -1,234 +1,221 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>スレッド | うさ★キラ掲示板</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8" />
+  <title>スレッド - うさ★キラ掲示板</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family: "ヒラギノ角ゴ ProN", sans-serif; background:#fffafc; color:#222; padding:16px; transition:0.25s; }
-    .dark { background:#111; color:#eaeaea; }
-    .post { background:#fff; border:1px solid #ffdce6; border-radius:8px; padding:10px; margin:8px 0; }
-    .icon { width:40px; height:40px; border-radius:50%; vertical-align:middle; margin-right:8px; }
-    .small { font-size:13px; color:#666; }
-    button { padding:8px 10px; margin:6px 4px 0 0; cursor:pointer; }
-    .danger { color:#c33; cursor:pointer; font-size:13px; }
+    body { font-family: "Hiragino Kaku Gothic ProN", sans-serif; padding:20px; background:#fffafc; color:#222; transition:0.25s; }
+    .dark { background:#121212; color:#eaeaea; }
+    .post { border:1px solid #ffd4ea; padding:10px; margin:8px 0; border-radius:8px; background:#fff; }
+    .icon { width:36px; height:36px; border-radius:50%; vertical-align:middle; margin-right:8px; }
+    .meta { font-size:13px; color:#666; margin-top:6px; }
+    button { padding:8px 12px; margin:6px 0; cursor:pointer; }
   </style>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-  <button id="darkToggle" style="position:fixed; right:12px; top:12px; font-size:20px;">🌙</button>
-  <h1 id="threadTitle">📌 スレッド</h1>
-  <div id="threadInfo" class="small"></div>
+  <button id="darkToggle" style="position:fixed; right:12px; top:12px;">🌙</button>
+  <h1 id="threadTitle">読み込み中…</h1>
+  <div id="threadInfo" class="meta"></div>
   <hr>
 
-  <div>
-    <textarea id="replyText" placeholder="コメントを書く"></textarea><br>
-    <button id="sendBtn">投稿</button>
-    <button id="backBtn">一覧に戻る</button>
+  <div id="replyBox">
+    <textarea id="replyText" placeholder="コメントを入力"></textarea><br>
+    <button id="postBtn">投稿する</button>
   </div>
+  <hr>
 
-  <h3>コメント</h3>
   <div id="posts"></div>
-  <div id="pages"></div>
+  <div id="postsPaging"></div>
 
-<script>
-/* Firebase config */
-const firebaseConfig = {
-  apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-  authDomain: "keijiban-7c651.firebaseapp.com",
-  databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
-  projectId: "keijiban-7c651",
-  storageBucket: "keijiban-7c651.firebasestorage.app",
-  messagingSenderId: "342192640264",
-  appId: "1:342192640264:web:a004a725b470741aaf1cbd",
-  measurementId: "G-7E1BZ3BGBR"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+    import { getDatabase, ref, onValue, push, set, remove, update, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-/* 管理者パスワード */
-const ADMIN_PW = "master";
+    const firebaseConfig = {
+      apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+      authDomain: "keijiban-7c651.firebaseapp.com",
+      databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
+      projectId: "keijiban-7c651",
+      storageBucket: "keijiban-7c651.firebasestorage.app",
+      messagingSenderId: "342192640264",
+      appId: "1:342192640264:web:a004a725b470741aaf1cbd",
+      measurementId: "G-7E1BZ3BGBR"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
 
-/* ローカルプロフィールとID */
-let userId = localStorage.getItem("usakira_userId");
-if (!userId) {
-  userId = "user_" + Math.random().toString(36).slice(2);
-  localStorage.setItem("usakira_userId", userId);
-}
-const profileName = localStorage.getItem("usakira_name") || "名もなき兎";
-const profileIcon = localStorage.getItem("usakira_icon") || "usagi.png.jpeg";
+    /* ダークモード適用 */
+    const darkToggle = document.getElementById("darkToggle");
+    const darkSaved = localStorage.getItem("usakira_dark") === "true";
+    if (darkSaved) document.body.classList.add("dark");
+    darkToggle.textContent = darkSaved ? "☀️" : "🌙";
+    darkToggle.addEventListener("click", () => {
+      const now = !(localStorage.getItem("usakira_dark") === "true");
+      localStorage.setItem("usakira_dark", now);
+      document.body.classList.toggle("dark");
+      darkToggle.textContent = now ? "☀️" : "🌙";
+    });
 
-/* ダークモード */
-const darkToggle = document.getElementById("darkToggle");
-if (localStorage.getItem("usakira_dark") === "true") document.body.classList.add("dark"), darkToggle.textContent = "☀️";
-darkToggle.addEventListener("click", ()=>{
-  const on = document.body.classList.toggle("dark");
-  localStorage.setItem("usakira_dark", on ? "true":"false");
-  darkToggle.textContent = on ? "☀️":"🌙";
-});
+    /* ローカルプロフィール */
+    const userId = localStorage.getItem("usakira_userId") || ("user_"+Math.random().toString(36).slice(2));
+    if (!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId", userId);
+    const defaultName = "名もなき兎";
+    const defaultIcon = "usagi.png.jpeg";
+    const profileName = localStorage.getItem("usakira_name") || defaultName;
+    const profileIcon = localStorage.getItem("usakira_icon") || defaultIcon;
 
-/* スレIDの取得（URL優先、なければ lastThread） */
-const params = new URLSearchParams(location.search);
-const threadId = params.get("id") || localStorage.getItem("lastThread");
-if (!threadId) {
-  alert("スレが見つかりませんでした。トップに戻ります。");
-  location.href = "index.html";
-}
-
-/* スレ情報取得。鍵スレはパスワード確認 */
-db.ref("threads/" + threadId).once("value").then(snap=>{
-  const t = snap.val();
-  if (!t) { alert("スレが存在しません"); location.href = "index.html"; return; }
-  // 鍵スレ処理（オーナー／管理者は通す）
-  if (t.pass) {
-    const ownerIsMe = (t.owner === userId);
-    if (!ownerIsMe) {
-      const pw = prompt("このスレは鍵付きです。パスワードを入力してください。");
-      if (pw !== t.pass) { alert("パスワードが違います"); location.href = "index.html"; return; }
+    /* スレID (URL優先、なければ lastThread) */
+    const params = new URLSearchParams(location.search);
+    const threadId = params.get("id") || localStorage.getItem("lastThread") || "";
+    if (!threadId) {
+      alert("スレッドIDが見つかりません。indexから開いてね。");
+      location.href = "index.html";
+      throw new Error("No thread id");
     }
-  }
-  // 表示
-  document.getElementById("threadTitle").textContent = "📌 " + (t.title || "無題");
-  document.getElementById("threadInfo").innerHTML = `
-    <img src="${t.ownerIcon || 'usagi.png.jpeg'}" class="icon" onerror="this.src='usagi.png.jpeg'">
-    作成者: ${escapeHtml(t.ownerName || "名もなき兎")} <span class="small">(${new Date(t.createdAt||0).toLocaleString()})</span>
-  `;
-});
 
-/* 投稿（自動ペコ） */
-document.getElementById("sendBtn").addEventListener("click", ()=>{
-  let text = document.getElementById("replyText").value.trim();
-  if (!text) return alert("書き込んでねペコ");
-  if (!text.endsWith("ペコ")) text += " ペコ";
-  const p = {
-    uid: userId,
-    name: localStorage.getItem("usakira_name") || "名もなき兎",
-    icon: localStorage.getItem("usakira_icon") || "usagi.png.jpeg",
-    text,
-    time: Date.now(),
-    carrot: 0,
-    star: 0
-  };
-  db.ref("posts/" + threadId).push(p);
-  document.getElementById("replyText").value = "";
-});
+    // スレ情報取得（鍵チェック）
+    const threadRef = ref(db, `threads/${threadId}`);
+    onValue(threadRef, async (snap) => {
+      const t = snap.val();
+      if (!t) { document.getElementById("threadTitle").innerText = "スレッドが見つかりません"; return; }
+      document.getElementById("threadTitle").innerText = t.title || "（無題）";
+      document.getElementById("threadInfo").innerHTML = `
+        <img class="icon" src="${t.ownerIcon || defaultIcon}" onerror="this.src='${defaultIcon}'">
+        by ${t.ownerName || defaultName}
+        ${t.pass ? '<span class="meta"> ・ 鍵付きスレ</span>' : ''}
+        <div class="meta">${t.body || ""}</div>
+      `;
 
-/* 戻るボタン */
-document.getElementById("backBtn").addEventListener("click", ()=> {
-  window.close(); // 別タブで開いてる想定。ダメなら index に戻る。
-  try { opener.focus(); } catch(e){}
-});
+      // 鍵チェック（パスワードありなら入力）
+      if (t.pass) {
+        // allow if reopened by direct? require prompt each time for simplicity
+        const p = prompt("このスレは鍵付きです。パスワードを入力してください");
+        if (p !== t.pass) {
+          alert("パスワードが違うため戻ります");
+          location.href = "index.html";
+        }
+      }
+    });
 
-/* BANリストを常に取得 */
-let bans = {};
-db.ref("bans").on("value", s => bans = s.val() || {});
+    /* BAN map */
+    let bans = {};
+    onValue(ref(db, "bans"), s => bans = s.val() || {});
 
-/* ページングで投稿取得と表示 */
-const PER = 20;
-let postsArr = [];
-let currentPage = 1;
+    /* 投稿一覧 & ページング */
+    const PER = 20;
+    let postsArr = []; // [ [id, data], ... ] sorted by time asc
+    onValue(ref(db, `posts/${threadId}`), snap => {
+      const data = snap.val() || {};
+      postsArr = Object.entries(data).sort((a,b)=> (a[1].time||a[1].timestamp||0) - (b[1].time||b[1].timestamp||0));
+      renderPosts(1);
+    });
 
-db.ref("posts/" + threadId).on("value", snap => {
-  const data = snap.val() || {};
-  postsArr = Object.entries(data).map(([k,v]) => ({ id:k, ...v }));
-  postsArr.sort((a,b)=> a.time - b.time); // 時系列（古い順）
-  renderPosts();
-});
+    function linkify(text) {
+      return (text||"").replace(/(https?:\/\/[^\s]+)/g, m => `<a href="${m}" target="_blank">${m}</a>`);
+    }
 
-function renderPosts(){
-  const container = document.getElementById("posts");
-  container.innerHTML = "";
-  // filter banned
-  const visible = postsArr.filter(p => !(bans && bans[p.uid]));
-  const start = (currentPage-1)*PER;
-  const pageItems = visible.slice(start, start+PER);
-  pageItems.forEach(p => {
-    const div = document.createElement("div");
-    div.className = "post";
-    const safeText = linkifyEscape(p.text);
-    div.innerHTML = `
-      <div style="display:flex;align-items:center;">
-        <img src="${p.icon || 'usagi.png.jpeg'}" class="icon" onerror="this.src='usagi.png.jpeg'">
-        <div style="flex:1;">
-          <div><b>${escapeHtml(p.name)}</b> <span class="small">${new Date(p.time).toLocaleString()}</span></div>
-          <div style="margin-top:6px;">${safeText}</div>
-        </div>
-        <div style="text-align:right">
-          <div style="margin-bottom:8px;">
-            <button onclick="react('${p.id}','carrot')">🥕 ${p.carrot||0}</button>
-            <button onclick="react('${p.id}','star')">✨ ${p.star||0}</button>
-          </div>
+    function renderPosts(page=1) {
+      const start = (page-1)*PER;
+      const pick = postsArr.slice(start, start+PER);
+      const container = document.getElementById("posts");
+      container.innerHTML = "";
+      pick.forEach(([id, p]) => {
+        if (bans[p.uid]) return; // banned user's posts hidden
+        const html = document.createElement("div");
+        html.className = "post";
+        html.innerHTML = `
           <div>
-            <span class="danger" onclick="tryDeletePost('${p.id}','${p.uid}')">削除</span><br>
-            <button onclick="banUser('${p.uid}')">BAN</button>
+            <img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+            <strong>${p.name || defaultName}</strong>
+            <div class="meta">${new Date((p.time||p.timestamp)||0).toLocaleString()}</div>
           </div>
-        </div>
-      </div>
-    `;
-    container.appendChild(div);
-  });
+          <div style="margin-top:8px">${linkify(p.text)}</div>
+        `;
+        // controls: delete & ban
+        const controls = document.createElement("div");
+        controls.style.marginTop = "8px";
 
-  // ページ表示
-  const pagesDiv = document.getElementById("pages");
-  pagesDiv.innerHTML = "";
-  const total = Math.max(1, Math.ceil(visible.length / PER));
-  for (let i=1;i<=total;i++){
-    const b = document.createElement("button");
-    b.textContent = i;
-    if (i===currentPage) b.disabled = true;
-    b.addEventListener("click", ()=>{ currentPage = i; renderPosts(); });
-    pagesDiv.appendChild(b);
-  }
-}
+        // delete: allowed if post owner || thread owner || admin pw
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "削除";
+        delBtn.onclick = async () => {
+          const me = localStorage.getItem("usakira_userId");
+          // check thread owner
+          const threadSnap = await get(ref(db, `threads/${threadId}`));
+          const threadData = threadSnap.val() || {};
+          if (me === p.uid || me === threadData.ownerId) {
+            if (!confirm("本当に削除しますか？")) return;
+            await remove(ref(db, `posts/${threadId}/${id}`));
+            return;
+          }
+          const pw = prompt("管理パスワード");
+          if (pw === "master") {
+            await remove(ref(db, `posts/${threadId}/${id}`));
+            alert("管理者削除しました");
+            return;
+          }
+          alert("削除権限がありません");
+        };
+        controls.appendChild(delBtn);
 
-/* リアクション */
-function react(postId, type){
-  const ref = db.ref("posts/" + threadId + "/" + postId + "/" + type);
-  ref.transaction(v => (v || 0) + 1);
-}
+        // ban button (admin or thread owner can ban)
+        const banBtn = document.createElement("button");
+        banBtn.textContent = "BAN";
+        banBtn.onclick = async () => {
+          const threadSnap = await get(ref(db, `threads/${threadId}`));
+          const threadData = threadSnap.val() || {};
+          const me = localStorage.getItem("usakira_userId");
+          if (me === threadData.ownerId) {
+            if (!confirm(`${p.name} をBANしますか？`)) return;
+            await set(ref(db, `bans/${p.uid}`), true);
+            alert("BANしました");
+            return;
+          }
+          const pw = prompt("管理パスワード");
+          if (pw === "master") {
+            await set(ref(db, `bans/${p.uid}`), true);
+            alert("BANしました");
+            return;
+          }
+          alert("BAN権限がありません");
+        };
+        controls.appendChild(banBtn);
 
-/* 削除：投稿者 or スレ主 or 管理者 */
-async function tryDeletePost(postId, postUid) {
-  // get thread owner
-  const threadSnap = await db.ref("threads/" + threadId).once("value");
-  const thread = threadSnap.val() || {};
-  const isOwnerOfPost = (postUid === userId);
-  const isThreadOwner = (thread.owner === userId);
-  if (isOwnerOfPost || isThreadOwner) {
-    if (!confirm("本当に削除しますか？")) return;
-    await db.ref("posts/" + threadId + "/" + postId).remove();
-    return;
-  }
-  // 管理者権限
-  const pw = prompt("管理者パスワードで削除");
-  if (pw === ADMIN_PW) {
-    await db.ref("posts/" + threadId + "/" + postId).remove();
-    alert("管理者による削除を実行しました");
-    return;
-  }
-  alert("削除権限がありません");
-}
+        html.appendChild(controls);
+        container.appendChild(html);
+      });
 
-/* BAN（管理者パスワード）*/
-async function banUser(uid) {
-  const pw = prompt("管理者パスワードでBAN");
-  if (pw !== ADMIN_PW) return alert("パスワード違う");
-  await db.ref("bans/" + uid).set(true);
-  alert("BANしました");
-}
+      // paging UI
+      const pages = Math.max(1, Math.ceil(postsArr.length / PER));
+      const pg = document.getElementById("postsPaging");
+      pg.innerHTML = "";
+      for (let i=1;i<=pages;i++) {
+        const b = document.createElement("button");
+        b.textContent = i;
+        b.onclick = ()=> renderPosts(i);
+        pg.appendChild(b);
+      }
+    }
 
-/* ヘルパー: HTMLエスケープ + URLリンク化 */
-function escapeHtml(s){
-  if (!s) return "";
-  return s.toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function linkifyEscape(text){
-  // escape then convert URLs
-  const escaped = escapeHtml(text);
-  return escaped.replace(/(https?:\/\/[^\s]+)/g, url => `<a href="${url}" target="_blank">${url}</a>`);
-}
+    /* 投稿処理（語尾ペコを付ける） */
+    document.getElementById("postBtn").addEventListener("click", async () => {
+      let text = (document.getElementById("replyText").value || "").trim();
+      if (!text) return alert("本文を書いてねペコ");
+      if (!text.endsWith("ペコ")) text += " ペコ";
+      // check ban on me
+      const me = localStorage.getItem("usakira_userId");
+      const isB = (await get(ref(db, `bans/${me}`))).val();
+      if (isB) return alert("書き込み禁止されていますペコ");
 
-</script>
+      const name = localStorage.getItem("usakira_name") || defaultName;
+      const icon = localStorage.getItem("usakira_icon") || defaultIcon;
+      await push(ref(db, `posts/${threadId}`), {
+        name, icon, text, uid: me, time: Date.now()
+      });
+      document.getElementById("replyText").value = "";
+    });
+
+  </script>
 </body>
 </html>
