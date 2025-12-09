@@ -1,123 +1,144 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>スレッド</title>
-  <style>
-    body { font-family: sans-serif; padding: 20px; transition: background 0.3s, color 0.3s; }
-    .post { padding: 10px; border-bottom: 1px solid #ccc; margin: 8px 0; }
-    .reactions { margin-top: 6px; display: flex; gap: 10px; }
-    .reaction-btn { cursor: pointer; font-size: 20px; }
-    .icon { width: 40px; height: 40px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
-    .dark { background: #111; color: #f5f5f5; }
-  </style>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase.js"></script>
+<meta charset="UTF-8" />
+<title>スレッド</title>
+<style>
+  body { font-family:sans-serif; background:#fafafa; padding:20px; transition:0.3s; }
+  .dark { background:#1a1a1a; color:#fff; }
+  textarea { width:100%; height:70px; }
+  .reply { border-bottom:1px solid #ccc; padding:8px; margin:6px 0; }
+  .delete { cursor:pointer; color:red; font-size:12px; }
+</style>
 </head>
 <body>
+<button id="toggleDark">🌑 ダークモード</button>
+<h2 id="title"></h2>
+<div id="info"></div>
+<hr>
 
-<button onclick="toggleMode()">🌙 ダーク / ライト</button>
-<h1 id="title">📌 スレッド</h1>
+<h3>返信</h3>
+<textarea id="replyInput"></textarea><br>
+<button onclick="sendReply()">投稿</button>
+<hr>
 
-<textarea id="postText" placeholder="コメント"></textarea><br>
-<button onclick="sendPost()">投稿</button>
+<div id="replies"></div>
+<div id="paging"></div>
 
-<h2>💬 コメント</h2>
-<div id="postList"></div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getDatabase, ref, onValue, push, set, remove, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-<script>
-/* Firebase */
 const firebaseConfig = {
-  apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-  authDomain: "keijiban-7c651.firebaseapp.com",
-  databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
-  projectId: "keijiban-7c651",
-  storageBucket: "keijiban-7c651.firebasestorage.app",
-  messagingSenderId: "342192640264",
-  appId: "1:342192640264:web:a004a725b470741aaf1cbd",
-  measurementId: "G-7E1BZ3BGBR"
+  apiKey: "XXXX",
+  authDomain: "XXXX",
+  databaseURL: "XXXX",
+  projectId: "XXXX",
+  storageBucket: "XXXX",
+  messagingSenderId: "XXXX",
+  appId: "XXXX"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-/* スレID取得（URL優先→localStorage） */
-const params = new URLSearchParams(location.search);
-let currentThread = params.get("id") || localStorage.getItem("lastThread") || "";
-if (!currentThread) {
-  alert("スレIDが見つかりません");
-  throw new Error("NO THREAD ID");
-}
-
-/* スレタイトル表示 */
-db.ref("threads/" + currentThread + "/title").on("value", snap => {
-  const t = snap.val();
-  title.innerText = "📌 " + t;
-  document.title = t;
-});
-
-/* 投稿 */
-function sendPost() {
-  let text = postText.value.trim();
-  if (!text) return;
-  if (!text.endsWith("ペコ")) text += " ペコ";
-
-  const userId = localStorage.getItem("userId");
-  db.ref("profiles/" + userId).get().then(snap => {
-    const p = snap.val() || { name: "名無し", icon: "usagi.png.jpeg", comment: "" };
-    db.ref("posts/" + currentThread).push({
-      text,
-      timestamp: Date.now(),
-      name: p.name,
-      icon: p.icon,
-      uid: userId,
-      carrot: 0,
-      star: 0
-    });
-  });
-  postText.value = "";
-}
-
-/* URLリンク化 */
-function linkify(t) {
-  return t.replace(/(https?:\/\/[^\s]+)/g, m => `<a href="${m}" target="_blank">${m}</a>`);
-}
-
-/* コメント表示 */
-db.ref("posts/" + currentThread).on("value", snap => {
-  const data = snap.val();
-  postList.innerHTML = "";
-  if (!data) return;
-
-  const arr = Object.entries(data).sort((a, b) => a[1].timestamp - b[1].timestamp);
-  arr.forEach(([id, p]) => {
-    const d = document.createElement("div");
-    d.className = "post";
-    d.innerHTML = `
-      <img class="icon" src="${p.icon}">
-      <b>${p.name}</b><br>${linkify(p.text)}
-    `;
-
-    const r = document.createElement("div");
-    r.className = "reactions";
-    r.innerHTML = `
-      <span class="reaction-btn" data-type="carrot">🥕 ${p.carrot ?? 0}</span>
-      <span class="reaction-btn" data-type="star">✨ ${p.star ?? 0}</span>
-    `;
-    r.querySelectorAll(".reaction-btn").forEach(btn => {
-      btn.onclick = () => {
-        const type = btn.dataset.type;
-        db.ref("posts/" + currentThread + "/" + id).update({ [type]: (p[type] ?? 0) + 1 });
-      };
-    });
-
-    d.appendChild(r);
-    postList.appendChild(d);
-  });
-});
-
-/* ダークモード */
-function toggleMode() {
+// ダークモード
+let dark = localStorage.dark === "true";
+if(dark) document.body.classList.add("dark");
+document.getElementById("toggleDark").onclick = () => {
+  dark = !dark;
+  localStorage.dark = dark;
   document.body.classList.toggle("dark");
+};
+
+// プロフィール
+let profile = {
+  name: localStorage.name || "名もなき兎",
+  icon: localStorage.icon || "usagi.png.jpeg"
+};
+
+// スレID取得
+const url = new URLSearchParams(location.search);
+const id = url.get("id");
+if(!id) location.href = "index.html";
+
+// スレ情報
+onValue(ref(db,"threads/"+id), snap => {
+  const v = snap.val();
+  if(!v) return;
+  title.innerText = v.title;
+  info.innerHTML = `<img src="${v.icon}" width="32" height="32"> ${v.name}<br><br>${v.body}`;
+
+  // 鍵スレ
+  if(v.pass){
+    const p = prompt("このスレは鍵つきです パスワードを入力");
+    if(p !== v.pass) history.back();
+  }
+});
+
+// BAN読み込み
+let banned = {};
+onValue(ref(db,"ban"), snap => banned = snap.val() || {});
+
+// 投稿
+function sendReply() {
+  const text = replyInput.value.trim();
+  if(!text) return;
+  if(banned[profile.name]) return alert("あなたは書き込み禁止です");
+  const r = ref(db,"replies/"+id);
+  push(r,{
+    name: profile.name,
+    icon: profile.icon,
+    text: text + " ペコ",
+    time: Date.now()
+  });
+  replyInput.value = "";
 }
+
+// ページング
+const PER = 20;
+let page = 1;
+onValue(ref(db,"replies/"+id), snap => {
+  const data = snap.val() || {};
+  let arr = Object.entries(data).sort((a,b)=>a[1].time-b[1].time);
+  render(arr);
+});
+function render(arr){
+  const start = (page-1)*PER;
+  const pick = arr.slice(start,start+PER);
+  replies.innerHTML = "";
+
+  pick.forEach(([key,v])=>{
+    if(banned[v.name]) return;
+    let txt = v.text.replace(/https?:\/\/\S+/g, m=> `<a href="${m}" target="_blank">${m}</a>`);
+    replies.insertAdjacentHTML("beforeend",
+      `<div class="reply">
+        <img src="${v.icon}" width="32" height="32">
+        <b>${v.name}</b><br>${txt}<br>
+        <span style="font-size:11px">${new Date(v.time).toLocaleString()}</span><br>
+        <span class="delete" onclick="delReply('${key}','${v.name}')">削除</span>
+        <button onclick="banUser('${v.name}')">BAN</button>
+      </div>`);
+  });
+
+  paging.innerHTML = "";
+  const pages = Math.ceil(arr.length/PER);
+  for(let i=1;i<=pages;i++){
+    paging.insertAdjacentHTML("beforeend",
+      `<button onclick="page=${i};render(arr)"> ${i} </button>`);
+  }
+  replies.scrollTop = replies.scrollHeight;
+}
+
+window.delReply = (key,name)=>{
+  if(name !== profile.name && prompt("管理パスワード") !== "master") return;
+  remove(ref(db,"replies/"+id+"/"+key));
+};
+window.banUser = name=>{
+  if(prompt("管理パスワード") !== "master") return;
+  update(ref(db,"ban"),{ [name]: true });
+  alert(name + " をBANしました");
+};
+
 </script>
 </body>
 </html>
