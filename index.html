@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>うさ★キラ掲示板</title>
   <style>
-    body { font-family: "ヒラギノ角ゴ ProN", sans-serif; padding: 20px; background: #fffafc; }
+    body { font-family: "ヒラギノ角ゴ ProN", sans-serif; padding: 20px; background: #fffafc; color: #222; transition: 0.3s; }
     h1 { color: #ff7ac6; }
     textarea { width: 100%; height: 80px; }
     .thread, .post {
@@ -15,10 +15,20 @@
     .reaction { cursor: pointer; margin: 0 6px; font-size: 22px; }
     .icon { width: 45px; height: 45px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
     a { color: #0072ff; }
+
+    /* ダークモード */
+    body.dark { background: #161616; color: #eaeaea; }
+    body.dark .thread, body.dark .post { background: #242424; border-color: #555; }
+    body.dark a { color: #70b6ff; }
+    #darkBtn {
+      position: fixed; top: 14px; right: 14px; cursor: pointer;
+      background: none; font-size: 26px; border: none;
+    }
   </style>
 </head>
 <body>
 
+<button id="darkBtn">🌙</button>
 <h1>🐰 うさ★キラ掲示板</h1>
 
 <!-- スレ作成 -->
@@ -57,7 +67,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <script>
-/* Firebase設定 */
+/* Firebase */
 const firebaseConfig = {
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   authDomain: "keijiban-7c651.firebaseapp.com",
@@ -68,11 +78,10 @@ const firebaseConfig = {
   appId: "1:342192640264:web:a004a725b470741aaf1cbd",
   measurementId: "G-7E1BZ3BGBR"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-/* ■ユーザーID (ローカル保存) */
+/* ■ユーザーID */
 let userId = localStorage.getItem("userId");
 if (!userId) {
   userId = "user_" + Math.random().toString(36).substring(2);
@@ -83,6 +92,7 @@ if (!userId) {
 const profileRef = db.ref("profiles");
 const defaultIcon = "usagi.png.jpeg";
 
+/* 初期読込 */
 profileRef.child(userId).get().then(snap => {
   const p = snap.val();
   if (p) {
@@ -103,15 +113,15 @@ function saveProfile() {
   alert("プロフィール保存したよ🐰");
 }
 
-/* ■スレッド作成 */
+/* ■スレ作成 */
 function createThread() {
   const title = threadTitle.value.trim();
   if (!title) return;
-  const newThread = db.ref("threads").push({ title, owner: userId });
+  db.ref("threads").push({ title, owner: userId });
   threadTitle.value = "";
 }
 
-/* スレ表示 */
+/* スレ一覧 */
 function loadThreads() {
   threadList.innerHTML = "";
   db.ref("threads").on("value", snap => {
@@ -120,40 +130,34 @@ function loadThreads() {
     for (let id in data) {
       const div = document.createElement("div");
       div.className = "thread";
-      div.innerHTML = `<b>${data[id].title}</b><br>
-      <button onclick="openThread('${id}', '${data[id].title}', '${data[id].owner}')">開く</button>`;
+      div.innerHTML = `<b>${data[id].title}</b>  
+      <button onclick="openThread('${id}','${data[id].title}','${data[id].owner}')">開く</button>`;
       threadList.appendChild(div);
     }
   });
 }
 loadThreads();
 
-/* ■スレを開く */
-let currentThread = "";
-let currentOwner = "";
-
+/* ■スレを開く → 別タブ */
 function openThread(id, title, owner) {
-  currentThread = id;
-  currentOwner = owner;
-  threadTitleView.textContent = title;
-  threadView.style.display = "block";
-  threadList.style.display = "none";
-  loadPosts();
+  window.open(`thread.html?id=${id}`, "_blank");
 }
 
+/* 戻る */
 function backToList() {
   threadView.style.display = "none";
   threadList.style.display = "block";
 }
 
-/* ■投稿 */
+/* ■投稿機能（自動語尾ペコ） */
 function sendPost() {
-  const text = postText.value.trim();
+  let text = postText.value.trim();
   if (!text) return;
+
+  if (!text.endsWith("ペコ")) text += " ペコ";  // ←追加
 
   profileRef.child(userId).get().then(snap => {
     const p = snap.val() || { name: "名無し", comment: "", icon: defaultIcon };
-
     db.ref("posts/" + currentThread).push({
       text,
       timestamp: Date.now(),
@@ -169,48 +173,5 @@ function sendPost() {
   postText.value = "";
 }
 
-/* URLリンク化 */
-function linkify(t) {
-  return t.replace(/https?:\/\/\S+/g, url => `<a href="${url}" target="_blank">${url}</a>`);
-}
-
-/* ■投稿読み込み */
-function loadPosts() {
-  db.ref("posts/" + currentThread).on("value", snap => {
-    postList.innerHTML = "";
-    const data = snap.val();
-    for (let id in data) {
-      const p = data[id];
-      const div = document.createElement("div");
-      div.className = "post";
-
-      const delBtn = (userId === currentOwner)
-        ? `<button onclick="delPost('${id}')">削除</button>`
-        : "";
-
-      div.innerHTML = `
-        <img src="${p.icon}" class="icon">
-        <b>${p.name}</b> (${p.comment})<br><br>
-        ${linkify(p.text)}<br><br>
-        <span class="reaction" onclick="react('${id}','carrot')">🥕 ${p.carrot}</span>
-        <span class="reaction" onclick="react('${id}','star')">✨ ${p.star}</span>
-        ${delBtn}
-      `;
-      postList.appendChild(div);
-    }
-  });
-}
-
-/* ■リアクション */
-function react(id, type) {
-  const ref = db.ref(`posts/${currentThread}/${id}/${type}`);
-  ref.transaction(v => (v || 0) + 1);
-}
-
-/* ■削除(主だけ) */
-function delPost(id) {
-  db.ref(`posts/${currentThread}/${id}`).remove();
-}
-</script>
-</body>
-</html>
+/* この下は thread.html 側で使う値保持用 */
+let currentThread = localStorage.getItem("lastThread") || "";
