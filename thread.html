@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>スレッド</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 100%; height: 70px; }
+    .post { padding: 8px; border-bottom: 1px solid #ccc; margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <h1 id="threadTitle">スレッド</h1>
+  <button onclick="location.href='index.html'">← スレ一覧へ</button>
+
+  <h3 style="margin-top:25px;">コメントを書く</h3>
+  <input id="nameInput" placeholder="名前" style="width:100%; padding:6px;">
+  <textarea id="messageInput" placeholder="コメント"></textarea><br>
+  <button id="sendBtn">投稿</button>
+
+  <h3 style="margin-top:30px;">コメント一覧</h3>
+  <div id="postList"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, push, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+      authDomain: "keijiban-7c651.firebaseapp.com",
+      databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
+      projectId: "keijiban-7c651",
+      storageBucket: "keijiban-7c651.firebasestorage.app",
+      messagingSenderId: "342192640264",
+      appId: "1:342192640264:web:a004a725b470741aaf1cbd",
+      measurementId: "G-7E1BZ3BGBR"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const threadId = new URLSearchParams(location.search).get("id");
+    const threadRef = ref(db, `threads/${threadId}`);
+    const postRef = ref(db, `threads/${threadId}/posts`);
+
+    onValue(threadRef, (snapshot) => {
+      const data = snapshot.val();
+      document.getElementById("threadTitle").innerText = data.title;
+    });
+
+    document.getElementById("sendBtn").addEventListener("click", () => {
+      const name = document.getElementById("nameInput").value || "名無し";
+      const msg  = document.getElementById("messageInput").value;
+      if (!msg) return;
+      const newPost = push(postRef);
+      set(newPost, {
+        name: name,
+        message: msg,
+        createdAt: Date.now(),
+        reactions: { ninjin: 0, kirakira: 0 }
+      });
+      document.getElementById("messageInput").value = "";
+    });
+
+    onValue(postRef, (snapshot) => {
+      const data = snapshot.val();
+      const list = document.getElementById("postList");
+      list.innerHTML = "";
+      if (!data) return;
+      for (const id in data) {
+        const p = document.createElement("div");
+        p.className = "post";
+        p.innerHTML = `<b>${data[id].name}</b><br>${data[id].message}`;
+        list.appendChild(p);
+      }
+    });
+  </script>
+</body>
+</html>
