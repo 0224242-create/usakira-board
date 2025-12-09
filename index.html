@@ -6,16 +6,26 @@
   <style>
     body { font-family: sans-serif; padding: 20px; }
     .thread { padding: 10px; border-bottom: 1px solid #ccc; margin: 8px 0; cursor: pointer; }
+    .pagination { display: flex; gap: 10px; margin-top: 20px; }
+    button { cursor: pointer; }
   </style>
 </head>
 <body>
   <h1>🐰 うさ★キラ掲示板 – スレ一覧</h1>
 
-  <input id="threadTitle" placeholder="スレタイトルを入力" style="width:100%; font-size:18px; padding:6px;">
-  <button id="createThreadBtn" style="margin-top:10px;">新規スレを作成</button>
+  <input id="searchBox" placeholder="🔍 スレタイトル検索" style="width:100%; font-size:18px; padding:6px; margin-bottom:12px;">
+
+  <input id="threadTitle" placeholder="📝 新しいスレタイトルを入力" style="width:100%; font-size:18px; padding:6px;">
+  <button id="createThreadBtn" style="margin-top:10px;">🌟 新規スレを作成</button>
 
   <h2 style="margin-top:30px;">📂 スレ一覧</h2>
   <div id="threadList"></div>
+
+  <div class="pagination">
+    <button id="prevBtn">◀ 前へ</button>
+    <span id="pageNum"></span>
+    <button id="nextBtn">次へ ▶</button>
+  </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -35,6 +45,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
+    // スレ作成
     document.getElementById("createThreadBtn").addEventListener("click", () => {
       const title = document.getElementById("threadTitle").value;
       if (!title) return;
@@ -46,20 +57,56 @@
       document.getElementById("threadTitle").value = "";
     });
 
-    onValue(ref(db, "threads"), (snapshot) => {
-      const data = snapshot.val();
+    // 検索 & ページング
+    let allThreads = [];
+    let currentPage = 1;
+    const perPage = 8;
+
+    const renderThreads = () => {
+      const search = document.getElementById("searchBox").value.toLowerCase();
+      const filtered = allThreads.filter(t => t.title.toLowerCase().includes(search));
       const list = document.getElementById("threadList");
       list.innerHTML = "";
-      if (!data) return;
-      for (const id in data) {
+
+      const start = (currentPage - 1) * perPage;
+      const selected = filtered.slice(start, start + perPage);
+      selected.forEach(t => {
         const div = document.createElement("div");
         div.className = "thread";
-        div.innerText = data[id].title;
+        div.innerText = t.title;
         div.addEventListener("click", () => {
-          location.href = `thread.html?id=${id}`;
+          location.href = `thread.html?id=${t.id}`;
         });
         list.appendChild(div);
+      });
+
+      document.getElementById("pageNum").innerText =
+        `${currentPage} / ${Math.max(1, Math.ceil(filtered.length / perPage))}`;
+    };
+
+    onValue(ref(db, "threads"), (snapshot) => {
+      const data = snapshot.val();
+      allThreads = [];
+      for (const id in data) {
+        allThreads.push({ id, title: data[id].title, createdAt: data[id].createdAt });
       }
+      allThreads.sort((a, b) => b.createdAt - a.createdAt);
+      renderThreads();
+    });
+
+    document.getElementById("searchBox").addEventListener("input", () => {
+      currentPage = 1;
+      renderThreads();
+    });
+
+    document.getElementById("prevBtn").addEventListener("click", () => {
+      if (currentPage > 1) currentPage--;
+      renderThreads();
+    });
+
+    document.getElementById("nextBtn").addEventListener("click", () => {
+      currentPage++;
+      renderThreads();
     });
   </script>
 </body>
