@@ -1,118 +1,149 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>うさ★キラ掲示板</title>
-  <style>
-    body { font-family: sans-serif; padding: 20px; transition: background 0.3s, color 0.3s; }
-    .thread { padding: 10px; border-bottom: 1px solid #ccc; margin: 6px 0; }
-    .dark { background: #111; color: #f5f5f5; }
-  </style>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase.js"></script>
+<meta charset="UTF-8" />
+<title>うさ★キラ掲示板</title>
+<style>
+  body { font-family: sans-serif; background:#fafafa; padding:20px; transition:0.3s; }
+  .dark { background:#1a1a1a; color:#fff; }
+  textarea { width:100%; height:70px; }
+  .post { border-bottom:1px solid #ccc; padding:8px; margin:6px 0; }
+  .delete { cursor:pointer; color:red; font-size:12px; }
+  .page-btn { margin:3px; cursor:pointer; }
+  .locked { color:#888; }
+</style>
 </head>
 <body>
-
 <h1>🐰 うさ★キラ掲示板</h1>
-
-<button onclick="toggleMode()">🌙 ダーク / ライト</button>
+<button id="toggleDark">🌑 ダークモード</button>
 <hr>
 
-<h2>🎀 プロフィール</h2>
-名前 <input id="profileName"><br>
-ひとこと <input id="profileComment"><br>
-アイコン画像URL <input id="profileIcon"><br>
+<h3>プロフィール</h3>
+名前 <input id="nameInput"><br>
+アイコンURL <input id="iconInput" style="width:70%">
 <button onclick="saveProfile()">保存</button>
 <hr>
 
-<h2>📌 新規スレ作成</h2>
-<input id="threadTitle" placeholder="スレの名前">
-<button onclick="createThread()">作成</button>
+<h3>スレッド作成</h3>
+タイトル <input id="titleInput"><br>
+本文<textarea id="bodyInput"></textarea><br>
+鍵スレパスワード(任意) <input id="passInput"><br>
+<button onclick="createThread()">スレッド作成</button>
 <hr>
 
-<h2>📚 スレ一覧</h2>
-<div id="threadList"></div>
+<h2>📌 スレッド一覧</h2>
+<div id="threads"></div>
+<div id="paging"></div>
 
-<script>
-/* Firebase */
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getDatabase, ref, push, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+
 const firebaseConfig = {
-  apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-  authDomain: "keijiban-7c651.firebaseapp.com",
-  databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
-  projectId: "keijiban-7c651",
-  storageBucket: "keijiban-7c651.firebasestorage.app",
-  messagingSenderId: "342192640264",
-  appId: "1:342192640264:web:a004a725b470741aaf1cbd",
-  measurementId: "G-7E1BZ3BGBR"
+  apiKey: "XXXX",
+  authDomain: "XXXX",
+  databaseURL: "XXXX",
+  projectId: "XXXX",
+  storageBucket: "XXXX",
+  messagingSenderId: "XXXX",
+  appId: "XXXX"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-/* ユーザーID */
-let userId = localStorage.getItem("userId");
-if (!userId) {
-  userId = "user_" + Math.random().toString(36).substring(2);
-  localStorage.setItem("userId", userId);
-}
-
-/* プロフィール */
-const profileRef = db.ref("profiles");
-const defaultIcon = "usagi.png.jpeg";
-
-profileRef.child(userId).get().then(snap => {
-  const p = snap.val();
-  if (p) {
-    profileName.value = p.name;
-    profileComment.value = p.comment;
-    profileIcon.value = p.icon;
-  } else {
-    profileIcon.value = defaultIcon;
-  }
-});
-
+// プロフィール初期設定
+let profile = {
+  name: localStorage.name || "名もなき兎",
+  icon: localStorage.icon || "usagi.png.jpeg"
+};
+document.getElementById("nameInput").value = profile.name;
+document.getElementById("iconInput").value = profile.icon;
 function saveProfile() {
-  profileRef.child(userId).set({
-    name: profileName.value,
-    comment: profileComment.value,
-    icon: profileIcon.value || defaultIcon
-  });
-  alert("保存したよ🐰");
+  profile.name = document.getElementById("nameInput").value || "名もなき兎";
+  profile.icon = document.getElementById("iconInput").value || "usagi.png.jpeg";
+  localStorage.name = profile.name;
+  localStorage.icon = profile.icon;
+  alert("保存したペコ");
 }
 
-/* スレ作成 */
-function createThread() {
-  const title = threadTitle.value.trim();
-  if (!title) return;
-  db.ref("threads").push({ title, owner: userId });
-  threadTitle.value = "";
-}
-
-/* スレ一覧表示 */
-function loadThreads() {
-  threadList.innerHTML = "";
-  db.ref("threads").on("value", snap => {
-    threadList.innerHTML = "";
-    const data = snap.val();
-    for (let id in data) {
-      const d = document.createElement("div");
-      d.className = "thread";
-      d.innerHTML = `<b>${data[id].title}</b>
-        <button onclick="openThread('${id}')">開く</button>`;
-      threadList.appendChild(d);
-    }
-  });
-}
-loadThreads();
-
-/* 別タブでスレを開く */
-function openThread(id) {
-  localStorage.setItem("lastThread", id);
-  window.open(`thread.html?id=${id}`, "_blank");
-}
-
-/* ダークモード */
-function toggleMode() {
+// ダークモード
+let dark = localStorage.dark === "true";
+if(dark) document.body.classList.add("dark");
+document.getElementById("toggleDark").onclick = () => {
+  dark = !dark;
+  localStorage.dark = dark;
   document.body.classList.toggle("dark");
+};
+
+// スレ作成
+function createThread() {
+  const title = titleInput.value.trim();
+  const body = bodyInput.value.trim();
+  const pass = passInput.value.trim();
+  if(!title || !body) return alert("タイトルと本文書けペコ");
+  const t = ref(db,"threads");
+  push(t,{
+    title,
+    body,
+    pass: pass || "",
+    name: profile.name,
+    icon: profile.icon,
+    time: Date.now(),
+    banned: ""
+  });
+  titleInput.value = "";
+  bodyInput.value = "";
+  passInput.value = "";
 }
+
+// BAN
+function banUser(name) {
+  if(prompt("管理パスワード") !== "master") return;
+  update(ref(db,"ban"), { [name]: true });
+  alert(name+" をBANしました");
+}
+
+// スレ表示（ページング）
+const PER = 20;
+let page = 1;
+onValue(ref(db,"threads"), snap => {
+  const data = snap.val() || {};
+  let arr = Object.entries(data).sort((a,b)=>b[1].time-a[1].time);
+  render(arr);
+});
+function render(arr) {
+  const banned = {};
+  onValue(ref(db,"ban"), s => Object.assign(banned,s.val()||{}),{onlyOnce:true});
+
+  const start = (page-1)*PER;
+  const pick = arr.slice(start,start+PER);
+  threads.innerHTML = "";
+
+  pick.forEach(([key,v])=>{
+    if(v.banned || banned[v.name]) return;
+    let html = `<div class="post">
+      <img src="${v.icon}" width="32" height="32">
+      <b>${v.title}</b><br>
+      by ${v.name} <button onclick="banUser('${v.name}')">BAN</button><br>`;
+    if(v.pass) html += `<span class="locked">🔒鍵スレ</span><br>`;
+    html += `<a href="thread.html?id=${key}" target="_blank">開く</a><br>`;
+    html += `<span class="delete" onclick="delThread('${key}','${v.name}')">削除</span>
+    </div>`;
+    threads.insertAdjacentHTML("beforeend",html);
+  });
+
+  paging.innerHTML = "";
+  const pages = Math.ceil(arr.length / PER);
+  for(let i=1;i<=pages;i++){
+    paging.insertAdjacentHTML("beforeend",
+      `<button class="page-btn" onclick="page=${i};render(arr)"> ${i} </button>`);
+  }
+}
+window.delThread = (key,name)=>{
+  if(name !== profile.name && prompt("管理パスワード")!=="master") return;
+  remove(ref(db,"threads/"+key));
+};
+window.banUser = banUser;
 </script>
 </body>
 </html>
