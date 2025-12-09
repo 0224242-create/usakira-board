@@ -1,12 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- トップページだけ -->
+  <!-- トップページ -->
   <url>
     <loc>https://0224242-create.github.io/usakira-board/</loc>
-    <lastmod>2025-12-08</lastmod>
+    <lastmod>2025-12-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+  </url>
+
+  <!-- スレッド1 -->
+  <url>
+    <loc>https://0224242-create.github.io/usakira-board/thread1.html</loc>
+    <lastmod>2025-12-09</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://0224242-create.github.io/usakira-board/img/rabbit1.png</image:loc>
+      <image:caption>スレッド1の兎キャラクター</image:caption>
+    </image:image>
+  </url>
+
+  <!-- スレッド2 -->
+  <url>
+    <loc>https://0224242-create.github.io/usakira-board/thread2.html</loc>
+    <lastmod>2025-12-08</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://0224242-create.github.io/usakira-board/img/rabbit2.png</image:loc>
+      <image:caption>スレッド2の兎キャラクター</image:caption>
+    </image:image>
+  </url>
+
+  <!-- スレッド3 -->
+  <url>
+    <loc>https://0224242-create.github.io/usakira-board/thread3.html</loc>
+    <lastmod>2025-12-07</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
   </url>
 
 </urlset>
