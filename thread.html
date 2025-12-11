@@ -28,6 +28,20 @@
 <body>
   <button id="darkToggle" style="position:fixed; right:12px; top:12px;">🌙</button>
   <h1 id="threadTitle">読み込み中…</h1>
+ <button id="backBtn" style="
+  padding:6px 12px;
+  margin-bottom:12px;
+  border-radius:6px;
+  background:#ffe0f0;
+  border:1px solid #ffb7d6;
+  cursor:pointer;
+">← 掲示板に戻る</button>
+
+<script>
+  document.getElementById("backBtn").addEventListener("click", () => {
+    location.href = "index.html";
+  });
+</script>
   <div id="threadInfo" class="meta"></div>
   <hr>
 
