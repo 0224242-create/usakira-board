@@ -7,14 +7,22 @@
   <style>
     body { font-family: "Hiragino Kaku Gothic ProN", sans-serif; padding:20px; background:#fff0f8; color:#222; transition:0.25s; }
     .dark { background:#121212; color:#eaeaea; }
+
     .post { border:1px solid #ffd4ea; padding:10px; margin:8px 0; border-radius:8px; background:#fff; position:relative; }
+    body.dark .post { background:#1e1e1e; border-color:#555; }
+
     .icon { width:36px; height:36px; border-radius:50%; vertical-align:middle; margin-right:8px; }
     .meta { font-size:13px; color:#666; margin-top:6px; }
+    body.dark .meta { color:#bbbbbb; }
+
     button { padding:6px 10px; margin:4px; cursor:pointer; border-radius:4px; }
-    #replyText { width:100%; height:80px; padding:8px; box-sizing:border-box; margin-bottom:6px; }
+    body.dark button { background:#333; color:#eaeaea; border:1px solid #666; }
+
+    #replyText { width:100%; height:80px; padding:8px; box-sizing:border-box; margin-bottom:6px;
+      background:#fff; color:#222; border:1px solid #ccc; }
+    body.dark #replyText { background:#222; color:#eaeaea; border:1px solid #555; }
+
     a { color:#d22; text-decoration:underline; }
-    .replyNum { color:#888; font-weight:bold; margin-right:4px; }
-    .replyBtn { background:#ffd4ea; border:none; }
   </style>
 </head>
 <body>
@@ -64,6 +72,7 @@
   /* プロフィール */
   const userId = localStorage.getItem("usakira_userId") || ("user_"+Math.random().toString(36).slice(2));
   if (!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId", userId);
+
   const defaultName = "名もなき兎";
   const defaultIcon = "usagi.png.jpeg";
   const profileName = localStorage.getItem("usakira_name") || defaultName;
@@ -107,6 +116,7 @@
 
   function linkify(text){ return (text||"").replace(/(https?:\/\/[^\s]+)/g,m=>`<a href="${m}" target="_blank">${m}</a>`); }
 
+  /* 投稿描画 */
   function renderPosts(page=1){
     const start=(page-1)*PER;
     const pick=postsArr.slice(start,start+PER);
@@ -118,58 +128,83 @@
       const postNumber=start+idx+1;
       const html=document.createElement("div");
       html.className="post";
+
       html.innerHTML=`
         <div>
           <span class="replyNum">#${postNumber}</span>
           <img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
           <strong>${p.name||defaultName}</strong>
+          <span class="meta">(ID: ${(p.uid || "xxxx").slice(0,4)})</span>
           <div class="meta">${new Date(p.time||0).toLocaleString()}</div>
         </div>
         <div style="margin-top:8px">${linkify(p.text)}</div>
       `;
 
-      // 返信ボタン
-      const replyBtn=document.createElement("button");
-      replyBtn.textContent="返信";
-      replyBtn.className="replyBtn";
-      replyBtn.onclick=()=>{ document.getElementById("replyText").value=`#${postNumber} `; document.getElementById("replyText").focus(); };
-      html.appendChild(replyBtn);
-
-      // 削除・BANボタン
       const controls=document.createElement("div");
       controls.style.marginTop="8px";
 
+      /* 返信ボタン */
+      const replyBtn=document.createElement("button");
+      replyBtn.textContent="返信";
+      replyBtn.onclick=()=>{ 
+        document.getElementById("replyText").value=`#${postNumber} `; 
+        document.getElementById("replyText").focus(); 
+      };
+      controls.appendChild(replyBtn);
+
+      /* 削除 */
       const delBtn=document.createElement("button");
       delBtn.textContent="削除";
       delBtn.onclick=async()=>{
         const me = localStorage.getItem("usakira_userId");
         const threadSnap = await get(ref(db,`threads/${threadId}`));
         const threadData = threadSnap.val()||{};
-        if(me===p.uid||me===threadData.ownerId){ if(!confirm("削除しますか？")) return; await remove(ref(db,`posts/${threadId}/${id}`)); return; }
+        if(me===p.uid||me===threadData.ownerId){ 
+          if(!confirm("削除しますか？")) return; 
+          await remove(ref(db,`posts/${threadId}/${id}`)); 
+          return; 
+        }
         const pw = prompt("管理パスワード");
         if(pw==="master"){ await remove(ref(db,`posts/${threadId}/${id}`)); alert("削除しました"); return; }
         alert("削除権限なし");
       };
       controls.appendChild(delBtn);
 
+      /* BAN */
       const banBtn=document.createElement("button");
       banBtn.textContent="BAN";
       banBtn.onclick=async()=>{
         const threadSnap = await get(ref(db,`threads/${threadId}`));
         const threadData = threadSnap.val()||{};
         const me = localStorage.getItem("usakira_userId");
-        if(me===threadData.ownerId){ if(!confirm(`${p.name} をBANしますか？`)) return; await set(ref(db,`bans/${p.uid}`),true); alert("BANしました"); return; }
+        if(me===threadData.ownerId){ 
+          if(!confirm(`${p.name} をBANしますか？`)) return; 
+          await set(ref(db,`bans/${p.uid}`),true); 
+          alert("BANしました"); 
+          return; 
+        }
         const pw = prompt("管理パスワード");
         if(pw==="master"){ await set(ref(db,`bans/${p.uid}`),true); alert("BANしました"); return; }
         alert("BAN権限なし");
       };
       controls.appendChild(banBtn);
 
+      /* 通報ボタン */
+      const reportBtn=document.createElement("button");
+      reportBtn.textContent="通報";
+      reportBtn.onclick=async()=>{
+        const me = localStorage.getItem("usakira_userId");
+        const reportRef = ref(db,`reports/${threadId}/${id}/${me}`);
+        await set(reportRef,{ time:Date.now() });
+        alert("通報を受け付けました");
+      };
+      controls.appendChild(reportBtn);
+
       html.appendChild(controls);
       container.appendChild(html);
     });
 
-    // ページング
+    /* ページング */
     const pages=Math.max(1,Math.ceil(postsArr.length/PER));
     const pg=document.getElementById("postsPaging");
     pg.innerHTML="";
