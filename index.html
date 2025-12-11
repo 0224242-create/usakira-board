@@ -329,3 +329,50 @@
   </script>
 </body>
 </html>
+/* 管理パネル */
+document.getElementById("adminOpen").onclick = async () => {
+  const pw = prompt("管理パスワードを入力してください");
+  if (pw !== "master") {
+    alert("権限がありません");
+    return;
+  }
+
+  document.getElementById("adminPanel").style.display = "block";
+  loadReports();
+};
+
+async function loadReports() {
+  const reportsSnap = await get(ref(db, "reports"));
+  const reports = reportsSnap.val() || {};
+  const area = document.getElementById("reportsArea");
+  area.innerHTML = "";
+
+  if (!Object.keys(reports).length) {
+    area.innerHTML = "<p>通報はありません。</p>";
+    return;
+  }
+
+  for (const threadId in reports) {
+    const box = document.createElement("div");
+    box.style.marginBottom = "12px";
+    box.innerHTML = `<strong>[スレID] ${threadId}</strong>`;
+
+    const postList = reports[threadId];
+    for (const postId in postList) {
+      const ul = document.createElement("ul");
+      ul.innerHTML = `<li>[投稿ID] ${postId}</li>`;
+
+      const reporters = postList[postId];
+      for (const uid in reporters) {
+        const li = document.createElement("li");
+        li.style.marginLeft = "12px";
+        li.textContent = "・ reported by " + uid;
+        ul.appendChild(li);
+      }
+
+      box.appendChild(ul);
+    }
+
+    area.appendChild(box);
+  }
+}
