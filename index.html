@@ -34,13 +34,8 @@
       text-decoration: none;
       font-size: 1.15rem;
     }
-    .thread h3 a:hover {
-      text-decoration: underline;
-    }
-    .thread p {
-      color: #444;
-      margin: 6px 0;
-    }
+    .thread h3 a:hover { text-decoration: underline; }
+    .thread p { color: #444; margin: 6px 0; }
     body.dark .thread {
       background:#1b1b1b;
       border-color:#555;
@@ -49,14 +44,14 @@
     body.dark .thread:hover {
       box-shadow:0 6px 12px rgba(0,0,0,0.5);
     }
-    body.dark .thread h3 a {
-      color:#ff8cd1;
-    }
+    body.dark .thread h3 a { color:#ff8cd1; }
 
     button {
       padding:6px 10px; margin:4px; border-radius:6px;
       cursor:pointer;
+      transition:0.15s;
     }
+    button:hover { opacity:0.85; }
     body.dark button { background:#333; color:#eaeaea; border:1px solid #666; }
 
     input, textarea {
@@ -105,7 +100,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 /* Firebase */
 const firebaseConfig = {
@@ -197,7 +192,6 @@ function renderThreads(page){
     const div=document.createElement("div");
     div.className="thread";
 
-    /* ▼ かわいいカード版HTML ▼ */
     div.innerHTML = `
       <div style="display:flex; align-items:center; gap:10px;">
         <img src="${t.ownerIcon || defaultIcon}" 
@@ -220,13 +214,18 @@ function renderThreads(page){
       </p>
     `;
 
-    /* ▼ スレ削除ボタン ▼ */
+    /* ▼ スレ削除ボタンを右端に表示 ▼ */
+    const btnWrapper = document.createElement("div");
+    btnWrapper.style.display = "flex";
+    btnWrapper.style.justifyContent = "flex-end"; // 右端に寄せる
+    btnWrapper.style.marginTop = "8px";
+
     const delBtn = document.createElement("button");
     delBtn.textContent = "スレ削除";
-    delBtn.onclick = async ()=>{
+    delBtn.onclick = async () => {
       const me = userId;
 
-      if (me === t.ownerId){
+      if (me === t.ownerId) {
         if (!confirm("このスレッドを削除しますか？")) return;
         await set(ref(db, `threads/${id}`), null);
         await set(ref(db, `posts/${id}`), null);
@@ -235,7 +234,7 @@ function renderThreads(page){
       }
 
       const pw = prompt("管理パスワード");
-      if (pw === "master"){
+      if (pw === "master") {
         await set(ref(db, `threads/${id}`), null);
         await set(ref(db, `posts/${id}`), null);
         alert("スレを削除したよ！");
@@ -245,7 +244,8 @@ function renderThreads(page){
       alert("削除権限がないペコ");
     };
 
-    div.appendChild(delBtn);
+    btnWrapper.appendChild(delBtn);
+    div.appendChild(btnWrapper);
     /* ▲ スレ削除ここまで ▲ */
 
     box.appendChild(div);
