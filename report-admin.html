@@ -2,100 +2,159 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>通報一覧 | うさ★キラ掲示板 管理</title>
+  <title>管理ページ - 🐰うさ★キラ掲示板</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body {
       font-family: "Hiragino Kaku Gothic ProN", sans-serif;
-      background: #fffafc;
-      color: #222;
-      padding: 20px;
+      background:#fff7fb;
+      padding:20px;
+      color:#222;
     }
-    h1 {
-      font-size: 24px;
-      margin-bottom: 20px;
+    h1 { margin-bottom:20px; }
+    .box {
+      border:1px solid #ffbddd;
+      padding:12px;
+      margin-top:15px;
+      background:#fff;
+      border-radius:10px;
     }
-    .report {
-      background: #f8f2ff;
-      padding: 12px;
-      margin: 12px 0;
-      border-radius: 10px;
-      border: 1px solid #e2caff;
-    }
-    .threadId {
-      font-weight: bold;
-      color: #a94ddb;
-    }
-    .postId {
-      color: #444;
-    }
-    .reporter {
-      color: #666;
-      font-size: 14px;
+    button {
+      padding:6px 10px;
+      margin:4px;
+      border-radius:6px;
+      cursor:pointer;
     }
   </style>
 </head>
 <body>
 
-<h1>通報一覧（管理用）🐇⚠️</h1>
-<div id="list">読み込み中…</div>
+<h1>🐰 管理ページ（BAN & 通報ログ）</h1>
 
-<!-- Firebase -->
+<div id="loginBox" class="box">
+  <p>管理パスワードを入力してください。</p>
+  <input id="pw" type="password" placeholder="管理パスワード" />
+  <button id="loginBtn">ログイン</button>
+</div>
+
+<div id="adminArea" style="display:none">
+
+  <h2>🟥 BANユーザー一覧</h2>
+  <div id="banList" class="box">読み込み中…</div>
+
+  <h2>⚠️ 通報ログ</h2>
+  <div id="reportList" class="box">読み込み中…</div>
+
+</div>
+
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getDatabase, ref, onValue, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH",
-    databaseURL: "YOUR_DB_URL",
-    projectId: "YOUR_ID",
-    storageBucket: "YOUR_BUCKET",
-    messagingSenderId: "YOUR_MSG_ID",
-    appId: "YOUR_APP_ID"
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+  authDomain: "keijiban-7c651.firebaseapp.com",
+  databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
+  projectId: "keijiban-7c651",
+  storageBucket: "keijiban-7c651.firebasestorage.app",
+  messagingSenderId: "342192640264",
+  appId: "1:342192640264:web:a004a725b470741aaf1cbd",
+  measurementId: "G-7E1BZ3BGBR"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+/* ---------- ログイン ---------- */
+document.getElementById("loginBtn").onclick = () => {
+  const pw = document.getElementById("pw").value;
+  if (pw === "master") {
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("adminArea").style.display = "block";
+  } else {
+    alert("パスワード違い");
+  }
+};
 
-  const list = document.getElementById("list");
+/* ---------- BAN 一覧 ---------- */
+onValue(ref(db, "bans"), snap => {
+  const data = snap.val() || {};
+  const box = document.getElementById("banList");
+  box.innerHTML = "";
 
-  const reportsRef = ref(db, "reports");
-  onValue(reportsRef, snap => {
-    const data = snap.val();
-    if (!data) {
-      list.textContent = "通報はありません。";
-      return;
-    }
+  if (Object.keys(data).length === 0) {
+    box.innerHTML = "BANユーザーはいません。";
+    return;
+  }
 
-    list.innerHTML = "";
-
-    for (const threadId in data) {
-      for (const postId in data[threadId]) {
-
-        const reporters = Object.keys(data[threadId][postId]);
-        const reportTimes = Object.values(data[threadId][postId]);
-
-        const div = document.createElement("div");
-        div.className = "report";
-
-        div.innerHTML = `
-          <div class="threadId">スレID：${threadId}</div>
-          <div class="postId">投稿ID：${postId}</div>
-          <div class="reporter">
-            通報したユーザー：
-            ${reporters.map(x => x.slice(0,4)).join(", ")}
-          </div>
-          <div class="reporter">
-            通報日時：<br>
-            ${reportTimes.map(r => new Date(r.time).toLocaleString()).join("<br>")}
-          </div>
-        `;
-
-        list.appendChild(div);
-      }
-    }
+  Object.keys(data).forEach(uid => {
+    const div = document.createElement("div");
+    div.innerHTML = `
+      <strong>UID:</strong> ${uid}
+      <button class="unbanBtn" data-uid="${uid}">解除</button>
+    `;
+    box.appendChild(div);
   });
+
+  document.querySelectorAll(".unbanBtn").forEach(btn => {
+    btn.onclick = async () => {
+      const uid = btn.dataset.uid;
+      if (confirm("このユーザーのBANを解除しますか？"))
+        await remove(ref(db, "bans/" + uid));
+    };
+  });
+});
+
+/* ---------- 通報ログ ---------- */
+onValue(ref(db, "reports"), snap => {
+  const data = snap.val() || {};
+  const box = document.getElementById("reportList");
+  box.innerHTML = "";
+
+  if (Object.keys(data).length === 0) {
+    box.innerHTML = "通報はありません。";
+    return;
+  }
+
+  Object.entries(data).forEach(([threadId, posts]) => {
+    const tDiv = document.createElement("div");
+    tDiv.innerHTML = `<h3>スレID: ${threadId}</h3>`;
+
+    Object.entries(posts).forEach(([postId, users]) => {
+      const count = Object.keys(users).length;
+
+      const pDiv = document.createElement("div");
+      pDiv.style.marginLeft = "20px";
+      pDiv.innerHTML = `
+        <p>
+          投稿ID: ${postId}<br>
+          通報数: <strong>${count}</strong><br>
+          <button class="delBtn"
+                  data-thread="${threadId}"
+                  data-post="${postId}">
+            削除
+          </button>
+        </p>
+      `;
+      tDiv.appendChild(pDiv);
+    });
+
+    box.appendChild(tDiv);
+  });
+
+  document.querySelectorAll(".delBtn").forEach(btn => {
+    btn.onclick = async () => {
+      const thread = btn.dataset.thread;
+      const post = btn.dataset.post;
+
+      if (!confirm("この投稿を削除しますか？")) return;
+
+      await remove(ref(db, `posts/${thread}/${post}`));     // 投稿削除
+      await remove(ref(db, `reports/${thread}/${post}`));   // 通報ログ削除
+
+      alert("削除しました");
+    };
+  });
+});
 </script>
 
 </body>
