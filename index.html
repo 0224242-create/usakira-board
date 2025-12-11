@@ -163,10 +163,10 @@ function renderThreads(page){
   const box=document.getElementById("threads");
   box.innerHTML="";
 
-  pick.forEach(([id,t])=>{
-    const div=document.createElement("div");
-    div.className="thread";
-    div.innerHTML=`
+pick.forEach(([id,t])=>{
+  const div=document.createElement("div");
+  div.className="thread";
+  div.innerHTML=`
       <h3><a href="thread.html?id=${id}">${t.title||"（無題）"}</a></h3>
       <p>${t.body||""}</p>
       <p class="meta">
@@ -175,9 +175,41 @@ function renderThreads(page){
         <br>
         ${new Date(t.time).toLocaleString()}
       </p>
-    `;
-    box.appendChild(div);
-  });
+  `;
+
+  /* ▼ スレ削除ボタン追加 ▼ */
+  const delBtn = document.createElement("button");
+  delBtn.textContent = "スレ削除";
+  delBtn.onclick = async ()=>{
+    const me = userId;
+
+    // 自分がスレ主なら消せる
+    if (me === t.ownerId){
+      if (!confirm("このスレッドを削除しますか？")) return;
+      await set(ref(db, `threads/${id}`), null);
+      await set(ref(db, `posts/${id}`), null); // スレの投稿も削除
+      alert("スレを削除したよ！");
+      return;
+    }
+
+    // 管理者も削除可能
+    const pw = prompt("管理パスワード");
+    if (pw === "master"){
+      await set(ref(db, `threads/${id}`), null);
+      await set(ref(db, `posts/${id}`), null);
+      alert("スレを削除したよ！");
+      return;
+    }
+
+    alert("削除権限がないペコ");
+  };
+
+  div.appendChild(delBtn);
+  /* ▲ スレ削除ここまで ▲ */
+
+  box.appendChild(div);
+});
+
 
   const pages=Math.max(1,Math.ceil(threadArr.length/PER));
   const pg=document.getElementById("paging");
