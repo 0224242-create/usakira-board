@@ -2,423 +2,201 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>うさ★キラ掲示板（完全版 / 牢獄BAN管理）</title>
+  <title>🐰うさ★キラ掲示板✨️</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family:"Hiragino Kaku Gothic ProN", sans-serif; padding:20px; background:#fffafc; color:#222; }
+    body {
+      font-family:"Hiragino Kaku Gothic ProN", sans-serif;
+      background:#fff0f8;
+      padding:20px;
+      color:#222;
+      transition:0.25s;
+    }
     .dark { background:#121212; color:#eaeaea; }
 
     .thread {
       border:1px solid #ffd4ea;
-      padding:12px;
-      border-radius:8px;
-      margin:8px 0;
       background:#fff;
+      padding:12px;
+      margin:10px 0;
+      border-radius:8px;
     }
-    .thread .meta { font-size:13px; color:#666; margin-top:6px; }
-    .icon { width:36px; height:36px; border-radius:50%; vertical-align:middle; margin-right:8px; }
+    body.dark .thread { background:#1e1e1e; border-color:#555; }
 
-    input, textarea { width:100%; padding:8px; margin:6px 0; box-sizing:border-box; }
-    button { padding:8px 12px; margin:6px 4px 6px 0; cursor:pointer; }
-    .small { font-size:12px; color:#666; }
-    .locked { color:#aa8; }
+    button {
+      padding:6px 10px; margin:4px; border-radius:6px;
+      cursor:pointer;
+    }
+    body.dark button { background:#333; color:#eaeaea; border:1px solid #666; }
 
-    /* ------- ダークモード完全対応 ------- */
-    body.dark {
-      background:#121212;
-      color:#eaeaea;
+    input, textarea {
+      padding:6px; margin:4px 0; width:100%;
+      box-sizing:border-box;
+      border-radius:6px;
+      border:1px solid #ccc;
     }
-    body.dark .thread {
-      background:#1e1e1e;
-      border-color:#555;
-    }
-    body.dark .meta {
-      color:#bbbbbb;
-    }
-    body.dark .locked {
-      color:#d6cfa8;
-    }
-    body.dark input,
-    body.dark textarea {
-      background:#222;
-      color:#eaeaea;
-      border:1px solid #555;
-    }
-    body.dark button {
-      background:#333;
-      color:#eaeaea;
-      border:1px solid #666;
-    }
-    body.dark #threadPaging button {
-      background:#333;
-      color:#eaeaea;
+    body.dark input, body.dark textarea {
+      background:#222; color:#eaeaea; border:1px solid #555;
     }
 
-    /* 牢獄POPUP */
-    #jail {
-      display:none;
-      position:fixed; top:0; left:0; width:100%; height:100%;
-      background:rgba(0,0,0,0.9);
-      color:#eaeaea;
-      padding:30px;
-      overflow-y:auto;
-    }
-    #jailBox {
-      border:3px solid #666;
-      border-radius:10px;
-      padding:18px;
-      background:linear-gradient(#2a2a2a,#111);
-      box-shadow:inset 0 0 25px black;
-    }
-    .bars {
-      width:100%; height:16px;
-      background:repeating-linear-gradient(90deg, #222 0 14px, #666 14px 18px);
-      margin:8px 0;
-    }
-    .banEntry {
-      border-bottom:1px solid #444; padding:6px;
-      display:flex; align-items:center; justify-content:space-between;
-    }
+    a { color:#d22; text-decoration:underline; }
   </style>
 </head>
-
 <body>
-  <button id="darkToggle" style="position:fixed; top:12px; right:12px;">🌙</button>
-  <h1>🐰うさ★キラ掲示板✨️</h1>
 
-  <button id="openJail" style="background:#222; color:#fff;">🚨 BAN管理（牢獄）</button>
-  <hr>
+<button id="darkToggle" style="position:fixed; right:12px; top:12px;">🌙</button>
 
-  <!-- プロフィール -->
-  <section>
-    <h3>プロフィール</h3>
-    <label>名前</label>
-    <input id="profileName" placeholder="名もなき兎">
-    <label>アイコン画像URL（任意）</label>
-    <input id="profileIcon" placeholder="usagi.png.jpeg">
-    <button id="saveProfileBtn">プロフィール保存</button>
-    <p class="small">※名前未設定は「名もなき兎」になります</p>
-  </section>
-  <hr>
+<h1>🐰うさ★キラ掲示板✨️</h1>
 
-  <!-- スレ作成 -->
-  <section>
-    <h3>スレ作成</h3>
-    <input id="newTitle" placeholder="スレタイトル（必須）">
-    <textarea id="newBody" placeholder="最初の本文（必須）"></textarea>
-    <input id="newPass" placeholder="鍵スレにするならパスワード（任意）">
-    <button id="createThreadBtn">スレッドを作る</button>
-  </section>
-  <hr>
+<div id="profileBox">
+  <h3>プロフィール</h3>
+  <input id="nameInput" placeholder="名前" />
+  <input id="iconInput" placeholder="アイコン画像URL" />
+  <button id="saveProfile">保存</button>
+</div>
 
-  <!-- スレッド一覧 -->
-  <section>
-    <h3>スレッド一覧</h3>
-    <div id="threadList">読み込み中…</div>
-    <div id="threadPaging" style="margin-top:8px;"></div>
-  </section>
+<hr>
 
-  <!-- BAN管理（牢獄） -->
-  <div id="jail">
-    <div id="jailBox">
-      <div class="bars"></div>
-      <h2>👁 BANされた者たちの牢獄</h2>
-      <div class="bars"></div>
-      <div id="banList">読み込み中…</div>
-     <!-- 通報ログ -->
-<h2 style="margin-top:30px;">⚠️ 通報ログ</h2>
-<div class="bars"></div>
-<div id="reportList">読み込み中…</div>
-<div class="bars"></div>
-    　 <div class="bars"></div>
-      <button id="closeJail" style="margin-top:12px;">🔓 閉じる</button>
-    </div>
-  </div>
+<h2>スレッド作成</h2>
+<input id="threadTitle" placeholder="タイトル" />
+<textarea id="threadBody" placeholder="本文（任意）"></textarea>
+<input id="threadPass" placeholder="鍵スレのパスワード（任意）" />
+<button id="createThread">スレッドを作る</button>
 
-  <!-- Firebase & Main Script -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-    import { getDatabase, ref, push, set, onValue, remove, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+<hr>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-      authDomain: "keijiban-7c651.firebaseapp.com",
-      databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
-      projectId: "keijiban-7c651",
-      storageBucket: "keijiban-7c651.firebasestorage.app",
-      messagingSenderId: "342192640264",
-      appId: "1:342192640264:web:a004a725b470741aaf1cbd",
-      measurementId: "G-7E1BZ3BGBR"
-    };
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+<h2>スレッド一覧</h2>
+<div id="threads"></div>
+<div id="paging"></div>
 
-    /* ユーザー識別 */
-    let userId = localStorage.getItem("usakira_userId");
-    if (!userId) {
-      userId = "user_" + Math.random().toString(36).slice(2);
-      localStorage.setItem("usakira_userId", userId);
-    }
-    const defaultName = "名もなき兎";
-    const defaultIcon = "usagi.png.jpeg";
+<hr>
 
-    /* プロフィール */
-    const profileNameEl = document.getElementById("profileName");
-    const profileIconEl = document.getElementById("profileIcon");
+<button id="adminBtn">管理ページ</button>
 
-    profileNameEl.value = localStorage.getItem("usakira_name") || defaultName;
-    profileIconEl.value = localStorage.getItem("usakira_icon") || defaultIcon;
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getDatabase, ref, onValue, push, set, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-    document.getElementById("saveProfileBtn").addEventListener("click", () => {
-      localStorage.setItem("usakira_name", profileNameEl.value.trim() || defaultName);
-      localStorage.setItem("usakira_icon", profileIconEl.value.trim() || defaultIcon);
-      alert("プロフィール保存したペコ");
-    });
+/* Firebase */
+const firebaseConfig = {
+  apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+  authDomain: "keijiban-7c651.firebaseapp.com",
+  databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
+  projectId: "keijiban-7c651",
+  storageBucket: "keijiban-7c651.firebasestorage.app",
+  messagingSenderId: "342192640264",
+  appId: "1:342192640264:web:a004a725b470741aaf1cbd",
+  measurementId: "G-7E1BZ3BGBR"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-    /* ダークモード */
-    const darkToggle = document.getElementById("darkToggle");
-    const applyDark = (x)=>{
-      if(x) document.body.classList.add("dark");
-      else document.body.classList.remove("dark");
-      darkToggle.textContent = x?"☀️":"🌙";
-    };
-    applyDark(localStorage.getItem("usakira_dark")==="true");
+/* ダークモード */
+const darkToggle=document.getElementById("darkToggle");
+const savedDark=localStorage.getItem("usakira_dark")==="true";
+if(savedDark) document.body.classList.add("dark");
+darkToggle.textContent=savedDark?"☀️":"🌙";
+darkToggle.onclick=()=>{
+  const now=!(localStorage.getItem("usakira_dark")==="true");
+  localStorage.setItem("usakira_dark",now);
+  document.body.classList.toggle("dark");
+  darkToggle.textContent=now?"☀️":"🌙";
+};
 
-    darkToggle.onclick = () => {
-      const now = !(localStorage.getItem("usakira_dark")==="true");
-      localStorage.setItem("usakira_dark",now);
-      applyDark(now);
-    };
+/* プロフィール */
+const defaultName="名もなき兎";
+const defaultIcon="usagi.png.jpeg";
 
-    /* BANチェック */
-    async function banned(id){
-      const s = await get(ref(db,`bans/${id}`));
-      return s.exists();
-    }
+const nameInput=document.getElementById("nameInput");
+const iconInput=document.getElementById("iconInput");
 
-    /* スレ作成 */
-    document.getElementById("createThreadBtn").onclick = async () => {
-      if (await banned(userId)) return alert("BANされているため投稿できません🐇🚫");
+nameInput.value=localStorage.getItem("usakira_name")||defaultName;
+iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
 
-      const title=document.getElementById("newTitle").value.trim();
-      const body=document.getElementById("newBody").value.trim();
-      const pass=document.getElementById("newPass").value.trim();
-      if(!title||!body) return alert("必須項目が足りないペコ");
+document.getElementById("saveProfile").onclick=()=>{
+  localStorage.setItem("usakira_name",nameInput.value);
+  localStorage.setItem("usakira_icon",iconInput.value);
+  alert("保存したよ！");
+};
 
-      await push(ref(db,"threads"),{
-        title, body, pass:pass||"", ownerId:userId,
-        ownerName:localStorage.getItem("usakira_name")||defaultName,
-        ownerIcon:localStorage.getItem("usakira_icon")||defaultIcon,
-        time:Date.now()
-      });
+/* ユーザーID */
+const userId=localStorage.getItem("usakira_userId")||("user_"+Math.random().toString(36).slice(2));
+if(!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId",userId);
 
-      document.getElementById("newTitle").value="";
-      document.getElementById("newBody").value="";
-      document.getElementById("newPass").value="";
-    };
+/* スレッド作成 */
+document.getElementById("createThread").onclick=async()=>{
+  const title=document.getElementById("threadTitle").value.trim();
+  if(!title) return alert("タイトルを書いてね");
 
-    /* スレ表示・ページング */
-    const PER=20;
-    let threadArr=[];
+  const body=document.getElementById("threadBody").value.trim();
+  const pass=document.getElementById("threadPass").value.trim();
 
-    onValue(ref(db,"threads"),(snap)=>{
-      const raw=snap.val()||{};
-      threadArr=Object.entries(raw).sort((a,b)=>b[1].time-a[1].time);
-      renderThreads(1);
-    });
+  const key=await push(ref(db,"threads"),{
+    title,
+    body,
+    pass:pass||null,
+    ownerId:userId,
+    ownerName:nameInput.value||defaultName,
+    ownerIcon:iconInput.value||defaultIcon,
+    time:Date.now()
+  }).key;
 
-    function renderThreads(p=1){
-      const start=(p-1)*PER;
-      const pick=threadArr.slice(start,start+PER);
-      const list=document.getElementById("threadList");
-      list.innerHTML="";
+  alert("作成したよ！");
+  location.href=`thread.html?id=${key}`;
+};
 
-      pick.forEach(([id,t])=>{
-        const box=document.createElement("div");
-        box.className="thread";
-        box.innerHTML=`
-          <img src="${t.ownerIcon||defaultIcon}" class="icon" onerror="this.src='${defaultIcon}'">
-          <strong>${t.title}</strong>
-          <div class="meta">by ${t.ownerName||defaultName}・${new Date(t.time).toLocaleString()}</div>
-          ${t.pass?'<div class="locked">🔒 鍵スレ</div>':''}
-          <div style="margin-top:8px;">
-            <button class="openBtn" data-id="${id}">開く</button>
-            <button class="delBtn" data-id="${id}" data-owner="${t.ownerId}">削除</button>
-            <button class="banBtn" data-owner="${t.ownerId}">BAN</button>
-          </div>
-        `;
-        list.appendChild(box);
-      });
+/* スレ一覧 */
+const PER=20;
+let threadArr=[];
 
-      const pages=Math.max(1,Math.ceil(threadArr.length/PER));
-      const pageBox=document.getElementById("threadPaging");
-      pageBox.innerHTML="";
+onValue(ref(db,"threads"), snap=>{
+  const data=snap.val()||{};
+  threadArr=Object.entries(data).sort((a,b)=>(b[1].time||0)-(a[1].time||0));
+  renderThreads(1);
+});
 
-      for(let i=1;i<=pages;i++){
-        const b=document.createElement("button");
-        b.textContent=i;
-        b.onclick=()=>renderThreads(i);
-        pageBox.appendChild(b);
-      }
+/* ページ描画 */
+function renderThreads(page){
+  const start=(page-1)*PER;
+  const pick=threadArr.slice(start,start+PER);
 
-      document.querySelectorAll(".openBtn").forEach(b=>{
-        b.onclick=()=>window.open("thread.html?id="+b.dataset.id,"_blank");
-      });
+  const box=document.getElementById("threads");
+  box.innerHTML="";
 
-      document.querySelectorAll(".delBtn").forEach(b=>{
-        b.onclick=async()=>{
-          const id=b.dataset.id;
-          const owner=b.dataset.owner;
+  pick.forEach(([id,t])=>{
+    const div=document.createElement("div");
+    div.className="thread";
+    div.innerHTML=`
+      <h3><a href="thread.html?id=${id}">${t.title||"（無題）"}</a></h3>
+      <p>${t.body||""}</p>
+      <p class="meta">
+        by ${t.ownerName||defaultName}
+        ${t.pass? " 🔒鍵付き":""}
+        <br>
+        ${new Date(t.time).toLocaleString()}
+      </p>
+    `;
+    box.appendChild(div);
+  });
 
-          if(userId===owner){
-            if(confirm("削除しますか？")){
-              await remove(ref(db,"threads/"+id));
-              await remove(ref(db,"posts/"+id));
-            }
-            return;
-          }
+  const pages=Math.max(1,Math.ceil(threadArr.length/PER));
+  const pg=document.getElementById("paging");
+  pg.innerHTML="";
+  for(let i=1;i<=pages;i++){
+    const b=document.createElement("button");
+    b.textContent=i;
+    b.onclick=()=>renderThreads(i);
+    pg.appendChild(b);
+  }
+}
 
-          const pw=prompt("管理パスワード");
-          if(pw==="master"){
-            await remove(ref(db,"threads/"+id));
-            await remove(ref(db,"posts/"+id));
-            alert("管理者削除完了");
-          }
-        };
-      });
+/* 管理ページ */
+document.getElementById("adminBtn").onclick=()=>{
+  const pw=prompt("管理パスワード");
+  if(pw==="master") location.href="report-admin.html";
+  else alert("パスワード違い");
+};
+</script>
 
-      document.querySelectorAll(".banBtn").forEach(b=>{
-        b.onclick=async()=>{
-          const pw=prompt("管理パスワード");
-          if(pw!=="master") return alert("違うペコ");
-          await set(ref(db,"bans/"+b.dataset.owner),true);
-          alert("BANしたペコ");
-        };
-      });
-    }
-
-    /* 牢獄画面 */
-    const jail=document.getElementById("jail");
-    document.getElementById("openJail").onclick=()=>{ jail.style.display="block"; };
-    document.getElementById("closeJail").onclick=()=>{ jail.style.display="none"; };
-
-    onValue(ref(db,"bans"),(snap)=>{
-      const raw=snap.val()||{};
-      const banList=document.getElementById("banList");
-
-      if(Object.keys(raw).length===0){
-        banList.innerHTML="<p>誰も捕らわれていない…平和だ🐇</p>";
-        return;
-      }
-
-      banList.innerHTML="";
-      Object.keys(raw).forEach(uid=>{
-        const row=document.createElement("div");
-        row.className="banEntry";
-        row.innerHTML=`
-          <span>囚人ID：${uid}</span>
-          <button data-id="${uid}" class="unbanBtn">解除</button>
-        `;
-        banList.appendChild(row);
-      });
-
-      document.querySelectorAll(".unbanBtn").forEach(btn=>{
-        btn.onclick=async()=>{
-          const pw=prompt("管理パスワード");
-          if(pw!=="master") return alert("違うペコ");
-          await remove(ref(db,"bans/"+btn.dataset.id));
-          alert("釈放したペコ");
-        };
-      });
-    });
-  </script>
 </body>
 </html>
-/* 通報ログ読み込み */
-onValue(ref(db, "reports"), async (snap) => {
-  const raw = snap.val() || {};
-  const area = document.getElementById("reportList");
-
-  if (!area) return; // 安全ガード
-
-  if (Object.keys(raw).length === 0) {
-    area.innerHTML = "<p>通報はありません。</p>";
-    return;
-  }
-
-  area.innerHTML = "";
-
-  for (const threadId in raw) {
-    const threadBox = document.createElement("div");
-    threadBox.style.margin = "12px 0";
-    threadBox.style.padding = "8px";
-    threadBox.style.background = "#1b1b1b";
-    threadBox.style.border = "1px solid #444";
-    threadBox.style.borderRadius = "8px";
-
-    threadBox.innerHTML = `<strong>📁 スレID：${threadId}</strong>`;
-
-    for (const postId in raw[threadId]) {
-      const reportInfo = raw[threadId][postId];
-
-      const postWrap = document.createElement("div");
-      postWrap.style.margin = "10px 0 10px 16px";
-      postWrap.style.padding = "8px";
-      postWrap.style.border = "1px solid #555";
-      postWrap.style.borderRadius = "8px";
-
-      postWrap.innerHTML = `
-        <strong>📝 投稿ID：${postId}</strong><br>
-        <span class="small">通報数：${Object.keys(reportInfo).length}</span><br>
-      `;
-
-      // 投稿内容の取得
-      const postSnap = await get(ref(db, `posts/${threadId}/${postId}`));
-      const post = postSnap.val();
-
-      if (post) {
-        const body = document.createElement("div");
-        body.style.marginTop = "8px";
-        body.style.padding = "6px";
-        body.style.background = "#222";
-        body.style.border = "1px solid #666";
-        body.style.borderRadius = "6px";
-        body.innerHTML = `
-          <div><strong>${post.name}</strong>（匿名ID: ${post.uid.slice(0,6)}…）</div>
-          <div>${post.text}</div>
-        `;
-        postWrap.appendChild(body);
-
-        // 削除ボタン
-        const del = document.createElement("button");
-        del.textContent = "この投稿を削除";
-        del.style.marginTop = "6px";
-        del.onclick = async () => {
-          const pw = prompt("管理パスワード");
-          if (pw !== "master") return alert("違うペコ");
-
-          await remove(ref(db, `posts/${threadId}/${postId}`));
-          alert("削除しました");
-        };
-        postWrap.appendChild(del);
-      }
-
-      // 通報者一覧
-      const ids = Object.keys(reportInfo);
-      const repList = document.createElement("div");
-      repList.style.marginTop = "6px";
-      repList.innerHTML = "<div>通報者：</div>";
-
-      ids.forEach(uid => {
-        const li = document.createElement("div");
-        li.textContent = "・" + uid;
-        repList.appendChild(li);
-      });
-
-      postWrap.appendChild(repList);
-      threadBox.appendChild(postWrap);
-    }
-
-    area.appendChild(threadBox);
-  }
-});
