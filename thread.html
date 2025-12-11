@@ -1,151 +1,246 @@
-/* 投稿取得 */
-const PER = 20;
-let postsArr = [];
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>スレッド - うさ★キラ掲示板</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: "Hiragino Kaku Gothic ProN", sans-serif;
+      background: #fff;
+      color: #222;
+      padding: 20px;
+    }
+    .post {
+      border-bottom: 1px solid #ddd;
+      padding: 12px 0;
+      color: #222;
+    }
+    .icon {
+      width: 28px;
+      height: 28px;
+      vertical-align: middle;
+      border-radius: 6px;
+    }
+    textarea, input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      margin-top: 6px;
+      background: #fff;
+      color: #222;
+    }
+    button {
+      padding: 6px 10px;
+      margin: 4px 2px;
+      cursor: pointer;
+      color: #222;
+    }
+    #postsPaging button {
+      padding: 4px 8px;
+    }
+  </style>
+</head>
+<body>
+  <h2 id="threadTitle">スレッド</h2>
 
-// 投稿一覧読み込み
-onValue(ref(db, `posts/${threadId}`), snap => {
-  const data = snap.val() || {};
-  postsArr = Object.entries(data).sort((a,b)=>(a[1].time||0)-(b[1].time||0));
-  renderPosts(1);
-});
+  <div id="posts"></div>
+  <div id="postsPaging" style="margin:20px 0"></div>
 
-// URLリンク化
-function linkify(text){
-  return (text||"").replace(/(https?:\/\/[^\s]+)/g,m=>`<a href="${m}" target="_blank">${m}</a>`);
-}
+  <h3>投稿する</h3>
+  <textarea id="replyText" placeholder="メッセージ"></textarea>
+  <button id="sendBtn">送信</button>
 
-function renderPosts(page=1){
-  const start = (page-1)*PER;
-  const pick = postsArr.slice(start,start+PER);
-  const container = document.getElementById("posts");
-  container.innerHTML = "";
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, onValue, push, remove, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-  pick.forEach(([id,p],idx)=>{
-    if (bans[p.uid]) return;
-
-    const num = start+idx+1;
-    const wrap = document.createElement("div");
-    wrap.className = "post";
-
-    wrap.innerHTML = `
-      <div>
-        <span class="replyNum">#${num}</span>
-        <img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
-        <strong>${p.name||defaultName}</strong>
-        <div class="meta">${new Date(p.time||0).toLocaleString()}</div>
-      </div>
-      <div style="margin-top:8px">${linkify(p.text)}</div>
-    `;
-
-    /* 返信 */
-    const replyBtn = document.createElement("button");
-    replyBtn.textContent = "返信";
-    replyBtn.className = "replyBtn";
-    replyBtn.onclick = () => {
-      document.getElementById("replyText").value = `#${num} `;
-      document.getElementById("replyText").focus();
+    /* Firebase */
+    const firebaseConfig = {
+      apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+      authDomain: "keijiban-7c651.firebaseapp.com",
+      databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com/",
+      projectId: "keijiban-7c651",
+      storageBucket: "keijiban-7c651.appspot.com",
+      messagingSenderId: "629669766920",
+      appId: "1:629669766920:web:example"
     };
-    wrap.appendChild(replyBtn);
 
-    /* 通報ボタン（追加） */
-    const reportBtn = document.createElement("button");
-    reportBtn.textContent = "通報";
-    reportBtn.style.marginLeft = "6px";
-    reportBtn.onclick = async()=>{
-      const me = localStorage.getItem("usakira_userId");
-      if (!confirm("この投稿を通報しますか？")) return;
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
 
-      await push(ref(db, `reports/${threadId}`), {
-        postId: id,
-        targetUid: p.uid,
-        reporterUid: me,
-        text: p.text,
+    /* URL から threadId を取得 */
+    const params = new URLSearchParams(location.search);
+    const threadId = params.get("id");
+
+    const defaultName = "名もなき兎";
+    const defaultIcon = "https://0224242-create.github.io/usakira-board/usagi.png";
+
+    /* BAN リスト取得 */
+    let bans = {};
+    onValue(ref(db, "bans"), snap => {
+      bans = snap.val() || {};
+      renderPosts();
+    });
+
+    /* スレタイトル */
+    onValue(ref(db, `threads/${threadId}`), snap => {
+      const t = snap.val() || {};
+      document.getElementById("threadTitle").textContent = t.title || "スレッド";
+    });
+
+    /* 投稿取得 */
+    const PER = 20;
+    let postsArr = [];
+
+    onValue(ref(db, `posts/${threadId}`), snap => {
+      const data = snap.val() || {};
+      postsArr = Object.entries(data).sort((a,b)=>(a[1].time||0)-(b[1].time||0));
+      renderPosts(1);
+    });
+
+    function linkify(text){
+      return (text||"").replace(/(https?:\/\/[^\s]+)/g,m=>`<a href="${m}" target="_blank">${m}</a>`);
+    }
+
+    function renderPosts(page=1){
+      const start = (page-1)*PER;
+      const pick = postsArr.slice(start,start+PER);
+      const container = document.getElementById("posts");
+      container.innerHTML = "";
+
+      pick.forEach(([id,p],idx)=>{
+        if (bans[p.uid]) return;
+        const num = start+idx+1;
+
+        const wrap = document.createElement("div");
+        wrap.className = "post";
+
+        wrap.innerHTML = `
+          <div>
+            <span class="replyNum">#${num}</span>
+            <img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+            <strong>${p.name||defaultName}</strong>
+            <span style="font-size:12px;color:#666;">${new Date(p.time||0).toLocaleString()}</span><br>
+            <span style="font-size:11px;color:#777;">ID:${p.uid?.slice(0,6)||"???"}</span>
+          </div>
+          <div style="margin-top:8px">${linkify(p.text)}</div>
+        `;
+
+        /* 返信 */
+        const replyBtn = document.createElement("button");
+        replyBtn.textContent = "返信";
+        replyBtn.onclick = ()=>{
+          document.getElementById("replyText").value = `#${num} `;
+          document.getElementById("replyText").focus();
+        };
+        wrap.appendChild(replyBtn);
+
+        /* 通報 */
+        const reportBtn = document.createElement("button");
+        reportBtn.textContent = "通報";
+        reportBtn.onclick = async()=>{
+          const me = localStorage.getItem("usakira_userId");
+          if (!confirm("この投稿を通報しますか？")) return;
+
+          await push(ref(db, `reports/${threadId}`), {
+            postId: id,
+            targetUid: p.uid,
+            reporterUid: me,
+            text: p.text,
+            time: Date.now()
+          });
+          alert("通報しました");
+        };
+        wrap.appendChild(reportBtn);
+
+        /* 削除 / BAN */
+        const controls = document.createElement("div");
+        controls.style.marginTop = "8px";
+
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "削除";
+        delBtn.onclick = async()=>{
+          const me = localStorage.getItem("usakira_userId");
+          const tSnap = await get(ref(db, `threads/${threadId}`));
+          const t = tSnap.val() || {};
+
+          if (me===p.uid || me===t.ownerId){
+            if(!confirm("削除しますか？")) return;
+            await remove(ref(db, `posts/${threadId}/${id}`));
+            return;
+          }
+          const pw = prompt("管理パスワード");
+          if(pw==="master"){
+            await remove(ref(db, `posts/${threadId}/${id}`));
+            alert("削除しました");
+            return;
+          }
+          alert("削除権限なし");
+        };
+        controls.appendChild(delBtn);
+
+        const banBtn = document.createElement("button");
+        banBtn.textContent = "BAN";
+        banBtn.onclick = async()=>{
+          const me = localStorage.getItem("usakira_userId");
+          const tSnap = await get(ref(db, `threads/${threadId}`));
+          const t = tSnap.val() || {};
+
+          if (me===t.ownerId){
+            if(!confirm("BANしますか？")) return;
+            await set(ref(db, `bans/${p.uid}`), true);
+            alert("BANしました");
+            return;
+          }
+
+          const pw = prompt("管理パスワード");
+          if(pw==="master"){
+            await set(ref(db, `bans/${p.uid}`), true);
+            alert("BANしました");
+            return;
+          }
+          alert("BAN権限なし");
+        };
+        controls.appendChild(banBtn);
+
+        wrap.appendChild(controls);
+        container.appendChild(wrap);
+      });
+
+      const pages = Math.max(1, Math.ceil(postsArr.length/PER));
+      const pg = document.getElementById("postsPaging");
+      pg.innerHTML="";
+
+      for(let i=1;i<=pages;i++){
+        const b = document.createElement("button");
+        b.textContent = i;
+        b.onclick = ()=>renderPosts(i);
+        pg.appendChild(b);
+      }
+    }
+
+    /* 送信 */
+    document.getElementById("sendBtn").onclick = async()=>{
+      const text = document.getElementById("replyText").value.trim();
+      if (!text) return;
+
+      let uid = localStorage.getItem("usakira_userId");
+      if (!uid){
+        uid = Math.random().toString(36).slice(2);
+        localStorage.setItem("usakira_userId", uid);
+      }
+
+      await push(ref(db, `posts/${threadId}`),{
+        uid,
+        name: localStorage.getItem("usakira_name") || "名もなき兎",
+        icon: localStorage.getItem("usakira_icon") || defaultIcon,
+        text,
         time: Date.now()
       });
 
-      alert("通報を受け付けました");
+      document.getElementById("replyText").value = "";
     };
-    wrap.appendChild(reportBtn);
-
-    /* 削除・BAN（既存） */
-    const controls = document.createElement("div");
-    controls.style.marginTop = "8px";
-
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "削除";
-    delBtn.onclick = async()=>{
-      const me = localStorage.getItem("usakira_userId");
-      const tSnap = await get(ref(db, `threads/${threadId}`));
-      const t = tSnap.val() || {};
-
-      if (me===p.uid || me===t.ownerId){
-        if(!confirm("削除しますか？")) return;
-        await remove(ref(db, `posts/${threadId}/${id}`));
-        return;
-      }
-
-      const pw = prompt("管理パスワード");
-      if(pw==="master"){
-        await remove(ref(db, `posts/${threadId}/${id}`));
-        alert("削除しました");
-        return;
-      }
-      alert("削除権限なし");
-    };
-    controls.appendChild(delBtn);
-
-    const banBtn = document.createElement("button");
-    banBtn.textContent = "BAN";
-    banBtn.onclick = async()=>{
-      const me = localStorage.getItem("usakira_userId");
-      const tSnap = await get(ref(db, `threads/${threadId}`));
-      const t = tSnap.val() || {};
-
-      if (me===t.ownerId){
-        if (!confirm(`${p.name} をBANしますか？`)) return;
-        await set(ref(db, `bans/${p.uid}`), true);
-        alert("BANしました");
-        return;
-      }
-
-      const pw = prompt("管理パスワード");
-      if(pw==="master"){
-        await set(ref(db, `bans/${p.uid}`), true);
-        alert("BANしました");
-        return;
-      }
-      alert("BAN権限なし");
-    };
-    controls.appendChild(banBtn);
-
-    wrap.appendChild(controls);
-    container.appendChild(wrap);
-  });
-
-  /* ページング */
-  const pages = Math.max(1, Math.ceil(postsArr.length/PER));
-  const pg = document.getElementById("postsPaging");
-  pg.innerHTML = "";
-
-  for(let i=1;i<=pages;i++){
-    const b=document.createElement("button");
-    b.textContent=i;
-    b.onclick=()=>renderPosts(i);
-    pg.appendChild(b);
-  }
-}
-<style>
-body {
-  background: #fff !important;
-  color: #222 !important;
-}
-
-.post {
-  color: #222 !important;
-}
-
-textarea, input, button {
-  background: #fff !important;
-  color: #222 !important;
-}
-</style>
+  </script>
+</body>
+</html>
