@@ -1,135 +1,136 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>スレッド - うさ★キラ掲示板</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style>
-    body { font-family: "Hiragino Kaku Gothic ProN", sans-serif; margin:0; padding:0; background:#fffafc; color:#222; }
-    header { padding:14px; background:#ffecf7; border-bottom:2px solid #ffc7e5; }
-    header a { text-decoration:none; color:#d24f9a; font-weight:bold; }
+/* 投稿取得 */
+const PER = 20;
+let postsArr = [];
 
-    .container { padding:16px; }
+// 投稿一覧読み込み
+onValue(ref(db, `posts/${threadId}`), snap => {
+  const data = snap.val() || {};
+  postsArr = Object.entries(data).sort((a,b)=>(a[1].time||0)-(b[1].time||0));
+  renderPosts(1);
+});
 
-    .post-box { margin-bottom:18px; }
-    textarea { width:100%; height:80px; padding:8px; border-radius:10px; border:1px solid #ddd; }
+// URLリンク化
+function linkify(text){
+  return (text||"").replace(/(https?:\/\/[^\s]+)/g,m=>`<a href="${m}" target="_blank">${m}</a>`);
+}
 
-    button { padding:10px 16px; border:none; background:#ff9ad0; color:white; border-radius:14px; font-size:15px; cursor:pointer; }
-    button:hover { opacity:0.85; }
+function renderPosts(page=1){
+  const start = (page-1)*PER;
+  const pick = postsArr.slice(start,start+PER);
+  const container = document.getElementById("posts");
+  container.innerHTML = "";
 
-    .post { padding:12px; margin:12px 0; background:white; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
-    .meta { color:#888; font-size:13px; }
-    .react { margin-top:8px; }
-    .react span { font-size:22px; margin-right:10px; cursor:pointer; }
+  pick.forEach(([id,p],idx)=>{
+    if (bans[p.uid]) return;
 
-    .deleteBtn { background:#e87171; padding:6px 10px; border-radius:10px; color:white; font-size:13px; float:right; }
+    const num = start+idx+1;
+    const wrap = document.createElement("div");
+    wrap.className = "post";
 
-    a { color:#3d7bd9; word-break: break-all; }
-  </style>
+    wrap.innerHTML = `
+      <div>
+        <span class="replyNum">#${num}</span>
+        <img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+        <strong>${p.name||defaultName}</strong>
+        <div class="meta">${new Date(p.time||0).toLocaleString()}</div>
+      </div>
+      <div style="margin-top:8px">${linkify(p.text)}</div>
+    `;
 
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-      authDomain: "keijiban-7c651.firebaseapp.com",
-      databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com/",
-      projectId: "keijiban-7c651",
-      storageBucket: "keijiban-7c651.appspot.com",
-      messagingSenderId: "921483852598",
-      appId: "1:921483852598:web:3b8eae4c671ced06010f49"
+    /* 返信 */
+    const replyBtn = document.createElement("button");
+    replyBtn.textContent = "返信";
+    replyBtn.className = "replyBtn";
+    replyBtn.onclick = () => {
+      document.getElementById("replyText").value = `#${num} `;
+      document.getElementById("replyText").focus();
     };
-    firebase.initializeApp(firebaseConfig);
+    wrap.appendChild(replyBtn);
 
-    const db = firebase.database();
+    /* 通報ボタン（追加） */
+    const reportBtn = document.createElement("button");
+    reportBtn.textContent = "通報";
+    reportBtn.style.marginLeft = "6px";
+    reportBtn.onclick = async()=>{
+      const me = localStorage.getItem("usakira_userId");
+      if (!confirm("この投稿を通報しますか？")) return;
 
-    const threadId = location.search.replace("?id=", "");
-
-    function escapeHtml(s){
-      return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    }
-
-    function linkify(text){
-      return text.replace(/(https?:\\/\\/[A-Za-z0-9_./?=&%-]+)/g, '<a href="$1" target="_blank">$1</a>');
-    }
-
-    function load(){
-      db.ref("threads/"+threadId+"/posts").on("value", snap => {
-        const area = document.getElementById("posts");
-        area.innerHTML = "";
-        snap.forEach(child => {
-          const v = child.val();
-          const key = child.key;
-
-          const div = document.createElement("div");
-          div.className = "post";
-
-          let content = escapeHtml(v.text);
-          content = linkify(content);
-          content += " ペコ";
-
-          div.innerHTML = `
-            <div class="meta">${v.name || "名もなき兎"} ｜ ${v.time}
-              <span class="deleteBtn" onclick="delPost('${key}')">削除</span>
-            </div>
-            <div>${content}</div>
-            <div class="react">
-              <span onclick="react('${key}','carrot')">🥕 ${v.reaction?.carrot || 0}</span>
-              <span onclick="react('${key}','kirakira')">✨ ${v.reaction?.kirakira || 0}</span>
-            </div>
-          `;
-
-          area.appendChild(div);
-        });
-      });
-    }
-
-    function post(){
-      const text = document.getElementById("text").value;
-      const name = document.getElementById("name").value || "名もなき兎";
-      if(!text.trim()) return;
-
-      const now = new Date();
-      const t = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}`;
-
-      db.ref(`threads/${threadId}/posts`).push({
-        text: text,
-        name: name,
-        time: t,
-        reaction: { carrot:0, kirakira:0 }
+      await push(ref(db, `reports/${threadId}`), {
+        postId: id,
+        targetUid: p.uid,
+        reporterUid: me,
+        text: p.text,
+        time: Date.now()
       });
 
-      document.getElementById("text").value = "";
-    }
+      alert("通報を受け付けました");
+    };
+    wrap.appendChild(reportBtn);
 
-    function delPost(key){
-      db.ref(`threads/${threadId}/posts/${key}`).remove();
-    }
+    /* 削除・BAN（既存） */
+    const controls = document.createElement("div");
+    controls.style.marginTop = "8px";
 
-    function react(key,type){
-      const ref = db.ref(`threads/${threadId}/posts/${key}/reaction/${type}`);
-      ref.transaction(v => (v||0)+1);
-    }
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "削除";
+    delBtn.onclick = async()=>{
+      const me = localStorage.getItem("usakira_userId");
+      const tSnap = await get(ref(db, `threads/${threadId}`));
+      const t = tSnap.val() || {};
 
-    window.onload = load;
-  </script>
-</head>
-<body>
-  <header>
-    <a href="index.html">← 掲示板に戻る</a>
-  </header>
+      if (me===p.uid || me===t.ownerId){
+        if(!confirm("削除しますか？")) return;
+        await remove(ref(db, `posts/${threadId}/${id}`));
+        return;
+      }
 
-  <div class="container">
-    <h2>スレッド</h2>
+      const pw = prompt("管理パスワード");
+      if(pw==="master"){
+        await remove(ref(db, `posts/${threadId}/${id}`));
+        alert("削除しました");
+        return;
+      }
+      alert("削除権限なし");
+    };
+    controls.appendChild(delBtn);
 
-    <div class="post-box">
-      <input id="name" placeholder="名前 (空なら 名もなき兎)" style="width:100%; padding:8px; border-radius:10px; border:1px solid #ddd; margin-bottom:10px;" />
-      <textarea id="text" placeholder="コメントを書いてね"></textarea>
-      <button onclick="post()">投稿</button>
-    </div>
+    const banBtn = document.createElement("button");
+    banBtn.textContent = "BAN";
+    banBtn.onclick = async()=>{
+      const me = localStorage.getItem("usakira_userId");
+      const tSnap = await get(ref(db, `threads/${threadId}`));
+      const t = tSnap.val() || {};
 
-    <div id="posts"></div>
-  </div>
-</body>
-</html>
+      if (me===t.ownerId){
+        if (!confirm(`${p.name} をBANしますか？`)) return;
+        await set(ref(db, `bans/${p.uid}`), true);
+        alert("BANしました");
+        return;
+      }
+
+      const pw = prompt("管理パスワード");
+      if(pw==="master"){
+        await set(ref(db, `bans/${p.uid}`), true);
+        alert("BANしました");
+        return;
+      }
+      alert("BAN権限なし");
+    };
+    controls.appendChild(banBtn);
+
+    wrap.appendChild(controls);
+    container.appendChild(wrap);
+  });
+
+  /* ページング */
+  const pages = Math.max(1, Math.ceil(postsArr.length/PER));
+  const pg = document.getElementById("postsPaging");
+  pg.innerHTML = "";
+
+  for(let i=1;i<=pages;i++){
+    const b=document.createElement("button");
+    b.textContent=i;
+    b.onclick=()=>renderPosts(i);
+    pg.appendChild(b);
+  }
+}
