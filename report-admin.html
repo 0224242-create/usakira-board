@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>通報一覧 | うさ★キラ掲示板 管理</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body {
+      font-family: "Hiragino Kaku Gothic ProN", sans-serif;
+      background: #fffafc;
+      color: #222;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    .report {
+      background: #f8f2ff;
+      padding: 12px;
+      margin: 12px 0;
+      border-radius: 10px;
+      border: 1px solid #e2caff;
+    }
+    .threadId {
+      font-weight: bold;
+      color: #a94ddb;
+    }
+    .postId {
+      color: #444;
+    }
+    .reporter {
+      color: #666;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>通報一覧（管理用）🐇⚠️</h1>
+<div id="list">読み込み中…</div>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH",
+    databaseURL: "YOUR_DB_URL",
+    projectId: "YOUR_ID",
+    storageBucket: "YOUR_BUCKET",
+    messagingSenderId: "YOUR_MSG_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  const list = document.getElementById("list");
+
+  const reportsRef = ref(db, "reports");
+  onValue(reportsRef, snap => {
+    const data = snap.val();
+    if (!data) {
+      list.textContent = "通報はありません。";
+      return;
+    }
+
+    list.innerHTML = "";
+
+    for (const threadId in data) {
+      for (const postId in data[threadId]) {
+
+        const reporters = Object.keys(data[threadId][postId]);
+        const reportTimes = Object.values(data[threadId][postId]);
+
+        const div = document.createElement("div");
+        div.className = "report";
+
+        div.innerHTML = `
+          <div class="threadId">スレID：${threadId}</div>
+          <div class="postId">投稿ID：${postId}</div>
+          <div class="reporter">
+            通報したユーザー：
+            ${reporters.map(x => x.slice(0,4)).join(", ")}
+          </div>
+          <div class="reporter">
+            通報日時：<br>
+            ${reportTimes.map(r => new Date(r.time).toLocaleString()).join("<br>")}
+          </div>
+        `;
+
+        list.appendChild(div);
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
