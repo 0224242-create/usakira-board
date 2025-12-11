@@ -2,54 +2,80 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>管理ページ - 🐰うさ★キラ掲示板</title>
+  <title>🐰うさ★キラ掲示板 管理ページ✨️</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body {
-      font-family: "Hiragino Kaku Gothic ProN", sans-serif;
-      background:#fff7fb;
+      font-family:"Hiragino Kaku Gothic ProN", sans-serif;
+      background:#fff0f8;
       padding:20px;
       color:#222;
+      transition:0.25s;
     }
-    h1 { margin-bottom:20px; }
-    .box {
-      border:1px solid #ffbddd;
-      padding:12px;
-      margin-top:15px;
-      background:#fff;
-      border-radius:10px;
+    .dark { background:#121212; color:#eaeaea; }
+
+    h1,h2 { margin-top:0; }
+
+    /* カード風デザイン */
+    .card {
+      border: 2px solid #ffc6e6;
+      background: #fff7fc;
+      border-radius: 14px;
+      padding: 14px;
+      margin: 12px 0;
+      box-shadow: 0 2px 6px rgba(255,150,210,0.25);
+      transition: transform 0.15s, box-shadow 0.2s;
     }
-    button {
-      padding:6px 10px;
-      margin:4px;
-      border-radius:6px;
-      cursor:pointer;
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px rgba(255,150,210,0.32);
     }
+    .card h3 a {
+      color: #ff4fa8;
+      font-weight: bold;
+      text-decoration: none;
+    }
+    .card h3 a:hover { text-decoration: underline; }
+
+    body.dark .card {
+      background:#1b1b1b;
+      border-color:#555;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    }
+    body.dark .card:hover {
+      box-shadow:0 6px 12px rgba(0,0,0,0.5);
+    }
+    body.dark .card h3 a { color:#ff8cd1; }
+
+    button { padding:6px 10px; margin:4px; border-radius:6px; cursor:pointer; }
+    body.dark button { background:#333; color:#eaeaea; border:1px solid #666; }
+
+    img.icon {
+      width:48px; height:48px; border-radius:50%; object-fit:cover; border:2px solid #ffb8e6;
+      margin-right:10px;
+    }
+    body.dark img.icon { border-color:#ff8cd1; }
+
+    .flex { display:flex; align-items:center; }
+    .flex-column { display:flex; flex-direction:column; }
+
   </style>
 </head>
 <body>
+<button id="darkToggle" style="position:fixed; right:12px; top:12px;">🌙</button>
+<h1>🐰うさ★キラ掲示板 管理ページ✨️</h1>
 
-<h1>🐰 管理ページ（BAN & 通報ログ）</h1>
+<h2>通報リスト</h2>
+<div id="reportList"></div>
 
-<div id="loginBox" class="box">
-  <p>管理パスワードを入力してください。</p>
-  <input id="pw" type="password" placeholder="管理パスワード" />
-  <button id="loginBtn">ログイン</button>
-</div>
+<hr>
 
-<div id="adminArea" style="display:none">
-
-  <h2>🟥 BANユーザー一覧</h2>
-  <div id="banList" class="box">読み込み中…</div>
-
-  <h2>⚠️ 通報ログ</h2>
-  <div id="reportList" class="box">読み込み中…</div>
-
-</div>
+<h2>BANリスト</h2>
+<div id="banList"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, get, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -64,98 +90,113 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-/* ---------- ログイン ---------- */
-document.getElementById("loginBtn").onclick = () => {
-  const pw = document.getElementById("pw").value;
-  if (pw === "master") {
-    document.getElementById("loginBox").style.display = "none";
-    document.getElementById("adminArea").style.display = "block";
-  } else {
-    alert("パスワード違い");
-  }
+/* ダークモード */
+const darkToggle=document.getElementById("darkToggle");
+const savedDark=localStorage.getItem("usakira_dark")==="true";
+if(savedDark) document.body.classList.add("dark");
+darkToggle.textContent=savedDark?"☀️":"🌙";
+darkToggle.onclick=()=>{
+  const now=!(localStorage.getItem("usakira_dark")==="true");
+  localStorage.setItem("usakira_dark",now);
+  document.body.classList.toggle("dark");
+  darkToggle.textContent=now?"☀️":"🌙";
 };
 
-/* ---------- BAN 一覧 ---------- */
-onValue(ref(db, "bans"), snap => {
+/* 通報リスト表示 */
+const reportContainer = document.getElementById("reportList");
+onValue(ref(db,"reports"), async snap=>{
   const data = snap.val() || {};
-  const box = document.getElementById("banList");
-  box.innerHTML = "";
+  reportContainer.innerHTML = "";
 
-  if (Object.keys(data).length === 0) {
-    box.innerHTML = "BANユーザーはいません。";
-    return;
+  for(const threadId in data){
+    const posts = data[threadId];
+    const threadSnap = await get(ref(db, `threads/${threadId}`));
+    const thread = threadSnap.val();
+    if(!thread) continue;
+
+    for(const postId in posts){
+      const users = posts[postId];
+      const postSnap = await get(ref(db, `posts/${threadId}/${postId}`));
+      const post = postSnap.val();
+      if(!post) continue;
+
+      const card = document.createElement("div");
+      card.className="card flex-column";
+      card.innerHTML = `
+        <div class="flex">
+          <img class="icon" src="${post.icon||'usagi.png.jpeg'}" onerror="this.src='usagi.png.jpeg'">
+          <div>
+            <h3><a href="thread.html?id=${threadId}">${thread.title||"（無題）"}</a></h3>
+            <div style="font-size:0.9rem; color:#888;">
+              投稿者: ${post.name||"名もなき兎"} ${thread.pass?"🔒":""}
+            </div>
+          </div>
+        </div>
+        <p style="margin-top:8px;">${post.text||""}</p>
+        <p style="font-size:0.85rem; color:#aa7;">通報数: ${Object.keys(users).length}</p>
+      `;
+
+      /* 削除ボタン */
+      const delBtn = document.createElement("button");
+      delBtn.textContent="削除";
+      delBtn.onclick=async()=>{
+        if(!confirm("この投稿を削除しますか？")) return;
+        await remove(ref(db,`posts/${threadId}/${postId}`));
+        await remove(ref(db,`reports/${threadId}/${postId}`));
+        alert("削除したよ！");
+      };
+      card.appendChild(delBtn);
+
+      /* BANボタン */
+      const banBtn = document.createElement("button");
+      banBtn.textContent="BAN";
+      banBtn.onclick=async()=>{
+        if(!confirm(`${post.name||"ユーザー"}をBANしますか？`)) return;
+        await set(ref(db,`bans/${post.uid}`),{
+          name:post.name,
+          icon:post.icon,
+          time:Date.now()
+        });
+        alert("BANしたよ！");
+      };
+      card.appendChild(banBtn);
+
+      reportContainer.appendChild(card);
+    }
   }
-
-  Object.keys(data).forEach(uid => {
-    const div = document.createElement("div");
-    div.innerHTML = `
-      <strong>UID:</strong> ${uid}
-      <button class="unbanBtn" data-uid="${uid}">解除</button>
-    `;
-    box.appendChild(div);
-  });
-
-  document.querySelectorAll(".unbanBtn").forEach(btn => {
-    btn.onclick = async () => {
-      const uid = btn.dataset.uid;
-      if (confirm("このユーザーのBANを解除しますか？"))
-        await remove(ref(db, "bans/" + uid));
-    };
-  });
 });
 
-/* ---------- 通報ログ ---------- */
-onValue(ref(db, "reports"), snap => {
+/* BANリスト表示 */
+const banContainer = document.getElementById("banList");
+onValue(ref(db,"bans"), snap=>{
   const data = snap.val() || {};
-  const box = document.getElementById("reportList");
-  box.innerHTML = "";
+  banContainer.innerHTML = "";
 
-  if (Object.keys(data).length === 0) {
-    box.innerHTML = "通報はありません。";
-    return;
-  }
+  for(const uid in data){
+    const u = data[uid];
+    const card = document.createElement("div");
+    card.className="card flex";
 
-  Object.entries(data).forEach(([threadId, posts]) => {
-    const tDiv = document.createElement("div");
-    tDiv.innerHTML = `<h3>スレID: ${threadId}</h3>`;
+    card.innerHTML = `
+      <img class="icon" src="${u.icon||'usagi.png.jpeg'}" onerror="this.src='usagi.png.jpeg'">
+      <div style="flex:1; margin-left:10px;">
+        <h3>${u.name||"名もなき兎"}</h3>
+        <p style="font-size:0.85rem; color:#aa7;">BAN日時: ${new Date(u.time||0).toLocaleString()}</p>
+      </div>
+    `;
 
-    Object.entries(posts).forEach(([postId, users]) => {
-      const count = Object.keys(users).length;
-
-      const pDiv = document.createElement("div");
-      pDiv.style.marginLeft = "20px";
-      pDiv.innerHTML = `
-        <p>
-          投稿ID: ${postId}<br>
-          通報数: <strong>${count}</strong><br>
-          <button class="delBtn"
-                  data-thread="${threadId}"
-                  data-post="${postId}">
-            削除
-          </button>
-        </p>
-      `;
-      tDiv.appendChild(pDiv);
-    });
-
-    box.appendChild(tDiv);
-  });
-
-  document.querySelectorAll(".delBtn").forEach(btn => {
-    btn.onclick = async () => {
-      const thread = btn.dataset.thread;
-      const post = btn.dataset.post;
-
-      if (!confirm("この投稿を削除しますか？")) return;
-
-      await remove(ref(db, `posts/${thread}/${post}`));     // 投稿削除
-      await remove(ref(db, `reports/${thread}/${post}`));   // 通報ログ削除
-
-      alert("削除しました");
+    const unbanBtn = document.createElement("button");
+    unbanBtn.textContent="BAN解除";
+    unbanBtn.onclick=async()=>{
+      if(!confirm(`本当にBAN解除しますか？`)) return;
+      await remove(ref(db,`bans/${uid}`));
+      alert("解除したよ！");
     };
-  });
+    card.appendChild(unbanBtn);
+
+    banContainer.appendChild(card);
+  }
 });
 </script>
-
 </body>
 </html>
