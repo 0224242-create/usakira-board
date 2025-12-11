@@ -136,6 +136,13 @@ onValue(ref(db,"reports"), async snap=>{
         <p style="font-size:0.85rem; color:#aa7;">通報数: ${Object.keys(users).length}</p>
       `;
 
+      /* ボタン用ラッパー（右端に寄せる） */
+      const btnWrapper = document.createElement("div");
+      btnWrapper.style.display = "flex";
+      btnWrapper.style.justifyContent = "flex-end";
+      btnWrapper.style.gap = "6px";
+      btnWrapper.style.marginTop = "8px";
+
       /* 削除ボタン */
       const delBtn = document.createElement("button");
       delBtn.textContent="削除";
@@ -145,7 +152,6 @@ onValue(ref(db,"reports"), async snap=>{
         await remove(ref(db,`reports/${threadId}/${postId}`));
         alert("削除したよ！");
       };
-      card.appendChild(delBtn);
 
       /* BANボタン */
       const banBtn = document.createElement("button");
@@ -159,7 +165,10 @@ onValue(ref(db,"reports"), async snap=>{
         });
         alert("BANしたよ！");
       };
-      card.appendChild(banBtn);
+
+      btnWrapper.appendChild(delBtn);
+      btnWrapper.appendChild(banBtn);
+      card.appendChild(btnWrapper);
 
       reportContainer.appendChild(card);
     }
