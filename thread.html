@@ -1,246 +1,240 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>スレッド - うさ★キラ掲示板</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8" />
+  <title>スレッド - 🐰うさ★キラ掲示板✨️</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body {
-      font-family: "Hiragino Kaku Gothic ProN", sans-serif;
-      background: #fff;
-      color: #222;
-      padding: 20px;
-    }
-    .post {
-      border-bottom: 1px solid #ddd;
-      padding: 12px 0;
-      color: #222;
-    }
-    .icon {
-      width: 28px;
-      height: 28px;
-      vertical-align: middle;
-      border-radius: 6px;
-    }
-    textarea, input {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 8px;
-      margin-top: 6px;
-      background: #fff;
-      color: #222;
-    }
-    button {
-      padding: 6px 10px;
-      margin: 4px 2px;
-      cursor: pointer;
-      color: #222;
-    }
-    #postsPaging button {
-      padding: 4px 8px;
-    }
+    body { font-family: "Hiragino Kaku Gothic ProN", sans-serif; padding:20px; background:#fff0f8; color:#222; transition:0.25s; }
+    .dark { background:#121212; color:#eaeaea; }
+
+    .post { border:1px solid #ffd4ea; padding:10px; margin:8px 0; border-radius:8px; background:#fff; position:relative; }
+    body.dark .post { background:#1e1e1e; border-color:#555; }
+
+    .icon { width:36px; height:36px; border-radius:50%; vertical-align:middle; margin-right:8px; }
+    .meta { font-size:13px; color:#666; margin-top:6px; }
+    body.dark .meta { color:#bbbbbb; }
+
+    button { padding:6px 10px; margin:4px; cursor:pointer; border-radius:4px; }
+    body.dark button { background:#333; color:#eaeaea; border:1px solid #666; }
+
+    #replyText { width:100%; height:80px; padding:8px; box-sizing:border-box; margin-bottom:6px;
+      background:#fff; color:#222; border:1px solid #ccc; }
+    body.dark #replyText { background:#222; color:#eaeaea; border:1px solid #555; }
+
+    a { color:#d22; text-decoration:underline; }
   </style>
 </head>
 <body>
-  <h2 id="threadTitle">スレッド</h2>
+  <button id="darkToggle" style="position:fixed; right:12px; top:12px;">🌙</button>
+  <h1 id="threadTitle">読み込み中…</h1>
+  <div id="threadInfo" class="meta"></div>
+  <hr>
+
+  <div id="replyBox">
+    <textarea id="replyText" placeholder="コメントを入力"></textarea><br>
+    <button id="postBtn">投稿する</button>
+  </div>
+  <hr>
 
   <div id="posts"></div>
-  <div id="postsPaging" style="margin:20px 0"></div>
-
-  <h3>投稿する</h3>
-  <textarea id="replyText" placeholder="メッセージ"></textarea>
-  <button id="sendBtn">送信</button>
+  <div id="postsPaging"></div>
 
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue, push, remove, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+  import { getDatabase, ref, onValue, push, set, remove, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-    /* Firebase */
-    const firebaseConfig = {
-      apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-      authDomain: "keijiban-7c651.firebaseapp.com",
-      databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com/",
-      projectId: "keijiban-7c651",
-      storageBucket: "keijiban-7c651.appspot.com",
-      messagingSenderId: "629669766920",
-      appId: "1:629669766920:web:example"
-    };
+  const firebaseConfig = {
+    apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+    authDomain: "keijiban-7c651.firebaseapp.com",
+    databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
+    projectId: "keijiban-7c651",
+    storageBucket: "keijiban-7c651.firebasestorage.app",
+    messagingSenderId: "342192640264",
+    appId: "1:342192640264:web:a004a725b470741aaf1cbd",
+    measurementId: "G-7E1BZ3BGBR"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+  /* ダークモード */
+  const darkToggle = document.getElementById("darkToggle");
+  const darkSaved = localStorage.getItem("usakira_dark") === "true";
+  if (darkSaved) document.body.classList.add("dark");
+  darkToggle.textContent = darkSaved ? "☀️" : "🌙";
+  darkToggle.addEventListener("click", () => {
+    const now = !(localStorage.getItem("usakira_dark") === "true");
+    localStorage.setItem("usakira_dark", now);
+    document.body.classList.toggle("dark");
+    darkToggle.textContent = now ? "☀️" : "🌙";
+  });
 
-    /* URL から threadId を取得 */
-    const params = new URLSearchParams(location.search);
-    const threadId = params.get("id");
+  /* プロフィール */
+  const userId = localStorage.getItem("usakira_userId") || ("user_"+Math.random().toString(36).slice(2));
+  if (!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId", userId);
 
-    const defaultName = "名もなき兎";
-    const defaultIcon = "https://0224242-create.github.io/usakira-board/usagi.png";
+  const defaultName = "名もなき兎";
+  const defaultIcon = "usagi.png.jpeg";
+  const profileName = localStorage.getItem("usakira_name") || defaultName;
+  const profileIcon = localStorage.getItem("usakira_icon") || defaultIcon;
 
-    /* BAN リスト取得 */
-    let bans = {};
-    onValue(ref(db, "bans"), snap => {
-      bans = snap.val() || {};
-      renderPosts();
-    });
+  /* スレID */
+  const params = new URLSearchParams(location.search);
+  const threadId = params.get("id") || localStorage.getItem("lastThread") || "";
+  if (!threadId) { alert("スレッドIDが見つかりません"); location.href="index.html"; throw new Error("No thread id"); }
 
-    /* スレタイトル */
-    onValue(ref(db, `threads/${threadId}`), snap => {
-      const t = snap.val() || {};
-      document.getElementById("threadTitle").textContent = t.title || "スレッド";
-    });
-
-    /* 投稿取得 */
-    const PER = 20;
-    let postsArr = [];
-
-    onValue(ref(db, `posts/${threadId}`), snap => {
-      const data = snap.val() || {};
-      postsArr = Object.entries(data).sort((a,b)=>(a[1].time||0)-(b[1].time||0));
-      renderPosts(1);
-    });
-
-    function linkify(text){
-      return (text||"").replace(/(https?:\/\/[^\s]+)/g,m=>`<a href="${m}" target="_blank">${m}</a>`);
+  /* スレ情報取得 */
+  const threadRef = ref(db, `threads/${threadId}`);
+  onValue(threadRef, snap => {
+    const t = snap.val();
+    if (!t) { document.getElementById("threadTitle").innerText="スレッドが見つかりません"; return; }
+    document.getElementById("threadTitle").innerText = t.title || "（無題）";
+    document.getElementById("threadInfo").innerHTML = `
+      <img class="icon" src="${t.ownerIcon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+      by ${t.ownerName||defaultName}
+      ${t.pass?'<span class="meta"> ・ 鍵付きスレ</span>':''}
+      <div class="meta">${t.body||""}</div>
+    `;
+    if (t.pass) {
+      const p = prompt("このスレは鍵付きです。パスワードを入力してください");
+      if (p !== t.pass) { alert("パスワード違い"); location.href="index.html"; }
     }
+  });
 
-    function renderPosts(page=1){
-      const start = (page-1)*PER;
-      const pick = postsArr.slice(start,start+PER);
-      const container = document.getElementById("posts");
-      container.innerHTML = "";
+  /* BAN */
+  let bans = {};
+  onValue(ref(db,"bans"), s=>bans=s.val()||{});
 
-      pick.forEach(([id,p],idx)=>{
-        if (bans[p.uid]) return;
-        const num = start+idx+1;
+  /* 投稿取得 */
+  const PER=20;
+  let postsArr=[];
+  onValue(ref(db,`posts/${threadId}`), snap=>{
+    const data = snap.val()||{};
+    postsArr=Object.entries(data).sort((a,b)=>(a[1].time||0)-(b[1].time||0));
+    renderPosts(1);
+  });
 
-        const wrap = document.createElement("div");
-        wrap.className = "post";
+  function linkify(text){ return (text||"").replace(/(https?:\/\/[^\s]+)/g,m=>`<a href="${m}" target="_blank">${m}</a>`); }
 
-        wrap.innerHTML = `
-          <div>
-            <span class="replyNum">#${num}</span>
-            <img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
-            <strong>${p.name||defaultName}</strong>
-            <span style="font-size:12px;color:#666;">${new Date(p.time||0).toLocaleString()}</span><br>
-            <span style="font-size:11px;color:#777;">ID:${p.uid?.slice(0,6)||"???"}</span>
-          </div>
-          <div style="margin-top:8px">${linkify(p.text)}</div>
-        `;
+  /* 投稿描画 */
+  function renderPosts(page=1){
+    const start=(page-1)*PER;
+    const pick=postsArr.slice(start,start+PER);
+    const container=document.getElementById("posts");
+    container.innerHTML="";
 
-        /* 返信 */
-        const replyBtn = document.createElement("button");
-        replyBtn.textContent = "返信";
-        replyBtn.onclick = ()=>{
-          document.getElementById("replyText").value = `#${num} `;
-          document.getElementById("replyText").focus();
-        };
-        wrap.appendChild(replyBtn);
+    pick.forEach(([id,p],idx)=>{
+      if(bans[p.uid]) return;
+      const postNumber=start+idx+1;
+      const html=document.createElement("div");
+      html.className="post";
 
-        /* 通報 */
-        const reportBtn = document.createElement("button");
-        reportBtn.textContent = "通報";
-        reportBtn.onclick = async()=>{
-          const me = localStorage.getItem("usakira_userId");
-          if (!confirm("この投稿を通報しますか？")) return;
+      html.innerHTML=`
+        <div>
+          <span class="replyNum">#${postNumber}</span>
+          <img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+          <strong>${p.name||defaultName}</strong>
+          <span class="meta">(ID: ${(p.uid || "xxxx").slice(0,4)})</span>
+          <div class="meta">${new Date(p.time||0).toLocaleString()}</div>
+        </div>
+        <div style="margin-top:8px">${linkify(p.text)}</div>
+      `;
 
-          await push(ref(db, `reports/${threadId}`), {
-            postId: id,
-            targetUid: p.uid,
-            reporterUid: me,
-            text: p.text,
-            time: Date.now()
-          });
-          alert("通報しました");
-        };
-        wrap.appendChild(reportBtn);
+      const controls=document.createElement("div");
+      controls.style.marginTop="8px";
 
-        /* 削除 / BAN */
-        const controls = document.createElement("div");
-        controls.style.marginTop = "8px";
+      /* 返信ボタン */
+      const replyBtn=document.createElement("button");
+      replyBtn.textContent="返信";
+      replyBtn.onclick=()=>{ 
+        document.getElementById("replyText").value=`#${postNumber} `; 
+        document.getElementById("replyText").focus(); 
+      };
+      controls.appendChild(replyBtn);
 
-        const delBtn = document.createElement("button");
-        delBtn.textContent = "削除";
-        delBtn.onclick = async()=>{
-          const me = localStorage.getItem("usakira_userId");
-          const tSnap = await get(ref(db, `threads/${threadId}`));
-          const t = tSnap.val() || {};
+      /* 削除 */
+      const delBtn=document.createElement("button");
+      delBtn.textContent="削除";
+      delBtn.onclick=async()=>{
+        const me = localStorage.getItem("usakira_userId");
+        const threadSnap = await get(ref(db,`threads/${threadId}`));
+        const threadData = threadSnap.val()||{};
+        if(me===p.uid||me===threadData.ownerId){ 
+          if(!confirm("削除しますか？")) return; 
+          await remove(ref(db,`posts/${threadId}/${id}`)); 
+          return; 
+        }
+        const pw = prompt("管理パスワード");
+        if(pw==="master"){ await remove(ref(db,`posts/${threadId}/${id}`)); alert("削除しました"); return; }
+        alert("削除権限なし");
+      };
+      controls.appendChild(delBtn);
 
-          if (me===p.uid || me===t.ownerId){
-            if(!confirm("削除しますか？")) return;
-            await remove(ref(db, `posts/${threadId}/${id}`));
-            return;
-          }
-          const pw = prompt("管理パスワード");
-          if(pw==="master"){
-            await remove(ref(db, `posts/${threadId}/${id}`));
-            alert("削除しました");
-            return;
-          }
-          alert("削除権限なし");
-        };
-        controls.appendChild(delBtn);
+      /* BAN */
+      const banBtn=document.createElement("button");
+      banBtn.textContent="BAN";
+      banBtn.onclick=async()=>{
+        const threadSnap = await get(ref(db,`threads/${threadId}`));
+        const threadData = threadSnap.val()||{};
+        const me = localStorage.getItem("usakira_userId");
+        if(me===threadData.ownerId){ 
+          if(!confirm(`${p.name} をBANしますか？`)) return; 
+          await set(ref(db,`bans/${p.uid}`),true); 
+          alert("BANしました"); 
+          return; 
+        }
+        const pw = prompt("管理パスワード");
+        if(pw==="master"){ await set(ref(db,`bans/${p.uid}`),true); alert("BANしました"); return; }
+        alert("BAN権限なし");
+      };
+      controls.appendChild(banBtn);
 
-        const banBtn = document.createElement("button");
-        banBtn.textContent = "BAN";
-        banBtn.onclick = async()=>{
-          const me = localStorage.getItem("usakira_userId");
-          const tSnap = await get(ref(db, `threads/${threadId}`));
-          const t = tSnap.val() || {};
+      /* 通報ボタン */
+      const reportBtn=document.createElement("button");
+      reportBtn.textContent="通報";
+      reportBtn.onclick=async()=>{
+        const me = localStorage.getItem("usakira_userId");
+        const reportRef = ref(db,`reports/${threadId}/${id}/${me}`);
+        await set(reportRef,{ time:Date.now() });
+        alert("通報を受け付けました");
+      };
+      controls.appendChild(reportBtn);
 
-          if (me===t.ownerId){
-            if(!confirm("BANしますか？")) return;
-            await set(ref(db, `bans/${p.uid}`), true);
-            alert("BANしました");
-            return;
-          }
+      html.appendChild(controls);
+      container.appendChild(html);
+    });
 
-          const pw = prompt("管理パスワード");
-          if(pw==="master"){
-            await set(ref(db, `bans/${p.uid}`), true);
-            alert("BANしました");
-            return;
-          }
-          alert("BAN権限なし");
-        };
-        controls.appendChild(banBtn);
-
-        wrap.appendChild(controls);
-        container.appendChild(wrap);
-      });
-
-      const pages = Math.max(1, Math.ceil(postsArr.length/PER));
-      const pg = document.getElementById("postsPaging");
-      pg.innerHTML="";
-
-      for(let i=1;i<=pages;i++){
-        const b = document.createElement("button");
-        b.textContent = i;
-        b.onclick = ()=>renderPosts(i);
-        pg.appendChild(b);
-      }
+    /* ページング */
+    const pages=Math.max(1,Math.ceil(postsArr.length/PER));
+    const pg=document.getElementById("postsPaging");
+    pg.innerHTML="";
+    for(let i=1;i<=pages;i++){
+      const b=document.createElement("button");
+      b.textContent=i;
+      b.onclick=()=>renderPosts(i);
+      pg.appendChild(b);
     }
+  }
 
-    /* 送信 */
-    document.getElementById("sendBtn").onclick = async()=>{
-      const text = document.getElementById("replyText").value.trim();
-      if (!text) return;
+  /* 投稿処理 */
+  document.getElementById("postBtn").addEventListener("click", async()=>{
+    let text=document.getElementById("replyText").value.trim();
+    if(!text) return alert("本文を書いてねペコ");
+    if(!text.endsWith("ペコ")) text+=" ペコ";
 
-      let uid = localStorage.getItem("usakira_userId");
-      if (!uid){
-        uid = Math.random().toString(36).slice(2);
-        localStorage.setItem("usakira_userId", uid);
-      }
+    const me=localStorage.getItem("usakira_userId");
+    const isB=await get(ref(db,`bans/${me}`)).then(s=>s.val());
+    if(isB) return alert("書き込み禁止されていますペコ");
 
-      await push(ref(db, `posts/${threadId}`),{
-        uid,
-        name: localStorage.getItem("usakira_name") || "名もなき兎",
-        icon: localStorage.getItem("usakira_icon") || defaultIcon,
-        text,
-        time: Date.now()
-      });
-
-      document.getElementById("replyText").value = "";
-    };
+    await push(ref(db,`posts/${threadId}`),{
+      name:profileName,
+      icon:profileIcon,
+      text,
+      uid:me,
+      time:Date.now()
+    });
+    document.getElementById("replyText").value="";
+  });
   </script>
 </body>
 </html>
