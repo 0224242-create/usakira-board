@@ -125,7 +125,12 @@
       <h2>👁 BANされた者たちの牢獄</h2>
       <div class="bars"></div>
       <div id="banList">読み込み中…</div>
-      <div class="bars"></div>
+     <!-- 通報ログ -->
+<h2 style="margin-top:30px;">⚠️ 通報ログ</h2>
+<div class="bars"></div>
+<div id="reportList">読み込み中…</div>
+<div class="bars"></div>
+    　 <div class="bars"></div>
       <button id="closeJail" style="margin-top:12px;">🔓 閉じる</button>
     </div>
   </div>
@@ -329,3 +334,91 @@
   </script>
 </body>
 </html>
+/* 通報ログ読み込み */
+onValue(ref(db, "reports"), async (snap) => {
+  const raw = snap.val() || {};
+  const area = document.getElementById("reportList");
+
+  if (!area) return; // 安全ガード
+
+  if (Object.keys(raw).length === 0) {
+    area.innerHTML = "<p>通報はありません。</p>";
+    return;
+  }
+
+  area.innerHTML = "";
+
+  for (const threadId in raw) {
+    const threadBox = document.createElement("div");
+    threadBox.style.margin = "12px 0";
+    threadBox.style.padding = "8px";
+    threadBox.style.background = "#1b1b1b";
+    threadBox.style.border = "1px solid #444";
+    threadBox.style.borderRadius = "8px";
+
+    threadBox.innerHTML = `<strong>📁 スレID：${threadId}</strong>`;
+
+    for (const postId in raw[threadId]) {
+      const reportInfo = raw[threadId][postId];
+
+      const postWrap = document.createElement("div");
+      postWrap.style.margin = "10px 0 10px 16px";
+      postWrap.style.padding = "8px";
+      postWrap.style.border = "1px solid #555";
+      postWrap.style.borderRadius = "8px";
+
+      postWrap.innerHTML = `
+        <strong>📝 投稿ID：${postId}</strong><br>
+        <span class="small">通報数：${Object.keys(reportInfo).length}</span><br>
+      `;
+
+      // 投稿内容の取得
+      const postSnap = await get(ref(db, `posts/${threadId}/${postId}`));
+      const post = postSnap.val();
+
+      if (post) {
+        const body = document.createElement("div");
+        body.style.marginTop = "8px";
+        body.style.padding = "6px";
+        body.style.background = "#222";
+        body.style.border = "1px solid #666";
+        body.style.borderRadius = "6px";
+        body.innerHTML = `
+          <div><strong>${post.name}</strong>（匿名ID: ${post.uid.slice(0,6)}…）</div>
+          <div>${post.text}</div>
+        `;
+        postWrap.appendChild(body);
+
+        // 削除ボタン
+        const del = document.createElement("button");
+        del.textContent = "この投稿を削除";
+        del.style.marginTop = "6px";
+        del.onclick = async () => {
+          const pw = prompt("管理パスワード");
+          if (pw !== "master") return alert("違うペコ");
+
+          await remove(ref(db, `posts/${threadId}/${postId}`));
+          alert("削除しました");
+        };
+        postWrap.appendChild(del);
+      }
+
+      // 通報者一覧
+      const ids = Object.keys(reportInfo);
+      const repList = document.createElement("div");
+      repList.style.marginTop = "6px";
+      repList.innerHTML = "<div>通報者：</div>";
+
+      ids.forEach(uid => {
+        const li = document.createElement("div");
+        li.textContent = "・" + uid;
+        repList.appendChild(li);
+      });
+
+      postWrap.appendChild(repList);
+      threadBox.appendChild(postWrap);
+    }
+
+    area.appendChild(threadBox);
+  }
+});
