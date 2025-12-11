@@ -7,13 +7,52 @@
   <style>
     body { font-family:"Hiragino Kaku Gothic ProN", sans-serif; padding:20px; background:#fffafc; color:#222; }
     .dark { background:#121212; color:#eaeaea; }
-    .thread { border:1px solid #ffd4ea; padding:12px; border-radius:8px; margin:8px 0; background:#fff; }
+
+    .thread {
+      border:1px solid #ffd4ea;
+      padding:12px;
+      border-radius:8px;
+      margin:8px 0;
+      background:#fff;
+    }
     .thread .meta { font-size:13px; color:#666; margin-top:6px; }
     .icon { width:36px; height:36px; border-radius:50%; vertical-align:middle; margin-right:8px; }
+
     input, textarea { width:100%; padding:8px; margin:6px 0; box-sizing:border-box; }
     button { padding:8px 12px; margin:6px 4px 6px 0; cursor:pointer; }
     .small { font-size:12px; color:#666; }
     .locked { color:#aa8; }
+
+    /* ------- ダークモード完全対応 ------- */
+    body.dark {
+      background:#121212;
+      color:#eaeaea;
+    }
+    body.dark .thread {
+      background:#1e1e1e;
+      border-color:#555;
+    }
+    body.dark .meta {
+      color:#bbbbbb;
+    }
+    body.dark .locked {
+      color:#d6cfa8;
+    }
+    body.dark input,
+    body.dark textarea {
+      background:#222;
+      color:#eaeaea;
+      border:1px solid #555;
+    }
+    body.dark button {
+      background:#333;
+      color:#eaeaea;
+      border:1px solid #666;
+    }
+    body.dark #threadPaging button {
+      background:#333;
+      color:#eaeaea;
+    }
 
     /* 牢獄POPUP */
     #jail {
@@ -42,6 +81,7 @@
     }
   </style>
 </head>
+
 <body>
   <button id="darkToggle" style="position:fixed; top:12px; right:12px;">🌙</button>
   <h1>🐰うさ★キラ掲示板✨️</h1>
@@ -78,7 +118,7 @@
     <div id="threadPaging" style="margin-top:8px;"></div>
   </section>
 
-  <!-- 牢獄(BAN管理) -->
+  <!-- BAN管理（牢獄） -->
   <div id="jail">
     <div id="jailBox">
       <div class="bars"></div>
@@ -90,6 +130,7 @@
     </div>
   </div>
 
+  <!-- Firebase & Main Script -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
     import { getDatabase, ref, push, set, onValue, remove, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
@@ -119,6 +160,7 @@
     /* プロフィール */
     const profileNameEl = document.getElementById("profileName");
     const profileIconEl = document.getElementById("profileIcon");
+
     profileNameEl.value = localStorage.getItem("usakira_name") || defaultName;
     profileIconEl.value = localStorage.getItem("usakira_icon") || defaultIcon;
 
@@ -130,8 +172,13 @@
 
     /* ダークモード */
     const darkToggle = document.getElementById("darkToggle");
-    const applyDark = (x)=>{ if(x)document.body.classList.add("dark"); else document.body.classList.remove("dark"); darkToggle.textContent = x?"☀️":"🌙"; }
+    const applyDark = (x)=>{
+      if(x) document.body.classList.add("dark");
+      else document.body.classList.remove("dark");
+      darkToggle.textContent = x?"☀️":"🌙";
+    };
     applyDark(localStorage.getItem("usakira_dark")==="true");
+
     darkToggle.onclick = () => {
       const now = !(localStorage.getItem("usakira_dark")==="true");
       localStorage.setItem("usakira_dark",now);
@@ -139,21 +186,27 @@
     };
 
     /* BANチェック */
-    async function banned(id){ const s = await get(ref(db,`bans/${id}`)); return s.exists(); }
+    async function banned(id){
+      const s = await get(ref(db,`bans/${id}`));
+      return s.exists();
+    }
 
     /* スレ作成 */
     document.getElementById("createThreadBtn").onclick = async () => {
       if (await banned(userId)) return alert("BANされているため投稿できません🐇🚫");
+
       const title=document.getElementById("newTitle").value.trim();
       const body=document.getElementById("newBody").value.trim();
       const pass=document.getElementById("newPass").value.trim();
       if(!title||!body) return alert("必須項目が足りないペコ");
+
       await push(ref(db,"threads"),{
         title, body, pass:pass||"", ownerId:userId,
         ownerName:localStorage.getItem("usakira_name")||defaultName,
         ownerIcon:localStorage.getItem("usakira_icon")||defaultIcon,
         time:Date.now()
       });
+
       document.getElementById("newTitle").value="";
       document.getElementById("newBody").value="";
       document.getElementById("newPass").value="";
@@ -162,6 +215,7 @@
     /* スレ表示・ページング */
     const PER=20;
     let threadArr=[];
+
     onValue(ref(db,"threads"),(snap)=>{
       const raw=snap.val()||{};
       threadArr=Object.entries(raw).sort((a,b)=>b[1].time-a[1].time);
@@ -194,6 +248,7 @@
       const pages=Math.max(1,Math.ceil(threadArr.length/PER));
       const pageBox=document.getElementById("threadPaging");
       pageBox.innerHTML="";
+
       for(let i=1;i<=pages;i++){
         const b=document.createElement("button");
         b.textContent=i;
@@ -207,13 +262,23 @@
 
       document.querySelectorAll(".delBtn").forEach(b=>{
         b.onclick=async()=>{
-          const id=b.dataset.id, owner=b.dataset.owner;
+          const id=b.dataset.id;
+          const owner=b.dataset.owner;
+
           if(userId===owner){
-            if(confirm("削除しますか？")){ await remove(ref(db,"threads/"+id)); await remove(ref(db,"posts/"+id)); }
+            if(confirm("削除しますか？")){
+              await remove(ref(db,"threads/"+id));
+              await remove(ref(db,"posts/"+id));
+            }
             return;
           }
+
           const pw=prompt("管理パスワード");
-          if(pw==="master"){ await remove(ref(db,"threads/"+id)); await remove(ref(db,"posts/"+id)); alert("管理者削除完了"); }
+          if(pw==="master"){
+            await remove(ref(db,"threads/"+id));
+            await remove(ref(db,"posts/"+id));
+            alert("管理者削除完了");
+          }
         };
       });
 
@@ -235,10 +300,12 @@
     onValue(ref(db,"bans"),(snap)=>{
       const raw=snap.val()||{};
       const banList=document.getElementById("banList");
+
       if(Object.keys(raw).length===0){
         banList.innerHTML="<p>誰も捕らわれていない…平和だ🐇</p>";
         return;
       }
+
       banList.innerHTML="";
       Object.keys(raw).forEach(uid=>{
         const row=document.createElement("div");
