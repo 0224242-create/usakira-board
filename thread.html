@@ -119,9 +119,7 @@ onValue(ref(db,"posts/"+threadId), snap=>{
     let label = c.name;
     if(c.uid===threadData?.ownerId) label+="★";
     if(isAdmin) label="👑"+label;
-    if(c.deleted) c.text="このコメは削除されたペコ";
-
-    div.innerHTML = `
+  div.innerHTML = `
       <div class="flex">
         <img class="icon" src="${c.icon||'usagi.png.jpeg'}">
         <div style="flex:1">
