@@ -97,10 +97,10 @@ onValue(ref(db,"threads/"+threadId), snap=>{
   threadData = t;
   if(!t) {threadTitleHeader.textContent="スレッドが存在しません"; return;}
   let titleText = t.title || "（無題）";
-  let label = t.ownerName;
+  let label = "";
   if(t.ownerId === userId) label+="★";
-  if(isAdmin) label="👑"+label;
-  threadTitleHeader.textContent = label+": "+titleText;
+  if(isAdmin) label+="👑";
+  threadTitleHeader.textContent = label + " " + titleText;
 });
 
 /* コメント表示 */
@@ -117,7 +117,7 @@ onValue(ref(db,"posts/"+threadId), snap=>{
     div.id = "comment"+(index+1);
 
     let label = c.name;
-    if(c.uid===threadData.ownerId) label+="★";
+    if(threadData && c.uid===threadData.ownerId) label+="★";
     if(isAdmin) label="👑"+label;
     if(c.deleted) c.text="このコメは削除されたペコ";
 
@@ -188,14 +188,14 @@ onValue(ref(db,"posts/"+threadId), snap=>{
       else {c.reactions.star++; c.reactions.total++; localStorage.setItem("react_"+c.id+"_star","true");}
       await set(ref(db,"posts/"+threadId+"/"+c.id+"/reactions"),c.reactions);
     };
-
     tools.append(carrotBtn,starBtn);
+
     div.appendChild(tools);
     commentsDiv.appendChild(div);
   });
 });
 
-// コメント番号ジャンプ機能
+// コメント番号ジャンプ
 document.addEventListener("click",e=>{
   if(e.target.classList.contains("jump-link")){
     e.preventDefault();
