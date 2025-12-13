@@ -118,7 +118,8 @@ onValue(ref(db,"reports"),snap=>{
           onerror="this.src='usagi.png.jpeg'">
         <div>
           <b>${r.name||"名もなき兎"}</b><br>
-          <a href="thread.html?id=${r.threadId}">スレッドを見る</a>
+          <small>UID: ${r.uid}</small><br>
+          <a href="thread.html?id=${r.threadId}&admin=1">スレッドを見る</a>
         </div>
       </div>
 
@@ -137,7 +138,7 @@ onValue(ref(db,"reports"),snap=>{
     del.textContent="投稿削除";
     del.onclick=async()=>{
       if(!confirm("投稿を削除しますか？"))return;
-      await remove(ref(db,`posts/${r.threadId}/${r.postId}`));
+      await set(ref(db,`posts/${r.threadId}/${r.postId}/deleted`),true);
       await remove(ref(db,`reports/${rid}`));
       alert("削除したペコ");
     };
@@ -147,7 +148,7 @@ onValue(ref(db,"reports"),snap=>{
     ban.textContent="BAN";
     ban.onclick=async()=>{
       if(!confirm("このユーザーをBANしますか？"))return;
-      await set(ref(db,`ban/${r.userId}`),{
+      await set(ref(db,`bans/${r.uid}`),{
         name:r.name,
         icon:r.icon,
         time:Date.now()
@@ -171,7 +172,7 @@ onValue(ref(db,"reports"),snap=>{
 
 /* BANリスト */
 const banList=document.getElementById("banList");
-onValue(ref(db,"ban"),snap=>{
+onValue(ref(db,"bans"),snap=>{
   banList.innerHTML="";
   const bans=snap.val()||{};
 
@@ -184,6 +185,7 @@ onValue(ref(db,"ban"),snap=>{
         onerror="this.src='usagi.png.jpeg'">
       <div style="flex:1">
         <b>${u.name||"名もなき兎"}</b><br>
+        <small>UID: ${uid}</small><br>
         <span style="font-size:.8rem;color:#aa7">
           ${new Date(u.time).toLocaleString()}
         </span>
@@ -194,7 +196,7 @@ onValue(ref(db,"ban"),snap=>{
     unban.textContent="BAN解除";
     unban.onclick=async()=>{
       if(!confirm("BAN解除しますか？"))return;
-      await remove(ref(db,`ban/${uid}`));
+      await remove(ref(db,`bans/${uid}`));
       alert("解除したペコ");
     };
 
