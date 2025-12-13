@@ -1,96 +1,69 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8" />
+<meta charset="utf-8">
 <title>🐰うさ★キラ掲示板✨️</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-body{
-  font-family:"Hiragino Kaku Gothic ProN",sans-serif;
-  background:#fff0f8;
-  padding:20px;
-  color:#222;
-  transition:.25s;
-}
+body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222;transition:.25s;}
 body.dark{background:#121212;color:#eee}
-
-/* スレカード */
-.thread{
-  border:2px solid #ffc6e6;
-  background:#fff7fc;
-  border-radius:14px;
-  padding:14px;
-  margin-bottom:14px;
-  box-shadow:0 2px 6px rgba(255,150,210,.25);
-  transition:.2s;
-}
-.thread.locked{background:#ccc;border-color:#999;}
-.thread.highlight{transform:translateY(-3px);box-shadow:0 8px 16px rgba(255,150,210,.5);}
-body.dark .thread{background:#1b1b1b;border-color:#555;}
-body.dark .thread.locked{background:#555;border-color:#777;}
-
-.thread .flex{display:flex;align-items:center;justify-content:space-between}
-.thread h3 a{text-decoration:none;color:#ff4fa8;font-weight:bold;}
+.thread{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;margin:14px 0;box-shadow:0 2px 6px rgba(255,150,210,.25);}
+body.dark .thread{background:#1b1b1b;border-color:#555;box-shadow:0 2px 6px rgba(0,0,0,.3);}
+.thread.locked{background:#ccc;}
+.thread h3 a{color:#ff4fa8;text-decoration:none;font-weight:bold;font-size:1.15rem;}
 body.dark .thread h3 a{color:#ff8cd1;}
-
-.icon{width:48px;height:48px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover;margin-right:10px;}
-body.dark .icon{border-color:#ff8cd1;}
-
+.thread p{color:#444;margin:6px 0;}
 button{padding:6px 10px;border-radius:6px;cursor:pointer;margin:2px;}
-.sortBtn{margin-bottom:12px;}
-
-/* プロフィール/スレ作成 */
-#profileBox, #threadBox{margin-bottom:20px;}
-input, textarea{padding:6px;width:100%;margin:4px 0;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;}
-body.dark input,body.dark textarea{background:#222;color:#eee;border:1px solid #555;}
+body.dark button{background:#333;color:#eee;border:1px solid #666;}
+img.icon{width:48px;height:48px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover;margin-right:10px;}
+body.dark img.icon{border-color:#ff8cd1;}
+.flex{display:flex;align-items:center;}
+.flex-between{display:flex;justify-content:space-between;align-items:center;}
 </style>
 </head>
 <body>
 
-<button id="darkToggle" style="position:fixed;right:12px;top:12px;">🌙</button>
-
+<button id="darkToggle" style="position:fixed;right:12px;top:12px">🌙</button>
 <h1>🐰うさ★キラ掲示板✨️</h1>
 
-<!-- プロフィール -->
 <div id="profileBox">
-  <h3>プロフィール</h3>
-  <input id="nameInput" placeholder="名前" />
-  <input id="iconInput" placeholder="アイコン画像URL" />
-  <button id="saveProfile">保存</button>
+<h3>プロフィール</h3>
+<input id="nameInput" placeholder="名前"/>
+<input id="iconInput" placeholder="アイコンURL"/>
+<button id="saveProfile">保存</button>
 </div>
 
-<!-- スレ作成 -->
-<div id="threadBox">
-  <h3>スレッド作成</h3>
-  <input id="threadTitle" placeholder="タイトル" />
-  <textarea id="threadBody" placeholder="本文（任意）"></textarea>
-  <input id="threadPass" placeholder="鍵スレのパスワード（任意）" />
-  <button id="createThread">スレッドを作る</button>
-</div>
+<hr>
 
-<!-- 管理ページ -->
-<button id="adminBtn">管理ページ</button>
+<h2>スレッド作成</h2>
+<input id="threadTitle" placeholder="タイトル"/>
+<textarea id="threadBody" placeholder="本文（任意）"></textarea>
+<input id="threadPass" placeholder="鍵スレパス（任意）"/>
+<button id="createThread">スレッドを作る</button>
 
-<!-- 並べ替えボタン -->
+<hr>
+
+<h2>スレッド一覧</h2>
 <div>
-  <button class="sortBtn" id="sortNew">新しい順</button>
-  <button class="sortBtn" id="sortReact">リアクション多い順</button>
+  <button id="sortNew">新しい順</button>
+  <button id="sortHot">リアクション順</button>
 </div>
-
 <div id="threads"></div>
 <div id="paging"></div>
 
+<hr>
+<button id="adminBtn">管理ページ</button>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, get, push, set } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-/* Firebase */
-const firebaseConfig = {
-  apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-  databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
+const firebaseConfig={
+apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const app=initializeApp(firebaseConfig);
+const db=getDatabase(app);
 
 /* ダークモード */
 const darkToggle=document.getElementById("darkToggle");
@@ -107,10 +80,8 @@ const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
 const nameInput=document.getElementById("nameInput");
 const iconInput=document.getElementById("iconInput");
-
-nameInput.value = localStorage.getItem("usakira_name") || defaultName;
-iconInput.value = localStorage.getItem("usakira_icon") || defaultIcon;
-
+nameInput.value=localStorage.getItem("usakira_name")||defaultName;
+iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
 document.getElementById("saveProfile").onclick=()=>{
   localStorage.setItem("usakira_name",nameInput.value);
   localStorage.setItem("usakira_icon",iconInput.value);
@@ -118,102 +89,97 @@ document.getElementById("saveProfile").onclick=()=>{
 };
 
 /* ユーザーID */
-const userId = localStorage.getItem("usakira_userId")||("user_"+Math.random().toString(36).slice(2));
+const userId=localStorage.getItem("usakira_userId")||("user_"+Math.random().toString(36).slice(2));
 if(!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId",userId);
 
-/* スレ作成 */
+/* スレッド作成 */
 document.getElementById("createThread").onclick=async()=>{
   const title=document.getElementById("threadTitle").value.trim();
   if(!title) return alert("タイトルを書いてね");
   const body=document.getElementById("threadBody").value.trim();
   const pass=document.getElementById("threadPass").value.trim();
-  const key=(await push(ref(db,"threads"),{
-    title, body,
-    pass: pass||null,
-    ownerId:userId,
-    ownerName: nameInput.value||defaultName,
-    ownerIcon: iconInput.value||defaultIcon,
-    time:Date.now()
-  })).key;
+  const key=await push(ref(db,"threads"),{
+    title,body,pass:pass||null,
+    ownerId:userId,ownerName:nameInput.value||defaultName,
+    ownerIcon:iconInput.value||defaultIcon,time:Date.now()
+  }).key;
   alert("作成したよ！");
   location.href=`thread.html?id=${key}`;
 };
 
-/* 管理ページ */
-document.getElementById("adminBtn").onclick=()=>{
-  const pw=prompt("管理パスワード");
-  if(pw==="master") location.href="report-admin.html";
-  else alert("パスワード違うペコ");
-};
+/* スレ一覧 */
+let threadArr=[];
+let sortMode="new"; // new or hot
+const PER=20;
 
-/* スレ取得/描画 */
-let threadArr=[]; let sortBy="new"; const PER=20;
-const threadsEl=document.getElementById("threads"); const pagingEl=document.getElementById("paging");
-
-async function loadThreads(){
-  const snap=await get(ref(db,"threads"));
+onValue(ref(db,"threads"),snap=>{
   const data=snap.val()||{};
-  threadArr=[];
-  for(const tid in data){
-    const t=data[tid];
-    const postsSnap=await get(ref(db,"posts/"+tid));
+  threadArr=Object.entries(data).map(([id,t])=>({id,...t})); 
+  loadCommentsCount().then(()=> renderThreads(1));
+});
+
+async function loadCommentsCount(){
+  for(const t of threadArr){
+    const postsSnap=await get(ref(db,"posts/"+t.id));
     const posts=postsSnap.val()||{};
-    const commentCount=Object.keys(posts).length;
-
-    let reactTotal=0;
+    t.commentCount=Object.keys(posts).length;
+    t.reactionCount=0;
     for(const pid in posts){
-      const p=posts[pid];
-      if(!p.reactions) continue;
-      for(const em in p.reactions){
-        reactTotal += Object.keys(p.reactions[em]).length;
-      }
+      const r=posts[pid].reactions||{};
+      for(const em in r) t.reactionCount+=Object.keys(r[em]).length;
     }
-
-    threadArr.push({...t,id:tid,commentCount,reactTotal});
+    const banSnap=await get(ref(db,"ban/"+t.ownerId));
+    t.banned=banSnap.exists();
   }
-  renderThreads();
 }
 
-function renderThreads(page=1){
-  if(sortBy==="new") threadArr.sort((a,b)=>(b.time||0)-(a.time||0));
-  else threadArr.sort((a,b)=>(b.reactTotal||0)-(a.reactTotal||0));
-
+function renderThreads(page){
   const start=(page-1)*PER;
-  const pick=threadArr.slice(start,start+PER);
-  threadsEl.innerHTML="";
-  pick.forEach(t=>{
+  let arr=[...threadArr];
+  if(sortMode==="new") arr.sort((a,b)=>b.time-a.time);
+  else arr.sort((a,b)=>b.reactionCount-b.reactionCount);
+  const pick=arr.slice(start,start+PER);
+  const box=document.getElementById("threads");
+  box.innerHTML="";
+  for(const t of pick){
     const div=document.createElement("div");
-    div.className="thread";
-    if(t.pass) div.classList.add("locked");
-    if(t.reactTotal>=5) div.classList.add("highlight");
-
+    div.className="thread"+(t.pass?" locked":"");
     div.innerHTML=`
-      <div class="flex">
+      <div class="flex-between">
         <div class="flex">
           <img class="icon" src="${t.ownerIcon||defaultIcon}" onerror="this.src='${defaultIcon}'">
           <h3><a href="thread.html?id=${t.id}">${t.title||"(無題)"}</a></h3>
         </div>
-        <div>コメント:${t.commentCount} / リアクション:${t.reactTotal}</div>
+        <div style="font-size:0.85rem;color:#888">
+          ${t.commentCount}件 | リアクション:${t.reactionCount} | ${new Date(t.time).toLocaleString()}
+        </div>
       </div>
-      <div style="font-size:0.8rem;color:#888">by ${t.ownerName||defaultName} ${t.pass?"🔒":""}</div>
+      <p>${t.body||""}</p>
+      <div>${t.ownerName||defaultName}${t.banned?" {BAN}":""} ${t.pass?"🔒":""}</div>
     `;
-    threadsEl.appendChild(div);
-  });
-
+    box.appendChild(div);
+  }
   const pages=Math.max(1,Math.ceil(threadArr.length/PER));
-  pagingEl.innerHTML="";
+  const pg=document.getElementById("paging");
+  pg.innerHTML="";
   for(let i=1;i<=pages;i++){
     const b=document.createElement("button");
     b.textContent=i;
     b.onclick=()=>renderThreads(i);
-    pagingEl.appendChild(b);
+    pg.appendChild(b);
   }
 }
 
-document.getElementById("sortNew").onclick=()=>{sortBy="new"; renderThreads();};
-document.getElementById("sortReact").onclick=()=>{sortBy="react"; renderThreads();};
+/* ソート */
+document.getElementById("sortNew").onclick=()=>{sortMode="new"; renderThreads(1);}
+document.getElementById("sortHot").onclick=()=>{sortMode="hot"; renderThreads(1);}
 
-loadThreads();
+/* 管理ページ */
+document.getElementById("adminBtn").onclick=()=>{
+  const pw=prompt("管理パスワード");
+  if(pw==="master") location.href="import.html";
+  else alert("パスワード違うペコ");
+};
 </script>
 </body>
 </html>
