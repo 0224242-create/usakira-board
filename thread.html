@@ -12,7 +12,7 @@ button{padding:6px 10px;border-radius:6px;cursor:pointer;margin:2px;}
 button:hover{opacity:.85;}
 input,textarea{width:100%;padding:6px;margin:4px 0;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;}
 body.dark input,body.dark textarea{background:#222;color:#eee;border:1px solid #555;}
-a{text-decoration:underline;color:#d22;}
+a{text-decoration:underline;color:#00f;cursor:pointer;}
 .card{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;margin:14px 0;box-shadow:0 2px 6px rgba(255,150,210,.25);transition:.2s;}
 .card:hover{transform:translateY(-3px);box-shadow:0 6px 12px rgba(255,150,210,.32);}
 body.dark .card{background:#1b1b1b;border-color:#555;box-shadow:0 2px 6px rgba(0,0,0,.35);}
@@ -24,6 +24,7 @@ body.dark .icon{border-color:#ff8cd1;}
 .meta{font-size:.85rem;color:#aa7;}
 .highlight{border-color:#ff5aa8;box-shadow:0 0 10px #ff5aa8;}
 .commentText a.jump{color:#00f;cursor:pointer;}
+.banText{color:red;font-weight:bold;}
 </style>
 </head>
 <body>
@@ -73,6 +74,9 @@ document.getElementById("saveProfile").onclick=()=>{
   localStorage.setItem("usakira_icon",iconInput.value);
   alert("保存したよ！");
 };
+
+/* 管理人フラグ */
+const isAdmin=localStorage.getItem("usakira_admin")==="true";
 
 /* URLからスレID取得 */
 const urlParams=new URLSearchParams(window.location.search);
@@ -142,7 +146,7 @@ onValue(ref(db,"posts/"+threadId),snap=>{
       <div class="flex">
         <img class="icon" src="${c.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
         <div>
-          <b>${c.name||defaultName}</b> <span class="meta">#${cid} ${new Date(c.time).toLocaleString()}</span> <span class="banText" style="color:red;font-weight:bold;"></span>
+          <b>${c.name||defaultName}${isAdmin?" 👑":""}</b> <span class="meta">#${cid} ${new Date(c.time).toLocaleString()}</span> <span class="banText"></span>
           <div class="commentText">${textHTML}</div>
         </div>
       </div>
@@ -160,36 +164,35 @@ onValue(ref(db,"posts/"+threadId),snap=>{
     const btnDiv=document.createElement("div");
     btnDiv.className="flex-end";
 
-    /* 削除 */
-    const delBtn=document.createElement("button");
-    delBtn.textContent="削除";
-    delBtn.onclick=async()=>{
-      const pw=prompt("管理パスワード");
-      if(pw==="master"||userId===c.uid){
+    /* 管理人用ボタン */
+    if(isAdmin){
+      const delBtn=document.createElement("button");
+      delBtn.textContent="削除";
+      delBtn.onclick=async()=>{
         await set(ref(db,"posts/"+threadId+"/"+cid),null);
         alert("削除したペコ");
-      }else alert("権限がないペコ");
-    };
+      };
 
-    /* BAN */
-    const banBtn=document.createElement("button");
-    banBtn.textContent="BAN";
-    banBtn.onclick=async()=>{
-      if(confirm("このユーザーをBANしますか？")){
-        await set(ref(db,"bans/"+c.uid),{name:c.name,icon:c.icon,time:Date.now()});
-        alert("BANしたペコ");
-      }
-    };
+      const banBtn=document.createElement("button");
+      banBtn.textContent="BAN";
+      banBtn.onclick=async()=>{
+        if(confirm("このユーザーをBANしますか？")){
+          await set(ref(db,"bans/"+c.uid),{name:c.name,icon:c.icon,time:Date.now()});
+          alert("BANしたペコ");
+        }
+      };
 
-    /* 通報 */
-    const reportBtn=document.createElement("button");
-    reportBtn.textContent="通報";
-    reportBtn.onclick=async()=>{
-      await push(ref(db,"reports"),{
-        threadId,postId:cid,userId:c.uid,name:c.name,icon:c.icon,text:c.text,time:Date.now()
-      });
-      alert("通報したペコ");
-    };
+      const reportBtn=document.createElement("button");
+      reportBtn.textContent="通報";
+      reportBtn.onclick=async()=>{
+        await push(ref(db,"reports"),{
+          threadId,postId:cid,userId:c.uid,name:c.name,icon:c.icon,text:c.text,time:Date.now()
+        });
+        alert("通報したペコ");
+      };
+
+      btnDiv.append(delBtn,banBtn,reportBtn);
+    }
 
     /* リアクション */
     const carrotBtn=document.createElement("button");
@@ -221,13 +224,12 @@ onValue(ref(db,"posts/"+threadId),snap=>{
       await set(ref(db,"posts/"+threadId+"/"+cid),{...c,usersReact});
     };
 
-    btnDiv.append(delBtn,banBtn,reportBtn,carrotBtn,sparkleBtn,cancelReact);
+    btnDiv.append(carrotBtn,sparkleBtn,cancelReact);
     div.appendChild(btnDiv);
 
     commentsDiv.appendChild(div);
   });
 
-  /* URLに#comment-xxxがあればスクロール */
   const hash=window.location.hash;
   if(hash.startsWith("#comment-")){
     const target=document.querySelector(hash);
@@ -235,6 +237,5 @@ onValue(ref(db,"posts/"+threadId),snap=>{
   }
 });
 </script>
-
 </body>
 </html>
