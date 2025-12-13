@@ -218,6 +218,12 @@ onValue(ref(db,"posts/"+threadId),snap=>{
     card.appendChild(rdiv);
 
     /* 管理・削除 */
+    const report=document.createElement("button");
+report.textContent="通報";
+report.onclick=()=>{
+  location.href=`report.html?thread=${threadId}&post=${id}`;
+};
+tools.appendChild(report);
     const tools=document.createElement("div");
     tools.className="tools";
 
