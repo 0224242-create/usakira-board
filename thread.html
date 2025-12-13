@@ -21,6 +21,9 @@ body.dark .icon{border-color:#ff8cd1}
 .comment p{margin:4px 0}
 .meta{font-size:0.8rem;color:#aa7}
 a.jump-link{color:#d22;text-decoration:underline;cursor:pointer}
+#reportList{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}
+.card{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;box-shadow:0 2px 6px rgba(255,150,210,0.25)}
+body.dark .card{background:#1b1b1b;border-color:#555}
 </style>
 </head>
 <body>
@@ -35,9 +38,12 @@ a.jump-link{color:#d22;text-decoration:underline;cursor:pointer}
 
 <div id="comments"></div>
 
+<h2>🚨 通報リスト（管理人のみ）</h2>
+<div id="reportList"></div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, get, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig = {
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -51,11 +57,11 @@ const userId = localStorage.getItem("usakira_userId") || ("user_"+Math.random().
 if(!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId", userId);
 const userName = localStorage.getItem("usakira_name") || "名もなき兎";
 const userIcon = localStorage.getItem("usakira_icon") || "usagi.png.jpeg";
-const isAdmin = localStorage.getItem("usakira_admin") === "true";
+const isAdmin = localStorage.getItem("usakira_admin")==="true";
 
 /* ダークモード */
 const darkToggle = document.getElementById("darkToggle");
-const savedDark = localStorage.getItem("usakira_dark") === "true";
+const savedDark = localStorage.getItem("usakira_dark")==="true";
 if(savedDark) document.body.classList.add("dark");
 darkToggle.textContent = savedDark?"☀️":"🌙";
 darkToggle.onclick = ()=>{
@@ -97,17 +103,17 @@ onValue(ref(db,"threads/"+threadId), snap=>{
   threadData = t;
   if(!t) {threadTitleHeader.textContent="スレッドが存在しません"; return;}
   let titleText = t.title || "（無題）";
-  let label = "";
+  let label = t.ownerName;
   if(t.ownerId === userId) label+="★";
-  if(isAdmin) label+="👑";
-  threadTitleHeader.textContent = label + " " + titleText;
+  if(isAdmin) label="👑"+label;
+  threadTitleHeader.textContent = label+": "+titleText;
 });
 
 /* コメント表示 */
 const commentsDiv = document.getElementById("comments");
 onValue(ref(db,"posts/"+threadId), snap=>{
   commentsDiv.innerHTML="";
-  const posts = snap.val() || {};
+  const posts = snap.val()||{};
   const postsArray = Object.entries(posts).map(([id,c])=>({id,...c}));
   postsArray.sort((a,b)=>a.time - b.time);
 
@@ -117,7 +123,7 @@ onValue(ref(db,"posts/"+threadId), snap=>{
     div.id = "comment"+(index+1);
 
     let label = c.name;
-    if(threadData && c.uid===threadData.ownerId) label+="★";
+    if(c.uid===threadData.ownerId) label+="★";
     if(isAdmin) label="👑"+label;
     if(c.deleted) c.text="このコメは削除されたペコ";
 
@@ -131,19 +137,18 @@ onValue(ref(db,"posts/"+threadId), snap=>{
         </div>
       </div>
     `;
-
     const tools = document.createElement("div");
     tools.className="flex-end";
 
-    // 返信ボタン
+    // 返信
     const replyBtn = document.createElement("button");
-    replyBtn.textContent = "返信";
+    replyBtn.textContent="返信";
     replyBtn.onclick = ()=>{commentInput.value=">>#"+(index+1)+" "; commentInput.focus();}
     tools.appendChild(replyBtn);
 
-    // 通報ボタン
+    // 通報
     const reportBtn = document.createElement("button");
-    reportBtn.textContent = "通報";
+    reportBtn.textContent="通報";
     reportBtn.onclick=async()=>{
       await push(ref(db,"reports"),{
         threadId:threadId,
@@ -189,14 +194,50 @@ onValue(ref(db,"posts/"+threadId), snap=>{
       await set(ref(db,"posts/"+threadId+"/"+c.id+"/reactions"),c.reactions);
     };
     tools.append(carrotBtn,starBtn);
-
     div.appendChild(tools);
     commentsDiv.appendChild(div);
   });
 });
 
+/* 通報リスト表示（管理人用） */
+const reportList = document.getElementById("reportList");
+if(isAdmin){
+  onValue(ref(db,"reports"), async snap=>{
+    reportList.innerHTML="";
+    const reports = snap.val()||{};
+    for(const rid in reports){
+      const r = reports[rid];
+      const card = document.createElement("div");
+      card.className="card flex-column";
+      card.innerHTML=`
+        <div class="flex">
+          <img class="icon" src="${r.icon||'usagi.png.jpeg'}">
+          <div>
+            <b>${r.name||"名もなき兎"}</b>
+            <div style="font-size:.8rem;color:#888;">
+              スレッド: <a href="thread.html?id=${r.threadId}">移動</a>
+            </div>
+          </div>
+        </div>
+        <p>${r.text}</p>
+        <div style="font-size:.8rem;color:#aa7;">通報日時: ${new Date(r.time).toLocaleString()}</div>
+        <div class="flex-end"></div>
+      `;
+      const tools = card.querySelector(".flex-end");
+      const delBtn = document.createElement("button");
+      delBtn.textContent="削除"; delBtn.onclick=async()=>{ await set(ref(db,"posts/"+r.threadId+"/"+r.postId+"/deleted"),true); };
+      const banBtn = document.createElement("button");
+      banBtn.textContent="BAN"; banBtn.onclick=async()=>{ await set(ref(db,"bans/"+r.uid),{name:r.name,icon:r.icon,time:Date.now()}); };
+      const clearBtn = document.createElement("button");
+      clearBtn.textContent="通報解除"; clearBtn.onclick=async()=>{ await remove(ref(db,"reports/"+rid)); };
+      tools.append(delBtn,banBtn,clearBtn);
+      reportList.appendChild(card);
+    }
+  });
+}
+
 // コメント番号ジャンプ
-document.addEventListener("click",e=>{
+document.addEventListener("click", e=>{
   if(e.target.classList.contains("jump-link")){
     e.preventDefault();
     const target = document.querySelector(e.target.getAttribute("href"));
