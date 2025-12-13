@@ -14,16 +14,14 @@ body.dark input,body.dark textarea{background:#222;color:#eaeaea;border:1px soli
 a{text-decoration:underline;color:#d22}
 .thread{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;margin:14px 0;box-shadow:0 2px 6px rgba(255,150,210,0.25);transition:0.15s}
 .thread:hover{transform:translateY(-3px);box-shadow:0 6px 12px rgba(255,150,210,0.32)}
+.thread.locked{background:#ccc;border-color:#999}
 body.dark .thread{background:#1b1b1b;border-color:#555;box-shadow:0 2px 6px rgba(0,0,0,0.3)}
 body.dark .thread:hover{box-shadow:0 6px 12px rgba(0,0,0,0.5)}
 .thread h3 a{color:#ff4fa8;font-weight:bold;font-size:1.15rem;text-decoration:none}
-.thread h3 a:hover{text-decoration:underline}
 body.dark .thread h3 a{color:#ff8cd1}
 .thread p{color:#444;margin:6px 0}
-.thread.locked{background:#ccc;border-color:#999}
 .thread .meta{font-size:0.85rem;color:#aa7}
 .flex{display:flex;align-items:center;gap:10px}
-.flex-end{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
 .icon{width:48px;height:48px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover}
 body.dark .icon{border-color:#ff8cd1}
 </style>
@@ -59,23 +57,17 @@ body.dark .icon{border-color:#ff8cd1}
 </select>
 </div>
 <div id="threads"></div>
-<div id="paging"></div>
 
 <hr>
 <button id="adminBtn">管理ページ</button>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, get, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig = {
 apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-authDomain:"keijiban-7c651.firebaseapp.com",
-databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com",
-projectId:"keijiban-7c651",
-storageBucket:"keijiban-7c651.firebasestorage.app",
-messagingSenderId:"342192640264",
-appId:"1:342192640264:web:a004a725b470741aaf1cbd"
+databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
@@ -109,9 +101,7 @@ adminToggle.onclick=()=>{
     if(pw==="master"){
       localStorage.setItem("usakira_admin","true");
       alert("管理人になったペコ 👑");
-    } else {
-      alert("パスワード違うペコ");
-    }
+    } else alert("パスワード違うペコ");
   }
   updateAdminBtn();
 };
@@ -148,32 +138,40 @@ document.getElementById("createThread").onclick=async()=>{
   location.href=`thread.html?id=${key}`;
 };
 
-/* スレ一覧 */
+/* スレ一覧表示 */
 const PER=20;
 let threadArr=[];
 const threadsRef=ref(db,"threads");
-onValue(threadsRef,snap=>{
+
+onValue(threadsRef, snap=>{
   const data=snap.val()||{};
   threadArr=Object.entries(data);
-  renderThreads(1);
+  renderThreads();
 });
 
-/* 並び替え */
 const sortSelect=document.getElementById("sortSelect");
-sortSelect.onchange=()=>renderThreads(1);
+sortSelect.onchange=()=>renderThreads();
 
-/* ページ描画 */
-function renderThreads(page){
-  const start=(page-1)*PER;
-  let arr=threadArr.map(([id,t])=>({...t,id}));
-  if(sortSelect.value==="reaction"){
-    arr.sort((a,b)=>(b.reactions?.total||0)-(a.reactions?.total||0));
-  } else arr.sort((a,b)=>(b.time||0)-(a.time||0));
-  const pages=Math.max(1,Math.ceil(arr.length/PER));
-  const pick=arr.slice(start,start+PER);
+async function renderThreads(){
   const box=document.getElementById("threads");
   box.innerHTML="";
-  pick.forEach(t=>{
+  let arr=[];
+  for(const [id,t] of threadArr){
+    const postsSnap = await get(ref(db,"posts/"+id));
+    const posts = postsSnap.val()||{};
+    const commentCount = Object.keys(posts).length;
+    let reactionTotal = 0;
+    for(const pid in posts){
+      reactionTotal += posts[pid].reactions?.total || 0;
+    }
+    arr.push({...t,id,commentCount,reactionTotal});
+  }
+
+  // 並び替え
+  if(sortSelect.value==="reaction") arr.sort((a,b)=>b.reactionTotal-a.reactionTotal);
+  else arr.sort((a,b)=>b.time-a.time);
+
+  for(const t of arr){
     const div=document.createElement("div");
     div.className="thread"+(t.pass?" locked":"");
     div.innerHTML=`
@@ -186,20 +184,10 @@ function renderThreads(page){
           </div>
         </div>
       </div>
-      <p>コメント数: ${t.commentCount||0} リアクション合計: ${t.reactions?.total||0}</p>
+      <p>コメント数: ${t.commentCount} リアクション合計: ${t.reactionTotal}</p>
       <p class="meta">${new Date(t.time).toLocaleString()}</p>
     `;
     box.appendChild(div);
-  });
-
-  /* ページング */
-  const pg=document.getElementById("paging");
-  pg.innerHTML="";
-  for(let i=1;i<=pages;i++){
-    const b=document.createElement("button");
-    b.textContent=i;
-    b.onclick=()=>renderThreads(i);
-    pg.appendChild(b);
   }
 }
 
