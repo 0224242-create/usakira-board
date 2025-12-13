@@ -5,7 +5,7 @@
 <title>🐰 うさ★キラ掲示板 スレッド</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <style>
-body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222;transition:0.25s}
+body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222;transition:.25s}
 body.dark{background:#121212;color:#eee}
 button{padding:4px 8px;margin:2px;border-radius:6px;cursor:pointer}
 button:hover{opacity:0.85}
@@ -21,7 +21,6 @@ body.dark .icon{border-color:#ff8cd1}
 .comment p{margin:4px 0}
 .meta{font-size:0.8rem;color:#aa7}
 a.jump-link{color:#d22;text-decoration:underline;cursor:pointer}
-.replyBtn{margin-left:4px}
 </style>
 </head>
 <body>
@@ -63,7 +62,7 @@ darkToggle.onclick = ()=>{
   const now = !document.body.classList.contains("dark");
   document.body.classList.toggle("dark");
   localStorage.setItem("usakira_dark", now);
-  darkToggle.textContent = now?"☀️":"🌙";
+  darkToggle.textContent=now?"☀️":"🌙";
 };
 
 /* スレッドID */
@@ -84,7 +83,8 @@ postBtn.onclick = async ()=>{
   let text = commentInput.value.trim();
   if(!text) return;
   await push(ref(db,"posts/"+threadId),{
-    uid:userId,name:userName,icon:userIcon,text:text,time:Date.now(),reactions:{carrot:0,star:0,total:0}
+    uid:userId,name:userName,icon:userIcon,text:text,time:Date.now(),
+    reactions:{carrot:0,star:0,total:0}
   });
   commentInput.value="";
 };
@@ -141,6 +141,23 @@ onValue(ref(db,"posts/"+threadId), snap=>{
     replyBtn.onclick = ()=>{commentInput.value=">>#"+(index+1)+" "; commentInput.focus();}
     tools.appendChild(replyBtn);
 
+    // 通報ボタン
+    const reportBtn = document.createElement("button");
+    reportBtn.textContent = "通報";
+    reportBtn.onclick=async()=>{
+      await push(ref(db,"reports"),{
+        threadId:threadId,
+        postId:c.id,
+        uid:c.uid,
+        name:c.name,
+        icon:c.icon,
+        text:c.text,
+        time:Date.now()
+      });
+      alert("通報しましたペコ");
+    };
+    tools.appendChild(reportBtn);
+
     // 管理人のみ削除・BAN
     if(isAdmin){
       const delBtn = document.createElement("button");
@@ -162,7 +179,6 @@ onValue(ref(db,"posts/"+threadId), snap=>{
       else {c.reactions.carrot++; c.reactions.total++; localStorage.setItem("react_"+c.id+"_carrot","true");}
       await set(ref(db,"posts/"+threadId+"/"+c.id+"/reactions"),c.reactions);
     };
-
     const starBtn = document.createElement("button");
     starBtn.textContent="✨ "+(c.reactions?.star||0);
     starBtn.onclick=async()=>{
@@ -174,10 +190,18 @@ onValue(ref(db,"posts/"+threadId), snap=>{
     };
 
     tools.append(carrotBtn,starBtn);
-
     div.appendChild(tools);
     commentsDiv.appendChild(div);
   });
+});
+
+// コメント番号ジャンプ機能
+document.addEventListener("click",e=>{
+  if(e.target.classList.contains("jump-link")){
+    e.preventDefault();
+    const target = document.querySelector(e.target.getAttribute("href"));
+    if(target) target.scrollIntoView({behavior:"smooth"});
+  }
 });
 </script>
 </body>
