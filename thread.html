@@ -48,7 +48,7 @@ const db = getDatabase(app);
 
 /* ユーザー情報 */
 const userId = localStorage.getItem("usakira_userId") || ("user_"+Math.random().toString(36).slice(2));
-if(!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId", userId);
+if(!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId",userId);
 const userName = localStorage.getItem("usakira_name") || "名もなき兎";
 const userIcon = localStorage.getItem("usakira_icon") || "usagi.png.jpeg";
 const isAdmin = localStorage.getItem("usakira_admin") === "true";
@@ -103,6 +103,12 @@ onValue(ref(db,"threads/"+threadId), snap=>{
   threadTitleHeader.textContent = label+": "+titleText;
 });
 
+/* 管理者UIDリスト取得 */
+let adminUIDs = [];
+onValue(ref(db,"adminUIDs"),snap=>{
+  adminUIDs = snap.val() || [];
+});
+
 /* コメント表示 */
 const commentsDiv = document.getElementById("comments");
 onValue(ref(db,"posts/"+threadId), snap=>{
@@ -118,16 +124,26 @@ onValue(ref(db,"posts/"+threadId), snap=>{
     div.className="comment";
     div.id = "comment"+(index+1);
 
+    // ラベル（スレ主★、管理者👑）
     let label = c.name;
-    if(c.uid===threadData.ownerId) label+="★";
-    if(isAdmin) label="👑"+label;
+    if(c.uid === threadData.ownerId) label += "★";
+    if(adminUIDs.includes(c.uid)) label = "👑"+label;
+
+    // コメント文字色
+    const totalReactions = c.reactions?.total || 0;
+    let styleColor = "";
+    if(totalReactions >= 10){
+      styleColor = "background: linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet); -webkit-background-clip: text; color: transparent;";
+    } else if(totalReactions >=5){
+      styleColor = "color:red;";
+    }
 
     div.innerHTML = `
       <div class="flex">
         <img class="icon" src="${c.icon||'usagi.png.jpeg'}">
         <div style="flex:1">
           <b>${index+1} ${label}</b>
-          <p>${c.text} ペコ</p>
+          <p style="${styleColor}">${c.text} ペコ</p>
           <p class="meta">${new Date(c.time).toLocaleString()} ID:${c.uid}</p>
         </div>
       </div>
@@ -202,15 +218,6 @@ onValue(ref(db,"posts/"+threadId), snap=>{
     div.appendChild(tools);
     commentsDiv.appendChild(div);
   });
-});
-
-// コメント番号ジャンプ機能
-document.addEventListener("click",e=>{
-  if(e.target.classList.contains("jump-link")){
-    e.preventDefault();
-    const target = document.querySelector(e.target.getAttribute("href"));
-    if(target) target.scrollIntoView({behavior:"smooth"});
-  }
 });
 </script>
 </body>
