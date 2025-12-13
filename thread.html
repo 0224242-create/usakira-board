@@ -25,11 +25,7 @@ body.dark{background:#121212;color:#eaeaea}
 }
 body.dark .post{background:#1b1b1b;border-color:#555}
 
-.header{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
+.header{display:flex;gap:10px;align-items:center}
 .icon{
   width:42px;height:42px;
   border-radius:50%;
@@ -60,26 +56,36 @@ button{
 }
 body.dark button{background:#333;color:#eee;border:1px solid #666}
 
-.reacts button{font-size:1.1rem}
-
 .flash{
   animation:flash .6s infinite alternate;
 }
 @keyframes flash{
-  from{box-shadow:0 0 5px #ff8cd1}
+  from{box-shadow:0 0 6px #ff8cd1}
   to{box-shadow:0 0 16px #ff4fa8}
 }
+
+.jump{
+  animation:jump .8s;
+}
+@keyframes jump{
+  from{background:#fff0a6}
+  to{background:inherit}
+}
+
+.replyLink{
+  color:#4aa;
+  cursor:pointer;
+}
+.replyLink:hover{text-decoration:underline}
 </style>
 </head>
 
 <body>
 
 <button id="darkToggle" style="position:fixed;right:12px;top:12px;">🌙</button>
-
 <button onclick="location.href='index.html'">← 掲示板に戻る</button>
 
 <h2 id="title"></h2>
-
 <div id="posts"></div>
 
 <hr>
@@ -89,7 +95,7 @@ body.dark button{background:#333;color:#eee;border:1px solid #666}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, remove, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
  apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -104,14 +110,10 @@ const firebaseConfig={
 const app=initializeApp(firebaseConfig);
 const db=getDatabase(app);
 
-const params=new URLSearchParams(location.search);
-const threadId=params.get("id");
-
-const userId=localStorage.getItem("usakira_userId");
+const tid=new URLSearchParams(location.search).get("id");
+const uid=localStorage.getItem("usakira_userId");
 const name=localStorage.getItem("usakira_name")||"名もなき兎";
 const icon=localStorage.getItem("usakira_icon")||"usagi.png.jpeg";
-
-let isAdmin=localStorage.getItem("usakira_admin")==="true";
 
 /* ダーク */
 const d=document.getElementById("darkToggle");
@@ -125,123 +127,101 @@ d.onclick=()=>{
  d.textContent=on?"☀️":"🌙";
 };
 
-/* 管理人チェック */
-get(ref(db,"admins/"+userId)).then(s=>{
- if(s.exists()){
-   isAdmin=true;
-   localStorage.setItem("usakira_admin","true");
- }
-});
-
-/* BANチェック */
+/* BAN */
 let banned=false;
-onValue(ref(db,"bans/"+userId),s=>{
+onValue(ref(db,"bans/"+uid),s=>{
  banned=s.exists();
  document.getElementById("send").disabled=banned;
 });
 
-/* スレ情報 */
-onValue(ref(db,"threads/"+threadId),s=>{
+/* スレ */
+onValue(ref(db,"threads/"+tid),s=>{
  if(s.exists()) document.getElementById("title").textContent=s.val().title;
 });
 
 /* 投稿 */
-document.getElementById("send").onclick=async()=>{
+send.onclick=async()=>{
  if(banned) return alert("BAN中は投稿できないペコ");
- const text=document.getElementById("text").value.trim();
- if(!text) return;
-
- await push(ref(db,"posts/"+threadId),{
-  text,
-  name,
-  icon,
-  uid:userId,
-  time:Date.now(),
-  reacts:{}
+ const t=text.value.trim();
+ if(!t) return;
+ await push(ref(db,"posts/"+tid),{
+  text:t,
+  name,icon,uid,time:Date.now(),
+  reacts:{sparkle:{},carrot:{}}
  });
- document.getElementById("text").value="";
+ text.value="";
 };
 
 /* 表示 */
-onValue(ref(db,"posts/"+threadId),snap=>{
- const box=document.getElementById("posts");
- box.innerHTML="";
+onValue(ref(db,"posts/"+tid),snap=>{
+ posts.innerHTML="";
  let idx=0;
-
- snap.forEach(pSnap=>{
+ snap.forEach(ps=>{
   idx++;
-  const p=pSnap.val();
-  const pid=pSnap.key;
-
+  const p=ps.val(),pid=ps.key;
   const div=document.createElement("div");
   div.className="post";
+  div.id="p"+idx;
 
   if(p.deleted){
-   div.innerHTML="このコメは削除されたペコ";
-   box.appendChild(div);
-   return;
+   div.textContent="このコメは削除されたペコ";
+   posts.appendChild(div);return;
   }
 
-  const reacts=p.reacts||{};
-  const total=(reacts.sparkle||0)+(reacts.carrot||0);
+  const sp=p.reacts?.sparkle||{};
+  const ca=p.reacts?.carrot||{};
+  const total=Object.keys(sp).length+Object.keys(ca).length;
   if(total>=5) div.classList.add("flash");
 
+  const body=p.text.replace(/>>#(\d+)/g,
+    (_,n)=>`<span class="replyLink" data-jump="${n}">>>#${n}</span>`
+  );
+
   div.innerHTML=`
-   <div class="header">
-    <img class="icon" src="${p.icon}" onerror="this.src='usagi.png.jpeg'">
-    <div>
-     <div class="name replyTarget" data-no="${idx}">
-      #${idx} ${p.name}${banned?" {BAN}":""}
-     </div>
-     <div class="meta">
-      ${new Date(p.time).toLocaleString()} / ID:${p.uid}
-     </div>
+  <div class="header">
+   <img class="icon" src="${p.icon}" onerror="this.src='usagi.png.jpeg'">
+   <div>
+    <div class="name replyTarget" data-no="${idx}">
+     #${idx} ${p.name}${banned?" {BAN}":""}
     </div>
+    <div class="meta">${new Date(p.time).toLocaleString()} / ID:${p.uid}</div>
    </div>
-   <p>${p.text} ペコ</p>
-   <div class="reacts">
-    ✨ ${reacts.sparkle||0}
-    🥕 ${reacts.carrot||0}
-   </div>
+  </div>
+  <p>${body} ペコ</p>
+  <div>✨ ${Object.keys(sp).length}　🥕 ${Object.keys(ca).length}</div>
   `;
 
-  const acts=document.createElement("div");
-  acts.className="actions";
+  const a=document.createElement("div");
+  a.className="actions";
 
-  const r1=document.createElement("button");
-  r1.textContent="✨";
-  r1.onclick=()=>set(ref(db,`posts/${threadId}/${pid}/reacts/sparkle`),(reacts.sparkle||0)+1);
+  const sBtn=document.createElement("button");
+  sBtn.textContent=sp[uid]?"✨取消":"✨";
+  sBtn.onclick=()=>sp[uid]
+    ?remove(ref(db,`posts/${tid}/${pid}/reacts/sparkle/${uid}`))
+    :set(ref(db,`posts/${tid}/${pid}/reacts/sparkle/${uid}`),true);
 
-  const r2=document.createElement("button");
-  r2.textContent="🥕";
-  r2.onclick=()=>set(ref(db,`posts/${threadId}/${pid}/reacts/carrot`),(reacts.carrot||0)+1);
+  const cBtn=document.createElement("button");
+  cBtn.textContent=ca[uid]?"🥕取消":"🥕";
+  cBtn.onclick=()=>ca[uid]
+    ?remove(ref(db,`posts/${tid}/${pid}/reacts/carrot/${uid}`))
+    :set(ref(db,`posts/${tid}/${pid}/reacts/carrot/${uid}`),true);
 
-  acts.append(r1,r2);
-
-  if(isAdmin){
-   const del=document.createElement("button");
-   del.textContent="削除";
-   del.onclick=()=>set(ref(db,`posts/${threadId}/${pid}/deleted`),true);
-
-   const ban=document.createElement("button");
-   ban.textContent="BAN";
-   ban.onclick=()=>set(ref(db,"bans/"+p.uid),{name:p.name,icon:p.icon,time:Date.now()});
-
-   acts.append(del,ban);
-  }
-
-  div.appendChild(acts);
-  box.appendChild(div);
+  a.append(sBtn,cBtn);
+  div.appendChild(a);
+  posts.appendChild(div);
  });
 });
 
-/* >>返信 */
+/* >>自動 */
 document.addEventListener("click",e=>{
- if(!e.target.classList.contains("replyTarget"))return;
- const no=e.target.dataset.no;
- const ta=document.getElementById("text");
- ta.value+=(ta.value?"\n":"")+`>>#${no} `;
- ta.focus();
+ if(e.target.classList.contains("replyTarget")){
+  text.value+=(text.value?"\n":"")+`>>#${e.target.dataset.no} `;
+  text.focus();
+ }
+ if(e.target.classList.contains("replyLink")){
+  const t=document.getElementById("p"+e.target.dataset.jump);
+  if(t){t.classList.add("jump");t.scrollIntoView({behavior:"smooth"});}
+ }
 });
 </script>
 </body>
