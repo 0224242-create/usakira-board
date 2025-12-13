@@ -1,191 +1,184 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-<meta charset="utf-8">
-<title>スレッド - 🐰うさ★キラ掲示板✨️</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8">
+  <title>スレッド - 🐰うさ★キラ掲示板✨️</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body{
+      font-family:"Hiragino Kaku Gothic ProN",sans-serif;
+      background:#fff0f8;
+      padding:20px;
+      color:#222;
+      transition:.25s;
+    }
+    body.dark{background:#121212;color:#eaeaea}
 
-<style>
-body{
-  font-family:"Hiragino Kaku Gothic ProN",sans-serif;
-  background:#fffafc;
-  color:#222;
-  padding:14px;
-  transition:.25s;
-}
-body.dark{background:#121212;color:#eee}
+    .post{
+      border:2px solid #ffc6e6;
+      background:#fff7fc;
+      border-radius:14px;
+      padding:12px;
+      margin:10px 0;
+    }
+    body.dark .post{
+      background:#1b1b1b;
+      border-color:#555;
+    }
 
-/* ===== 投稿 ===== */
-.post{
-  background:#fff;
-  border-radius:10px;
-  padding:10px;
-  margin:10px 0;
-  box-shadow:0 2px 6px rgba(0,0,0,.08);
-}
-body.dark .post{background:#1e1e1e}
+    textarea,input{
+      width:100%;
+      padding:6px;
+      margin:4px 0;
+      border-radius:6px;
+      border:1px solid #ccc;
+      box-sizing:border-box;
+    }
+    body.dark textarea,body.dark input{
+      background:#222;
+      color:#eee;
+      border-color:#555;
+    }
 
-/* スレ主 */
-.ownerPost{
-  border-left:6px solid #ff69b4;
-}
+    button{
+      padding:6px 10px;
+      margin:4px;
+      border-radius:6px;
+      cursor:pointer;
+    }
+    body.dark button{
+      background:#333;
+      color:#eee;
+      border:1px solid #666;
+    }
 
-/* 管理人 */
-.adminName{
-  color:#f5b400;
-  font-weight:bold;
-}
+    a{color:#ff4fa8;text-decoration:none}
+    a:hover{text-decoration:underline}
 
-/* ボタン */
-button{
-  padding:4px 8px;
-  border-radius:6px;
-  cursor:pointer;
-}
-body.dark button{
-  background:#333;color:#eee;border:1px solid #666;
-}
-
-/* 返信 */
-.reply{
-  font-size:.9rem;
-  color:#ff4fa8;
-}
-
-/* アイコン */
-.icon{
-  width:36px;height:36px;
-  border-radius:50%;
-  object-fit:cover;
-  border:2px solid #ffb8e6;
-}
-
-/* ダーク時 */
-body.dark .icon{
-  border-color:#ff8cd1;
-}
-</style>
+    .admin{color:#ff9800;font-weight:bold}
+    .meta{font-size:.8rem;color:#aa7}
+  </style>
 </head>
 
 <body>
 
-<button id="darkToggle" style="position:fixed;right:10px;top:10px">🌙</button>
+<button id="darkToggle" style="position:fixed;right:12px;top:12px;">🌙</button>
 
-<h2 id="threadTitle"></h2>
+<h2 id="threadTitle">読み込み中…</h2>
+<button onclick="location.href='index.html'">← 掲示板に戻る</button>
+
+<hr>
 
 <div id="posts"></div>
 
 <hr>
 
-<textarea id="body" placeholder="書き込み内容"></textarea>
-<input id="img" placeholder="画像URL（任意）">
-<button id="send">投稿</button>
+<textarea id="commentText" placeholder="コメントを書くペコ"></textarea>
+<button id="sendBtn">送信</button>
 
 <script type="module">
-import { initializeApp } from
-  "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, remove } from
-  "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getDatabase, ref, onValue, push, set, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 /* Firebase */
 const firebaseConfig={
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   authDomain:"keijiban-7c651.firebaseapp.com",
   databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com",
-  projectId:"keijiban-7c651"
+  projectId:"keijiban-7c651",
+  storageBucket:"keijiban-7c651.appspot.com",
+  messagingSenderId:"342192640264",
+  appId:"1:342192640264:web:a004a725b470741aaf1cbd"
 };
 const app=initializeApp(firebaseConfig);
 const db=getDatabase(app);
 
 /* ダークモード */
-const dark=localStorage.getItem("usakira_dark")==="true";
-if(dark) document.body.classList.add("dark");
-darkToggle.textContent=dark?"☀️":"🌙";
+const darkToggle=document.getElementById("darkToggle");
+if(localStorage.getItem("usakira_dark")==="true"){
+  document.body.classList.add("dark");
+  darkToggle.textContent="☀️";
+}
 darkToggle.onclick=()=>{
-  const n=!document.body.classList.contains("dark");
   document.body.classList.toggle("dark");
-  localStorage.setItem("usakira_dark",n);
-  darkToggle.textContent=n?"☀️":"🌙";
+  const on=document.body.classList.contains("dark");
+  localStorage.setItem("usakira_dark",on);
+  darkToggle.textContent=on?"☀️":"🌙";
 };
 
-/* ID */
-const userId=localStorage.getItem("usakira_userId");
-const name=localStorage.getItem("usakira_name")||"名もなき兎";
-const icon=localStorage.getItem("usakira_icon")||"usagi.png.jpeg";
+/* ユーザー */
+const defaultName="名もなき兎";
+const defaultIcon="usagi.png.jpeg";
+const name=localStorage.getItem("usakira_name")||defaultName;
+const icon=localStorage.getItem("usakira_icon")||defaultIcon;
 
-/* 管理人ログイン */
-let isAdmin=localStorage.getItem("usakira_isAdmin")==="true";
-if(!isAdmin && confirm("管理人ログインしますか？")){
-  const pw=prompt("管理パスワード");
-  if(pw==="master"){
-    isAdmin=true;
-    localStorage.setItem("usakira_isAdmin","true");
-    alert("管理人ログイン成功");
-  }
+let userId=localStorage.getItem("usakira_userId");
+if(!userId){
+  userId="user_"+Math.random().toString(36).slice(2);
+  localStorage.setItem("usakira_userId",userId);
 }
+const isAdmin=localStorage.getItem("usakira_admin")==="true";
 
-/* スレID */
-const id=new URLSearchParams(location.search).get("id");
-const postRef=ref(db,"posts/"+id);
+/* スレID取得 */
+const params=new URLSearchParams(location.search);
+const threadId=params.get("id");
+if(!threadId){ alert("スレが見つからないペコ"); }
 
-/* 表示 */
-onValue(postRef,s=>{
+/* スレ情報 */
+const threadRef=ref(db,"threads/"+threadId);
+get(threadRef).then(snap=>{
+  const t=snap.val();
+  if(!t) return alert("スレが消えてるペコ");
+
+  if(t.pass){
+    const pw=prompt("鍵スレのパスワード");
+    if(pw!==t.pass){ alert("パスワード違うペコ"); location.href="index.html"; }
+  }
+
+  document.getElementById("threadTitle").innerHTML=
+    t.title+(isAdmin?' <span class="admin">👑</span>':"");
+});
+
+/* コメント表示 */
+onValue(ref(db,"posts/"+threadId),snap=>{
   const box=document.getElementById("posts");
   box.innerHTML="";
-  let i=1;
-  s.forEach(c=>{
-    const p=c.val();
+  const data=snap.val()||{};
+  Object.entries(data).forEach(([id,p])=>{
     const div=document.createElement("div");
     div.className="post";
-    if(p.uid===p.owner) div.classList.add("ownerPost");
-
     div.innerHTML=`
-      <div>
-        <img class="icon" src="${p.icon||icon}">
-        <strong class="${p.admin?'adminName':''}">
-          ${p.admin?'👑':''}${p.owner?'★':''}${p.name}
-        </strong>
-        <span>No.${i}</span>
+      <b>${p.name}${p.admin?' <span class="admin">👑</span>':""}</b>
+      <div class="meta">
+        ID:${p.userId}<br>
+        ${new Date(p.time).toLocaleString()}
       </div>
-      <div>${p.text}</div>
-      ${p.img?`<img src="${p.img}" style="max-width:100%">`:''}
-      <div>
-        <button onclick="reply(${i})">返信</button>
-        ${(p.uid===userId||isAdmin)?`<button onclick="del('${c.key}')">削除</button>`:''}
-      </div>
+      <p>${p.text}</p>
+      <div class="del"></div>
     `;
+    if(userId===p.userId||isAdmin){
+      const d=document.createElement("button");
+      d.textContent="削除";
+      d.onclick=()=>set(ref(db,"posts/"+threadId+"/"+id),null);
+      div.querySelector(".del").appendChild(d);
+    }
     box.appendChild(div);
-    i++;
   });
 });
 
-/* 投稿 */
-send.onclick=()=>{
-  if(!body.value) return;
-  push(postRef,{
-    text:body.value,
-    img:img.value||null,
-    uid:userId,
+/* コメント送信 */
+sendBtn.onclick=()=>{
+  const txt=commentText.value.trim();
+  if(!txt) return;
+  push(ref(db,"posts/"+threadId),{
+    text:txt+" ペコ",
     name,
     icon,
+    userId,
     admin:isAdmin,
-    owner:false,
     time:Date.now()
   });
-  body.value="";
-  img.value="";
-};
-
-/* 返信 */
-window.reply=n=>{
-  body.value+=">>"+n+"\n";
-};
-
-/* 削除 */
-window.del=k=>{
-  if(confirm("削除する？")){
-    remove(ref(db,"posts/"+id+"/"+k));
-  }
+  commentText.value="";
 };
 </script>
 
