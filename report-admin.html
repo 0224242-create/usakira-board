@@ -33,7 +33,7 @@ button{padding:4px 8px;border-radius:6px;cursor:pointer;}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig = {
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -62,13 +62,17 @@ const reportList=document.getElementById("reportList");
 onValue(ref(db,"reports"),snap=>{
   reportList.innerHTML="";
   const reports = snap.val()||{};
-  
-  // reportsを配列に変換して重複表示
-  const reportsArray = Object.entries(reports).map(([rid,r])=>({rid,...r}));
-  
-  reportsArray.sort((a,b)=>b.time - a.time); // 新しい順に表示
 
-  reportsArray.forEach(r=>{
+  // 同じコメントでまとめる
+  const grouped = {};
+  Object.entries(reports).forEach(([rid,r])=>{
+    const key = r.threadId + "_" + r.postId;
+    if(!grouped[key]) grouped[key] = {r,rids:[rid],count:1};
+    else { grouped[key].rids.push(rid); grouped[key].count++; }
+  });
+
+  Object.values(grouped).sort((a,b)=>b.r.time - a.r.time).forEach(item=>{
+    const r = item.r;
     const card = document.createElement("div");
     card.className="card flex-column";
     card.innerHTML=`
@@ -80,7 +84,9 @@ onValue(ref(db,"reports"),snap=>{
         </div>
       </div>
       <p>${r.text}</p>
-      <div style="font-size:.8rem;color:#aa7;">通報日時: ${new Date(r.time).toLocaleString()}</div>
+      <div style="font-size:.8rem;color:#aa7;">
+        通報日時: ${new Date(r.time).toLocaleString()}${item.count>1 ? " ・"+item.count+"回追放されました" : ""}
+      </div>
       <div class="flex-end"></div>
     `;
     const tools = card.querySelector(".flex-end");
@@ -95,10 +101,12 @@ onValue(ref(db,"reports"),snap=>{
     banBtn.textContent="BAN"; 
     banBtn.onclick=async()=>await set(ref(db,"bans/"+r.uid),{name:r.name,icon:r.icon,time:Date.now()});
 
-    // 通報解除
+    // 通報解除（すべてのridを削除）
     const clearBtn = document.createElement("button");
     clearBtn.textContent="通報解除"; 
-    clearBtn.onclick=async()=>await remove(ref(db,"reports/"+r.rid));
+    clearBtn.onclick=async()=>{ 
+      for(const rid of item.rids) await remove(ref(db,"reports/"+rid));
+    };
 
     tools.append(delBtn,banBtn,clearBtn);
     reportList.appendChild(card);
