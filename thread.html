@@ -1,63 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>スレッド - 🐰うさ★キラ掲示板✨️</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    body{
-      font-family:"Hiragino Kaku Gothic ProN",sans-serif;
-      background:#fff0f8;
-      padding:20px;
-      color:#222;
-      transition:.25s;
-    }
-    body.dark{background:#121212;color:#eaeaea}
+<meta charset="utf-8">
+<title>スレッド - 🐰うさ★キラ掲示板✨️</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{
+  font-family:"Hiragino Kaku Gothic ProN",sans-serif;
+  background:#fff0f8;
+  padding:20px;
+  color:#222;
+  transition:.25s;
+}
+body.dark{background:#121212;color:#eaeaea}
 
-    .post{
-      border:2px solid #ffc6e6;
-      background:#fff7fc;
-      border-radius:14px;
-      padding:12px;
-      margin:10px 0;
-    }
-    body.dark .post{
-      background:#1b1b1b;
-      border-color:#555;
-    }
+.post{
+  border:2px solid #ffc6e6;
+  background:#fff7fc;
+  border-radius:14px;
+  padding:12px;
+  margin:10px 0;
+}
+body.dark .post{
+  background:#1b1b1b;
+  border-color:#555;
+}
 
-    textarea,input{
-      width:100%;
-      padding:6px;
-      margin:4px 0;
-      border-radius:6px;
-      border:1px solid #ccc;
-      box-sizing:border-box;
-    }
-    body.dark textarea,body.dark input{
-      background:#222;
-      color:#eee;
-      border-color:#555;
-    }
+.meta{font-size:.8rem;color:#aa7}
+.admin{color:#ff9800;font-weight:bold}
+.deltext{color:#999;font-style:italic}
 
-    button{
-      padding:6px 10px;
-      margin:4px;
-      border-radius:6px;
-      cursor:pointer;
-    }
-    body.dark button{
-      background:#333;
-      color:#eee;
-      border:1px solid #666;
-    }
+button{
+  padding:4px 8px;
+  margin:4px 4px 0 0;
+  border-radius:6px;
+  cursor:pointer;
+}
+body.dark button{
+  background:#333;
+  color:#eee;
+  border:1px solid #666;
+}
 
-    a{color:#ff4fa8;text-decoration:none}
-    a:hover{text-decoration:underline}
+textarea{width:100%;height:70px}
 
-    .admin{color:#ff9800;font-weight:bold}
-    .meta{font-size:.8rem;color:#aa7}
-  </style>
+a{color:#ff4fa8;text-decoration:none}
+a:hover{text-decoration:underline}
+
+.react{font-size:.9rem}
+</style>
 </head>
 
 <body>
@@ -68,9 +59,7 @@
 <button onclick="location.href='index.html'">← 掲示板に戻る</button>
 
 <hr>
-
 <div id="posts"></div>
-
 <hr>
 
 <textarea id="commentText" placeholder="コメントを書くペコ"></textarea>
@@ -78,7 +67,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, get, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 /* Firebase */
 const firebaseConfig={
@@ -119,24 +108,20 @@ if(!userId){
 }
 const isAdmin=localStorage.getItem("usakira_admin")==="true";
 
-/* スレID取得 */
+/* スレID */
 const params=new URLSearchParams(location.search);
 const threadId=params.get("id");
-if(!threadId){ alert("スレが見つからないペコ"); }
 
 /* スレ情報 */
 const threadRef=ref(db,"threads/"+threadId);
 get(threadRef).then(snap=>{
   const t=snap.val();
-  if(!t) return alert("スレが消えてるペコ");
-
+  if(!t) return alert("スレがないペコ");
   if(t.pass){
     const pw=prompt("鍵スレのパスワード");
-    if(pw!==t.pass){ alert("パスワード違うペコ"); location.href="index.html"; }
+    if(pw!==t.pass){ location.href="index.html"; return; }
   }
-
-  document.getElementById("threadTitle").innerHTML=
-    t.title+(isAdmin?' <span class="admin">👑</span>':"");
+  threadTitle.innerHTML=t.title+(isAdmin?' <span class="admin">👑</span>':"");
 });
 
 /* コメント表示 */
@@ -144,39 +129,78 @@ onValue(ref(db,"posts/"+threadId),snap=>{
   const box=document.getElementById("posts");
   box.innerHTML="";
   const data=snap.val()||{};
+  let num=1;
+
   Object.entries(data).forEach(([id,p])=>{
     const div=document.createElement("div");
     div.className="post";
+
+    if(p.deleted){
+      div.innerHTML=`<p class="deltext">このコメは削除されたペコ</p>`;
+      box.appendChild(div);
+      num++;
+      return;
+    }
+
     div.innerHTML=`
-      <b>${p.name}${p.admin?' <span class="admin">👑</span>':""}</b>
-      <div class="meta">
-        ID:${p.userId}<br>
-        ${new Date(p.time).toLocaleString()}
+      <div style="display:flex;gap:8px;align-items:center;">
+        <img src="${p.icon||defaultIcon}" width="40" height="40"
+          style="border-radius:50%;object-fit:cover"
+          onerror="this.src='${defaultIcon}'">
+        <div>
+          <b onclick="reply(${num})" style="cursor:pointer">
+            #${num} ${p.name}${p.admin?' <span class="admin">👑</span>':""}
+          </b>
+          <div class="meta">ID:${p.userId}<br>${new Date(p.time).toLocaleString()}</div>
+        </div>
       </div>
+
       <p>${p.text}</p>
+
+      <div class="react">
+        <button onclick="react('${id}','spark')">✨ ${p.spark||0}</button>
+        <button onclick="react('${id}','carrot')">🥕 ${p.carrot||0}</button>
+      </div>
+
       <div class="del"></div>
     `;
+
     if(userId===p.userId||isAdmin){
       const d=document.createElement("button");
       d.textContent="削除";
-      d.onclick=()=>set(ref(db,"posts/"+threadId+"/"+id),null);
+      d.onclick=()=>update(ref(db,"posts/"+threadId+"/"+id),{deleted:true});
       div.querySelector(".del").appendChild(d);
     }
+
     box.appendChild(div);
+    num++;
   });
 });
 
+/* 返信 */
+window.reply=(n)=>{
+  commentText.value+=`>>#${n} `;
+  commentText.focus();
+};
+
+/* リアクション */
+window.react=(id,type)=>{
+  const r=ref(db,"posts/"+threadId+"/"+id+"/"+type);
+  get(r).then(s=>set(r,(s.val()||0)+1));
+};
+
 /* コメント送信 */
 sendBtn.onclick=()=>{
-  const txt=commentText.value.trim();
-  if(!txt) return;
+  if(!commentText.value.trim()) return;
   push(ref(db,"posts/"+threadId),{
-    text:txt+" ペコ",
+    text:commentText.value.trim()+" ペコ",
     name,
     icon,
     userId,
     admin:isAdmin,
-    time:Date.now()
+    time:Date.now(),
+    spark:0,
+    carrot:0
   });
   commentText.value="";
 };
