@@ -19,24 +19,13 @@ body.dark{background:#121212;color:#eee}
   padding:14px;
   margin-bottom:14px;
   box-shadow:0 2px 6px rgba(255,150,210,.25);
-  transition:.2s;
-}
-.thread.locked{
-  background:#ccc;
-  border-color:#999;
-}
-.thread.highlight{
-  transform:translateY(-3px);
-  box-shadow:0 8px 16px rgba(255,150,210,.5);
 }
 body.dark .thread{background:#1b1b1b;border-color:#555}
-body.dark .thread.locked{background:#555;border-color:#777}
 
-.flex{display:flex;align-items:center;justify-content:space-between}
+.flex{display:flex;align-items:center}
 .thread h3 a{text-decoration:none;color:#ff4fa8;font-weight:bold}
 body.dark .thread h3 a{color:#ff8cd1}
 button{padding:6px 10px;border-radius:6px;cursor:pointer;margin:2px}
-.sortBtn{margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -45,8 +34,8 @@ button{padding:6px 10px;border-radius:6px;cursor:pointer;margin:2px}
 <h1>🐰うさ★キラ掲示板✨️</h1>
 
 <div>
-  <button class="sortBtn" id="sortNew">新しい順</button>
-  <button class="sortBtn" id="sortReact">リアクション多い順</button>
+  <button id="sortNew">新しい順</button>
+  <button id="sortReact">リアクション多い順</button>
 </div>
 
 <div id="threads"></div>
@@ -54,7 +43,7 @@ button{padding:6px 10px;border-radius:6px;cursor:pointer;margin:2px}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -79,7 +68,7 @@ if(!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId
 
 /* スレ取得と描画 */
 let threadArr=[]; 
-let sortBy="new"; 
+let sortBy="new"; // new=新しい順, react=リアクション順
 const PER=20;
 const threadsEl=document.getElementById("threads");
 const pagingEl=document.getElementById("paging");
@@ -91,11 +80,12 @@ async function loadThreads(){
 
   for(const tid in data){
     const t=data[tid];
-
+    // コメント数
     const postsSnap=await get(ref(db,"posts/"+tid));
     const posts=postsSnap.val()||{};
     const commentCount=Object.keys(posts).length;
 
+    // リアクション合計
     let reactTotal=0;
     for(const pid in posts){
       const p=posts[pid];
@@ -122,14 +112,11 @@ function renderThreads(page=1){
   pick.forEach(t=>{
     const div=document.createElement("div");
     div.className="thread";
-    if(t.pass) div.classList.add("locked");
-    if(t.reactTotal>=5) div.classList.add("highlight"); // 5以上リアクションは強調
-
     div.innerHTML=`
       <div class="flex">
         <h3><a href="thread.html?id=${t.id}">${t.title||"(無題)"}</a></h3>
-        <span>コメント:${t.commentCount} / リアクション:${t.reactTotal}</span>
       </div>
+      <div>コメント数: ${t.commentCount} / リアクション: ${t.reactTotal}</div>
       <div style="font-size:0.8rem;color:#888">by ${t.ownerName||"名もなき兎"} ${t.pass?"🔒":""}</div>
     `;
     threadsEl.appendChild(div);
@@ -145,8 +132,12 @@ function renderThreads(page=1){
   }
 }
 
-document.getElementById("sortNew").onclick=()=>{sortBy="new"; renderThreads();};
-document.getElementById("sortReact").onclick=()=>{sortBy="react"; renderThreads();};
+document.getElementById("sortNew").onclick=()=>{
+  sortBy="new"; renderThreads();
+};
+document.getElementById("sortReact").onclick=()=>{
+  sortBy="react"; renderThreads();
+};
 
 loadThreads();
 </script>
