@@ -51,11 +51,11 @@ const userId = localStorage.getItem("usakira_userId") || ("user_"+Math.random().
 if(!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId", userId);
 const userName = localStorage.getItem("usakira_name") || "名もなき兎";
 const userIcon = localStorage.getItem("usakira_icon") || "usagi.png.jpeg";
-const isAdmin = localStorage.getItem("usakira_admin")==="true";
+const isAdmin = localStorage.getItem("usakira_admin") === "true";
 
 /* ダークモード */
 const darkToggle = document.getElementById("darkToggle");
-const savedDark = localStorage.getItem("usakira_dark")==="true";
+const savedDark = localStorage.getItem("usakira_dark") === "true";
 if(savedDark) document.body.classList.add("dark");
 darkToggle.textContent = savedDark?"☀️":"🌙";
 darkToggle.onclick = ()=>{
@@ -89,7 +89,7 @@ postBtn.onclick = async ()=>{
   commentInput.value="";
 };
 
-/* スレッド情報表示 */
+/* スレ情報表示 */
 const threadTitleHeader = document.getElementById("threadTitleHeader");
 let threadData = null;
 onValue(ref(db,"threads/"+threadId), snap=>{
@@ -97,8 +97,8 @@ onValue(ref(db,"threads/"+threadId), snap=>{
   threadData = t;
   if(!t) {threadTitleHeader.textContent="スレッドが存在しません"; return;}
   let titleText = t.title || "（無題）";
-  let label = t.ownerName || "名もなき兎";
-  if(t.ownerId===userId) label+="★";
+  let label = t.ownerName;
+  if(t.ownerId === userId) label+="★";
   if(isAdmin) label="👑"+label;
   threadTitleHeader.textContent = label+": "+titleText;
 });
@@ -112,14 +112,17 @@ onValue(ref(db,"posts/"+threadId), snap=>{
   postsArray.sort((a,b)=>a.time - b.time);
 
   postsArray.forEach((c,index)=>{
+    if(c.deleted) return; // 削除済みコメントは非表示
+
     const div = document.createElement("div");
     div.className="comment";
     div.id = "comment"+(index+1);
 
     let label = c.name;
-    if(c.uid===threadData?.ownerId) label+="★";
+    if(c.uid===threadData.ownerId) label+="★";
     if(isAdmin) label="👑"+label;
-  div.innerHTML = `
+
+    div.innerHTML = `
       <div class="flex">
         <img class="icon" src="${c.icon||'usagi.png.jpeg'}">
         <div style="flex:1">
@@ -143,7 +146,15 @@ onValue(ref(db,"posts/"+threadId), snap=>{
     const reportBtn = document.createElement("button");
     reportBtn.textContent = "通報";
     reportBtn.onclick=async()=>{
-      await push(ref(db,"reports"),{
+      const reportRef = ref(db,"reports");
+      const reportSnap = await get(reportRef);
+      const reports = reportSnap.val() || {};
+      let count=0;
+      for(const rid in reports){
+        const r = reports[rid];
+        if(r.postId===c.id) count++;
+      }
+      await push(reportRef,{
         threadId:threadId,
         postId:c.id,
         uid:c.uid,
@@ -152,7 +163,7 @@ onValue(ref(db,"posts/"+threadId), snap=>{
         text:c.text,
         time:Date.now()
       });
-      alert("通報しましたペコ");
+      alert(`通報しましたペコ (${count+1}回目の通報)`);
     };
     tools.appendChild(reportBtn);
 
@@ -191,6 +202,15 @@ onValue(ref(db,"posts/"+threadId), snap=>{
     div.appendChild(tools);
     commentsDiv.appendChild(div);
   });
+});
+
+// コメント番号ジャンプ機能
+document.addEventListener("click",e=>{
+  if(e.target.classList.contains("jump-link")){
+    e.preventDefault();
+    const target = document.querySelector(e.target.getAttribute("href"));
+    if(target) target.scrollIntoView({behavior:"smooth"});
+  }
 });
 </script>
 </body>
