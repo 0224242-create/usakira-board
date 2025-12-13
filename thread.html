@@ -32,6 +32,7 @@ body.dark .post{background:#1b1b1b;border-color:#555}
   object-fit:cover;
   border:2px solid #ffb8e6;
 }
+
 .name{
   cursor:pointer;
   color:#ff4fa8;
@@ -77,6 +78,11 @@ body.dark button{background:#333;color:#eee;border:1px solid #666}
   cursor:pointer;
 }
 .replyLink:hover{text-decoration:underline}
+
+.ban{
+  color:#c00;
+  font-weight:bold;
+}
 </style>
 </head>
 
@@ -115,7 +121,7 @@ const uid=localStorage.getItem("usakira_userId");
 const name=localStorage.getItem("usakira_name")||"名もなき兎";
 const icon=localStorage.getItem("usakira_icon")||"usagi.png.jpeg";
 
-/* ダーク */
+/* ダークモード */
 const d=document.getElementById("darkToggle");
 if(localStorage.getItem("usakira_dark")==="true"){
  document.body.classList.add("dark"); d.textContent="☀️";
@@ -127,45 +133,50 @@ d.onclick=()=>{
  d.textContent=on?"☀️":"🌙";
 };
 
-/* BAN */
-let banned=false;
-onValue(ref(db,"bans/"+uid),s=>{
- banned=s.exists();
- document.getElementById("send").disabled=banned;
+/* ===== BAN 全体監視 ===== */
+let banMap={};
+
+onValue(ref(db,"bans"), snap=>{
+  banMap=snap.val()||{};
+  document.getElementById("send").disabled=!!banMap[uid];
 });
 
-/* スレ */
-onValue(ref(db,"threads/"+tid),s=>{
- if(s.exists()) document.getElementById("title").textContent=s.val().title;
+/* スレタイトル */
+onValue(ref(db,"threads/"+tid), s=>{
+ if(s.exists()) title.textContent=s.val().title;
 });
 
 /* 投稿 */
 send.onclick=async()=>{
- if(banned) return alert("BAN中は投稿できないペコ");
+ if(banMap[uid]) return alert("BAN中は投稿できないペコ");
  const t=text.value.trim();
  if(!t) return;
  await push(ref(db,"posts/"+tid),{
   text:t,
-  name,icon,uid,time:Date.now(),
+  name,icon,uid,
+  time:Date.now(),
   reacts:{sparkle:{},carrot:{}}
  });
  text.value="";
 };
 
 /* 表示 */
-onValue(ref(db,"posts/"+tid),snap=>{
+onValue(ref(db,"posts/"+tid), snap=>{
  posts.innerHTML="";
  let idx=0;
+
  snap.forEach(ps=>{
   idx++;
-  const p=ps.val(),pid=ps.key;
+  const p=ps.val(), pid=ps.key;
+
   const div=document.createElement("div");
   div.className="post";
   div.id="p"+idx;
 
   if(p.deleted){
    div.textContent="このコメは削除されたペコ";
-   posts.appendChild(div);return;
+   posts.appendChild(div);
+   return;
   }
 
   const sp=p.reacts?.sparkle||{};
@@ -182,11 +193,15 @@ onValue(ref(db,"posts/"+tid),snap=>{
    <img class="icon" src="${p.icon}" onerror="this.src='usagi.png.jpeg'">
    <div>
     <div class="name replyTarget" data-no="${idx}">
-     #${idx} ${p.name}${banned?" {BAN}":""}
+     #${idx} ${p.name}
+     ${banMap[p.uid] ? '<span class="ban"> {BAN}</span>' : ''}
     </div>
-    <div class="meta">${new Date(p.time).toLocaleString()} / ID:${p.uid}</div>
+    <div class="meta">
+     ${new Date(p.time).toLocaleString()} / ID:${p.uid}
+    </div>
    </div>
   </div>
+
   <p>${body} ペコ</p>
   <div>✨ ${Object.keys(sp).length}　🥕 ${Object.keys(ca).length}</div>
   `;
@@ -212,7 +227,7 @@ onValue(ref(db,"posts/"+tid),snap=>{
  });
 });
 
-/* >>自動 */
+/* >>返信 & ジャンプ */
 document.addEventListener("click",e=>{
  if(e.target.classList.contains("replyTarget")){
   text.value+=(text.value?"\n":"")+`>>#${e.target.dataset.no} `;
@@ -220,7 +235,11 @@ document.addEventListener("click",e=>{
  }
  if(e.target.classList.contains("replyLink")){
   const t=document.getElementById("p"+e.target.dataset.jump);
-  if(t){t.classList.add("jump");t.scrollIntoView({behavior:"smooth"});}
+  if(t){
+   t.classList.add("jump");
+   t.scrollIntoView({behavior:"smooth"});
+   setTimeout(()=>t.classList.remove("jump"),800);
+  }
  }
 });
 </script>
