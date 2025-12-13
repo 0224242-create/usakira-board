@@ -5,48 +5,52 @@
 <title>🐰うさ★キラ掲示板✨️</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222;transition:.25s;}
-body.dark{background:#121212;color:#eee}
-.thread{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;margin:14px 0;box-shadow:0 2px 6px rgba(255,150,210,.25);}
+body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;padding:20px;background:#fff0f8;color:#222;transition:.25s;}
+body.dark{background:#121212;color:#eee;}
+h1{margin-top:0;}
+button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer;}
+input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc;}
+body.dark input,body.dark textarea{background:#222;color:#eaeaea;border:1px solid #555;}
+.thread{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;margin:14px 0;box-shadow:0 2px 6px rgba(255,150,210,.25);transition:.2s;}
+.thread:hover{transform:translateY(-3px);box-shadow:0 6px 12px rgba(255,150,210,.32);}
+.thread.locked{background:#ddd;color:#888;border-color:#999;}
 body.dark .thread{background:#1b1b1b;border-color:#555;box-shadow:0 2px 6px rgba(0,0,0,.3);}
-.thread.locked{background:#ccc;}
-.thread h3 a{color:#ff4fa8;text-decoration:none;font-weight:bold;font-size:1.15rem;}
+body.dark .thread.locked{background:#333;color:#aaa;border-color:#666;}
+.thread h3 a{color:#ff4fa8;text-decoration:none;font-size:1.15rem;}
 body.dark .thread h3 a{color:#ff8cd1;}
-.thread p{color:#444;margin:6px 0;}
-button{padding:6px 10px;border-radius:6px;cursor:pointer;margin:2px;}
-body.dark button{background:#333;color:#eee;border:1px solid #666;}
-img.icon{width:48px;height:48px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover;margin-right:10px;}
-body.dark img.icon{border-color:#ff8cd1;}
-.flex{display:flex;align-items:center;}
-.flex-between{display:flex;justify-content:space-between;align-items:center;}
+.thread p{margin:6px 0;color:#444;}
+.meta{font-size:.85rem;color:#aa7;}
+.flex{display:flex;align-items:center;gap:10px;}
+.icon{width:48px;height:48px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover;}
+body.dark .icon{border-color:#ff8cd1;}
+#paging button{margin:2px;}
 </style>
 </head>
 <body>
 
-<button id="darkToggle" style="position:fixed;right:12px;top:12px">🌙</button>
+<button id="darkToggle" style="position:fixed;right:12px;top:12px;">🌙</button>
 <h1>🐰うさ★キラ掲示板✨️</h1>
 
 <div id="profileBox">
-<h3>プロフィール</h3>
-<input id="nameInput" placeholder="名前"/>
-<input id="iconInput" placeholder="アイコンURL"/>
-<button id="saveProfile">保存</button>
+  <h3>プロフィール</h3>
+  <input id="nameInput" placeholder="名前">
+  <input id="iconInput" placeholder="アイコンURL">
+  <button id="saveProfile">保存</button>
 </div>
 
 <hr>
-
 <h2>スレッド作成</h2>
-<input id="threadTitle" placeholder="タイトル"/>
+<input id="threadTitle" placeholder="タイトル">
 <textarea id="threadBody" placeholder="本文（任意）"></textarea>
-<input id="threadPass" placeholder="鍵スレパス（任意）"/>
+<input id="threadPass" placeholder="鍵スレのパスワード（任意）">
 <button id="createThread">スレッドを作る</button>
 
 <hr>
-
 <h2>スレッド一覧</h2>
 <div>
+  並び替え:
   <button id="sortNew">新しい順</button>
-  <button id="sortHot">リアクション順</button>
+  <button id="sortReact">リアクション多い順</button>
 </div>
 <div id="threads"></div>
 <div id="paging"></div>
@@ -58,12 +62,12 @@ body.dark img.icon{border-color:#ff8cd1;}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getDatabase, ref, onValue, push, set, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-const firebaseConfig={
-apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
+const firebaseConfig = {
+  apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+  databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
-const app=initializeApp(firebaseConfig);
-const db=getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
 /* ダークモード */
 const darkToggle=document.getElementById("darkToggle");
@@ -98,67 +102,51 @@ document.getElementById("createThread").onclick=async()=>{
   if(!title) return alert("タイトルを書いてね");
   const body=document.getElementById("threadBody").value.trim();
   const pass=document.getElementById("threadPass").value.trim();
-  const key=await push(ref(db,"threads"),{
-    title,body,pass:pass||null,
-    ownerId:userId,ownerName:nameInput.value||defaultName,
-    ownerIcon:iconInput.value||defaultIcon,time:Date.now()
-  }).key;
+  const key=(await push(ref(db,"threads"),{
+    title, body, pass:pass||null,
+    ownerId:userId,
+    ownerName:nameInput.value||defaultName,
+    ownerIcon:iconInput.value||defaultIcon,
+    time:Date.now()
+  })).key;
   alert("作成したよ！");
   location.href=`thread.html?id=${key}`;
 };
 
-/* スレ一覧 */
-let threadArr=[];
-let sortMode="new"; // new or hot
+/* スレッド一覧 */
+const threadsDiv=document.getElementById("threads");
 const PER=20;
+let threadArr=[];
+let sortMode="new"; // new=新しい順, react=リアクション順
 
-onValue(ref(db,"threads"),snap=>{
-  const data=snap.val()||{};
-  threadArr=Object.entries(data).map(([id,t])=>({id,...t})); 
-  loadCommentsCount().then(()=> renderThreads(1));
-});
-
-async function loadCommentsCount(){
-  for(const t of threadArr){
-    const postsSnap=await get(ref(db,"posts/"+t.id));
-    const posts=postsSnap.val()||{};
-    t.commentCount=Object.keys(posts).length;
-    t.reactionCount=0;
-    for(const pid in posts){
-      const r=posts[pid].reactions||{};
-      for(const em in r) t.reactionCount+=Object.keys(r[em]).length;
-    }
-    const banSnap=await get(ref(db,"ban/"+t.ownerId));
-    t.banned=banSnap.exists();
-  }
-}
-
-function renderThreads(page){
+const renderThreads=(page=1)=>{
   const start=(page-1)*PER;
-  let arr=[...threadArr];
-  if(sortMode==="new") arr.sort((a,b)=>b.time-a.time);
-  else arr.sort((a,b)=>b.reactionCount-b.reactionCount);
+  let arr=threadArr.slice();
+  if(sortMode==="react"){
+    arr.sort((a,b)=>((b[1].react||0)-(a[1].react||0)) || (b[1].time||0)-(a[1].time||0));
+  }
   const pick=arr.slice(start,start+PER);
-  const box=document.getElementById("threads");
-  box.innerHTML="";
-  for(const t of pick){
+  threadsDiv.innerHTML="";
+  pick.forEach(([id,t])=>{
     const div=document.createElement("div");
     div.className="thread"+(t.pass?" locked":"");
+    const commentCount=t.comments?t.comments.length:0;
     div.innerHTML=`
-      <div class="flex-between">
-        <div class="flex">
-          <img class="icon" src="${t.ownerIcon||defaultIcon}" onerror="this.src='${defaultIcon}'">
-          <h3><a href="thread.html?id=${t.id}">${t.title||"(無題)"}</a></h3>
-        </div>
-        <div style="font-size:0.85rem;color:#888">
-          ${t.commentCount}件 | リアクション:${t.reactionCount} | ${new Date(t.time).toLocaleString()}
+      <div class="flex">
+        <img class="icon" src="${t.ownerIcon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+        <div>
+          <h3><a href="thread.html?id=${id}">${t.title||"（無題）"}</a></h3>
+          <div style="font-size:.9rem;color:#888">
+            by ${t.ownerName||defaultName} ${t.pass?"🔒":""} | コメント数: ${commentCount} | リアクション: ${t.react||0}
+          </div>
         </div>
       </div>
-      <p>${t.body||""}</p>
-      <div>${t.ownerName||defaultName}${t.banned?" {BAN}":""} ${t.pass?"🔒":""}</div>
+      ${t.body?`<p>${t.body}</p>`:""}
+      <p class="meta">${new Date(t.time).toLocaleString()}</p>
     `;
-    box.appendChild(div);
-  }
+    threadsDiv.appendChild(div);
+  });
+
   const pages=Math.max(1,Math.ceil(threadArr.length/PER));
   const pg=document.getElementById("paging");
   pg.innerHTML="";
@@ -168,11 +156,24 @@ function renderThreads(page){
     b.onclick=()=>renderThreads(i);
     pg.appendChild(b);
   }
-}
+};
 
-/* ソート */
-document.getElementById("sortNew").onclick=()=>{sortMode="new"; renderThreads(1);}
-document.getElementById("sortHot").onclick=()=>{sortMode="hot"; renderThreads(1);}
+/* データ取得 */
+onValue(ref(db,"threads"),snap=>{
+  const data=snap.val()||{};
+  threadArr=Object.entries(data).sort((a,b)=>b[1].time-a[1].time);
+  renderThreads(1);
+});
+
+/* 並び替えボタン */
+document.getElementById("sortNew").onclick=()=>{
+  sortMode="new";
+  renderThreads(1);
+};
+document.getElementById("sortReact").onclick=()=>{
+  sortMode="react";
+  renderThreads(1);
+};
 
 /* 管理ページ */
 document.getElementById("adminBtn").onclick=()=>{
