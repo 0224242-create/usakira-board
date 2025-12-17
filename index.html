@@ -46,7 +46,7 @@ body.dark .thread{background:#1b1b1b;border-color:#555}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 /* Firebase */
 const firebaseConfig = {
@@ -56,9 +56,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-/* 管理人判定 */
-const isAdmin = ()=>localStorage.getItem("usakira_admin")==="true";
-
 /* プロフィール */
 const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
@@ -66,6 +63,7 @@ const nameInput=document.getElementById("nameInput");
 const iconInput=document.getElementById("iconInput");
 nameInput.value=localStorage.getItem("usakira_name")||defaultName;
 iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
+
 document.getElementById("saveProfile").onclick=()=>{
   localStorage.setItem("usakira_name",nameInput.value);
   localStorage.setItem("usakira_icon",iconInput.value);
@@ -108,7 +106,6 @@ onValue(ref(db,"threads"), snap=>{
     .forEach(([id,t])=>{
       const div=document.createElement("div");
       div.className="thread"+(t.pass?" locked":"");
-      const canDelete = (t.ownerId===userId)||isAdmin();
 
       div.innerHTML=`
         <div class="flex">
@@ -118,7 +115,6 @@ onValue(ref(db,"threads"), snap=>{
             <div class="meta">by ${t.ownerName}</div>
           </div>
         </div>
-        ${canDelete?`<button class="delBtn">🗑 削除</button>`:""}
       `;
 
       /* 鍵チェック付き遷移 */
@@ -128,14 +124,6 @@ onValue(ref(db,"threads"), snap=>{
           if(pw!==t.pass) return alert("パスワードが違うペコ");
         }
         location.href=`thread.html?id=${id}`;
-      };
-
-      /* 削除 */
-      div.querySelector(".delBtn")?.onclick=async()=>{
-        if(confirm("このスレを削除する？")){
-          await remove(ref(db,"threads/"+id));
-          await remove(ref(db,"posts/"+id));
-        }
       };
 
       box.appendChild(div);
