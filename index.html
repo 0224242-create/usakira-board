@@ -164,7 +164,8 @@ async function renderThreads(){
     for(const pid in posts){
       reactionTotal += posts[pid].reactions?.total || 0;
     }
-    arr.push({...t,id,commentCount,reactionTotal});
+    arr.push({...t,id,ownerId:t.ownerId,commentCount,reactionTotal});
+
   }
 
   // 並び替え
