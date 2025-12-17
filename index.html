@@ -139,7 +139,7 @@ if(!threadId){
 /* util */
 function esc(s){
   return s.replace(/[&<>"']/g,m=>(
-    {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]
+    {"&":"&amp;","<":"&lt;"," >":"&gt;","\"":"&quot;","'":"&#39;"}[m]
   ));
 }
 function linkAnchors(text){
