@@ -4,25 +4,28 @@
 <meta charset="utf-8">
 <title>🐰うさ★キラ掲示板✨️</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+<!-- Firebase compat -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <style>
 body{
   font-family:"Hiragino Kaku Gothic ProN",sans-serif;
   background:#fff0f8;
   padding:20px;
   color:#222;
-  transition:0.25s
 }
 body.dark{background:#121212;color:#eaeaea}
 
 button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer}
-input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc}
-body.dark input,body.dark textarea{background:#222;color:#eaeaea;border:1px solid #555}
+input,textarea{padding:6px;margin:4px 0;width:100%;border-radius:6px;border:1px solid #ccc}
 
 .thread{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;margin:14px 0}
-.thread.locked{background:#ddd;border-color:#aaa}
-body.dark .thread{background:#1b1b1b;border-color:#555}
+.thread.locked{background:#ddd}
+body.dark .thread{background:#1b1b1b}
 
-.flex{display:flex;align-items:center;gap:10px}
+.flex{display:flex;gap:10px;align-items:center}
 .icon{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #ffb8e6}
 
 .openThread{color:#ff4fa8;font-weight:bold;cursor:pointer}
@@ -39,7 +42,7 @@ body.dark .meta{color:#ccc}
 
 <h1>🐰うさ★キラ掲示板✨️</h1>
 
-<div id="profileBox">
+<div>
 <h3>プロフィール</h3>
 <input id="nameInput" placeholder="名前">
 <input id="iconInput" placeholder="アイコンURL">
@@ -60,32 +63,18 @@ body.dark .meta{color:#ccc}
 <hr>
 <button id="adminBtn">管理ページ</button>
 
-<script type="module">
-/* ★ 完全import ★ */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import {
-  getDatabase,
-  ref,
-  onValue,
-  push,
-  remove,
-  update
-} from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
-
+<script>
+/* Firebase 初期化 */
 const firebaseConfig = {
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-
-/* ダーク */
-const darkToggle=document.getElementById("darkToggle");
-if(localStorage.getItem("usakira_dark")==="true") document.body.classList.add("dark");
+/* ダークモード */
 darkToggle.onclick=()=>{
   document.body.classList.toggle("dark");
-  localStorage.setItem("usakira_dark",document.body.classList.contains("dark"));
 };
 
 /* 管理人 */
@@ -119,10 +108,10 @@ const userId=localStorage.getItem("usakira_userId")||("user_"+Math.random().toSt
 localStorage.setItem("usakira_userId",userId);
 
 /* スレ作成 */
-createThread.onclick=async()=>{
+createThread.onclick=()=>{
   const title=threadTitle.value.trim();
   if(!title) return alert("タイトルを書いてね");
-  const key=(await push(ref(db,"threads"),{
+  const key=db.ref("threads").push({
     title,
     body:threadBody.value,
     pass:threadPass.value||null,
@@ -130,17 +119,17 @@ createThread.onclick=async()=>{
     ownerName:nameInput.value||defaultName,
     ownerIcon:iconInput.value||defaultIcon,
     time:Date.now()
-  })).key;
-  location.href=`thread.html?id=${key}`;
+  }).key;
+  location.href="thread.html?id="+key;
 };
 
-/* ★ スレ一覧（確実に出る） */
-onValue(ref(db,"threads"), snap=>{
+/* ★ スレ一覧（必ず出る） */
+db.ref("threads").on("value", snap=>{
   const box=document.getElementById("threads");
   box.innerHTML="";
-
   const data=snap.val();
-  if(!data || typeof data!=="object"){
+
+  if(!data){
     box.innerHTML="<p>まだスレがないペコ 🐰</p>";
     return;
   }
@@ -170,18 +159,18 @@ onValue(ref(db,"threads"), snap=>{
         const pw=prompt("このスレは鍵付きだよ🐰");
         if(pw!==t.pass) return alert("違うペコ");
       }
-      location.href=`thread.html?id=${id}`;
+      location.href="thread.html?id="+id;
     };
 
-    div.querySelector(".lockBtn")?.onclick=async()=>{
+    div.querySelector(".lockBtn")?.onclick=()=>{
       const p=prompt(t.pass?"空で解除":"鍵パス");
-      await update(ref(db,"threads/"+id),{pass:p||null});
+      db.ref("threads/"+id).update({pass:p||null});
     };
 
-    div.querySelector(".delBtn")?.onclick=async()=>{
+    div.querySelector(".delBtn")?.onclick=()=>{
       if(confirm("削除する？")){
-        await remove(ref(db,"threads/"+id));
-        await remove(ref(db,"posts/"+id));
+        db.ref("threads/"+id).remove();
+        db.ref("posts/"+id).remove();
       }
     };
 
