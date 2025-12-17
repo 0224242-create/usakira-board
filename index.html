@@ -171,25 +171,53 @@ async function renderThreads(){
   if(sortSelect.value==="reaction") arr.sort((a,b)=>b.reactionTotal-a.reactionTotal);
   else arr.sort((a,b)=>b.time-a.time);
 
-  for(const t of arr){
-    const div=document.createElement("div");
-    div.className="thread"+(t.pass?" locked":"");
-    div.innerHTML=`
-      <div class="flex">
-        <img class="icon" src="${t.ownerIcon||defaultIcon}" onerror="this.src='${defaultIcon}'">
-        <div>
-          <h3><a href="thread.html?id=${t.id}">${t.title||"（無題）"}</a></h3>
-          <div style="font-size:0.9rem;color:#888">
-            by ${t.ownerName||defaultName} ${t.pass?"🔒":""}
-          </div>
+for(const t of arr){
+  const div=document.createElement("div");
+  div.className="thread"+(t.pass?" locked":"");
+
+  const canControl = (t.ownerId===userId) || isAdmin();
+
+  div.innerHTML=`
+    <div class="flex">
+      <img class="icon" src="${t.ownerIcon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+      <div>
+        <h3><a href="thread.html?id=${t.id}">${t.title||"（無題）"}</a></h3>
+        <div style="font-size:0.9rem;color:#888">
+          by ${t.ownerName||defaultName} ${t.pass?"🔒":""}
         </div>
       </div>
-      <p>コメント数: ${t.commentCount} リアクション合計: ${t.reactionTotal}</p>
-      <p class="meta">${new Date(t.time).toLocaleString()}</p>
-    `;
-    box.appendChild(div);
-  }
+    </div>
+
+    <p>コメント数: ${t.commentCount} ｜ リアクション合計: ${t.reactionTotal}</p>
+    <p class="meta">${new Date(t.time).toLocaleString()}</p>
+
+    ${canControl ? `
+      <div style="margin-top:8px">
+        <button class="lockBtn">🔒 鍵スレに変更 / 解除</button>
+        <button class="delBtn">🗑 スレ削除</button>
+      </div>
+    ` : ``}
+  `;
+
+  /* 鍵スレ切り替え */
+  div.querySelector(".lockBtn")?.addEventListener("click", async()=>{
+    const p = prompt(t.pass ? "空欄で解除" : "鍵のパスワード");
+    await set(ref(db,"threads/"+t.id+"/pass"), p || null);
+    alert("変更したよ！");
+  });
+
+  /* スレ削除 */
+  div.querySelector(".delBtn")?.addEventListener("click", async()=>{
+    if(confirm("このスレを削除する？")){
+      await set(ref(db,"threads/"+t.id), null);
+      await set(ref(db,"posts/"+t.id), null);
+      alert("削除したよ");
+    }
+  });
+
+  box.appendChild(div);
 }
+
 
 /* 管理ページ */
 document.getElementById("adminBtn").onclick=()=>{
