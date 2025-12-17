@@ -78,8 +78,13 @@ body.dark .icon{border-color:#ff8cd1}
 a.jump-link{
   color:#d22;
   text-decoration:underline;
-  cursor:pointer
 }
+a.url-link{
+  color:#0077cc;
+  text-decoration:underline;
+  word-break:break-all;
+}
+body.dark a.url-link{color:#6ec6ff}
 </style>
 </head>
 <body>
@@ -109,7 +114,6 @@ const db = getDatabase(app);
 /* ユーザー */
 const userId = localStorage.getItem("usakira_userId") || ("user_"+Math.random().toString(36).slice(2));
 if(!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId",userId);
-
 const userName = localStorage.getItem("usakira_name") || "名もなき兎";
 const userIcon = localStorage.getItem("usakira_icon") || "usagi.png.jpeg";
 
@@ -126,81 +130,11 @@ darkToggle.onclick=()=>{
 };
 
 /* スレID */
-const urlParams=new URLSearchParams(location.search);
-const threadId=urlParams.get("id");
+const threadId=new URLSearchParams(location.search).get("id");
 if(!threadId){
   alert("スレッドIDが見つかりません");
   location.href="index.html";
 }
-
-/* BANチェック */
-async function checkBan(){
-  const s=await get(ref(db,"bans/"+userId));
-  return s.exists();
-}
-
-/* 投稿 */
-const postBtn=document.getElementById("postBtn");
-const commentInput=document.getElementById("commentInput");
-
-postBtn.onclick=async()=>{
-  if(await checkBan()) return alert("BANされているペコ");
-  if(threadData?.locked) return alert("このスレはロック中ペコ");
-  const text=commentInput.value.trim();
-  if(!text) return;
-
-  await push(ref(db,"posts/"+threadId),{
-    uid:userId,
-    name:userName,
-    icon:userIcon,
-    text:text,
-    time:Date.now(),
-    reactions:{carrot:0,star:0,total:0}
-  });
-  commentInput.value="";
-};
-
-/* スレ情報 */
-const threadTitleHeader=document.getElementById("threadTitleHeader");
-let threadData=null;
-
-/* 管理者UID */
-let adminUIDs=[];
-let isAdmin=false;
-
-onValue(ref(db,"adminUIDs"),snap=>{
-  adminUIDs=snap.val()||[];
-  isAdmin=adminUIDs.includes(userId);
-});
-
-onValue(ref(db,"threads/"+threadId),snap=>{
-  const t=snap.val();
-  threadData=t;
-  if(!t){
-    threadTitleHeader.textContent="スレッドが存在しません";
-    return;
-  }
-
-  let label=t.ownerName;
-  if(t.ownerId===userId) label+="★";
-  if(isAdmin) label="👑"+label;
-
-  threadTitleHeader.innerHTML =
-    label+": "+(t.title||"（無題）")+(t.locked?" 🔒":"");
-
-  if(t.locked && !isAdmin){
-    document.getElementById("postBox").style.display="none";
-  }
-
-  if(isAdmin){
-    const btn=document.createElement("button");
-    btn.textContent=t.locked?"🔓解除":"🔒ロック";
-    btn.onclick=async()=>{
-      await set(ref(db,"threads/"+threadId+"/locked"),!t.locked);
-    };
-    threadTitleHeader.appendChild(btn);
-  }
-});
 
 /* util */
 function esc(s){
@@ -213,19 +147,73 @@ function linkAnchors(text){
     (_,n)=>`<a class="jump-link" href="#comment${n}">&gt;&gt;#${n}</a>`
   );
 }
+function linkURLs(text){
+  return text.replace(
+    /(https?:\/\/[^\s]+)/g,
+    url=>`<a class="url-link" href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+  );
+}
+function renderText(raw){
+  return linkURLs(linkAnchors(esc(raw)));
+}
+
+/* BAN */
+async function checkBan(){
+  const s=await get(ref(db,"bans/"+userId));
+  return s.exists();
+}
+
+/* 投稿 */
+const postBtn=document.getElementById("postBtn");
+const commentInput=document.getElementById("commentInput");
+
+postBtn.onclick=async()=>{
+  if(await checkBan()) return alert("BANされているペコ");
+  const text=commentInput.value.trim();
+  if(!text) return;
+
+  await push(ref(db,"posts/"+threadId),{
+    uid:userId,name:userName,icon:userIcon,
+    text:text,time:Date.now(),
+    reactions:{carrot:0,star:0,total:0}
+  });
+  commentInput.value="";
+};
+
+/* 管理者 */
+let adminUIDs=[],isAdmin=false;
+onValue(ref(db,"adminUIDs"),s=>{
+  adminUIDs=s.val()||[];
+  isAdmin=adminUIDs.includes(userId);
+});
+
+/* スレ */
+let threadData=null;
+const threadTitleHeader=document.getElementById("threadTitleHeader");
+onValue(ref(db,"threads/"+threadId),s=>{
+  threadData=s.val();
+  if(!threadData) return;
+  let label=threadData.ownerName;
+  if(threadData.ownerId===userId) label+="★";
+  if(isAdmin) label="👑"+label;
+  threadTitleHeader.textContent=
+    label+": "+(threadData.title||"（無題）")+(threadData.locked?" 🔒":"");
+  if(threadData.locked&&!isAdmin){
+    document.getElementById("postBox").style.display="none";
+  }
+});
 
 /* コメント表示 */
 const commentsDiv=document.getElementById("comments");
-
-onValue(ref(db,"posts/"+threadId),snap=>{
+onValue(ref(db,"posts/"+threadId),s=>{
   commentsDiv.innerHTML="";
-  const posts=snap.val()||{};
-  const arr=Object.entries(posts).map(([id,c])=>({id,...c}))
+  const arr=Object.entries(s.val()||{})
+    .map(([id,c])=>({id,...c}))
     .sort((a,b)=>a.time-b.time);
 
   arr.forEach((c,i)=>{
     if(c.deleted) return;
-    if(c.hidden && !isAdmin) return;
+    if(c.hidden&&!isAdmin) return;
 
     const div=document.createElement("div");
     div.className="comment";
@@ -235,111 +223,16 @@ onValue(ref(db,"posts/"+threadId),snap=>{
     if(c.uid===threadData.ownerId) label+="★";
     if(adminUIDs.includes(c.uid)) label="👑"+label;
 
-    const total=c.reactions?.total||0;
-    let style="";
-    if(total>=10){
-      style=`
-      background:linear-gradient(to right,#ff5fa2,#ffb347,#fff176,#8aff8a,#6ec6ff,#b388ff);
-      -webkit-background-clip:text;
-      color:transparent;`;
-    }else if(total>=5){
-      style="color:red;";
-    }
-
     div.innerHTML=`
       <div class="flex">
-        <img class="icon" src="${c.icon||'usagi.png.jpeg'}">
+        <img class="icon" src="${c.icon}">
         <div style="flex:1">
           <b>${i+1} ${label}</b>
-          <p style="${style}">${linkAnchors(esc(c.text))} ペコ</p>
-          <p class="meta">${new Date(c.time).toLocaleString()} ID:${c.uid}</p>
+          <p>${renderText(c.text)} ペコ</p>
+          <p class="meta">${new Date(c.time).toLocaleString()}</p>
         </div>
       </div>
     `;
-
-    const tools=document.createElement("div");
-    tools.className="flex-end";
-
-    const reply=document.createElement("button");
-    reply.textContent="返信";
-    reply.onclick=()=>{
-      commentInput.value=">>#"+(i+1)+" ";
-      commentInput.focus();
-    };
-    tools.appendChild(reply);
-
-    const report=document.createElement("button");
-    report.textContent="通報";
-    report.onclick=async()=>{
-      const rref=ref(db,"reports");
-      const rsnap=await get(rref);
-      const reps=rsnap.val()||{};
-      let cnt=0;
-      for(const k in reps) if(reps[k].postId===c.id) cnt++;
-
-      await push(rref,{
-        threadId,postId:c.id,
-        uid:c.uid,name:c.name,
-        icon:c.icon,text:c.text,
-        time:Date.now()
-      });
-
-      if(cnt+1>=5){
-        await set(ref(db,"posts/"+threadId+"/"+c.id+"/hidden"),true);
-      }
-      alert(`通報しましたペコ（${cnt+1}回目）`);
-    };
-    tools.appendChild(report);
-
-    if(isAdmin){
-      const del=document.createElement("button");
-      del.textContent="削除";
-      del.onclick=async()=>await set(ref(db,"posts/"+threadId+"/"+c.id+"/deleted"),true);
-
-      const ban=document.createElement("button");
-      ban.textContent="BAN";
-      ban.onclick=async()=>await set(ref(db,"bans/"+c.uid),
-        {name:c.name,icon:c.icon,time:Date.now()});
-
-      tools.append(del,ban);
-    }
-
-    const carrot=document.createElement("button");
-    carrot.textContent="🥕 "+(c.reactions?.carrot||0);
-    carrot.onclick=async()=>{
-      c.reactions=c.reactions||{carrot:0,star:0,total:0};
-      const key="react_"+c.id+"_carrot";
-      if(localStorage.getItem(key)){
-        c.reactions.carrot--;c.reactions.total--;
-        localStorage.removeItem(key);
-      }else{
-        c.reactions.carrot++;c.reactions.total++;
-        localStorage.setItem(key,"1");
-      }
-      c.reactions.carrot=Math.max(0,c.reactions.carrot);
-      c.reactions.total=Math.max(0,c.reactions.total);
-      await set(ref(db,"posts/"+threadId+"/"+c.id+"/reactions"),c.reactions);
-    };
-
-    const star=document.createElement("button");
-    star.textContent="✨ "+(c.reactions?.star||0);
-    star.onclick=async()=>{
-      c.reactions=c.reactions||{carrot:0,star:0,total:0};
-      const key="react_"+c.id+"_star";
-      if(localStorage.getItem(key)){
-        c.reactions.star--;c.reactions.total--;
-        localStorage.removeItem(key);
-      }else{
-        c.reactions.star++;c.reactions.total++;
-        localStorage.setItem(key,"1");
-      }
-      c.reactions.star=Math.max(0,c.reactions.star);
-      c.reactions.total=Math.max(0,c.reactions.total);
-      await set(ref(db,"posts/"+threadId+"/"+c.id+"/reactions"),c.reactions);
-    };
-
-    tools.append(carrot,star);
-    div.appendChild(tools);
     commentsDiv.appendChild(div);
   });
 });
