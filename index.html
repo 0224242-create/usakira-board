@@ -39,7 +39,86 @@ body.dark input,body.dark textarea{background:#222;color:#eaeaea;border:1px soli
 
 <hr>
 <h2>スレッド一覧</h2>
-<div id="threads"></div>
+/* スレ一覧 */
+onValue(ref(db,"threads"), snap => {
+  const box = document.getElementById("threads");
+  box.innerHTML = "";
+
+  const data = snap.val();
+  if (!data) {
+    box.innerHTML = "<p>まだスレッドがないペコ 🐰</p>";
+    return;
+  }
+
+  for (const id in data) {
+    const t = data[id];
+
+    const div = document.createElement("div");
+    div.className = "thread" + (t.pass ? " locked" : "");
+
+    /* HTML */
+    div.innerHTML = `
+      <div class="flex">
+        <img class="icon" src="${t.ownerIcon || defaultIcon}"
+             onerror="this.src='${defaultIcon}'">
+        <div>
+          <h3 class="openThread" style="cursor:pointer">
+            ${t.title || "（無題）"} ${t.pass ? "🔒" : ""}
+          </h3>
+          <div style="font-size:0.9rem">by ${t.ownerName || defaultName}</div>
+        </div>
+      </div>
+
+      ${(userId === t.ownerId || isAdmin()) ? `
+        <div style="margin-top:6px">
+          <button class="lockBtn">🔒 鍵スレに変更 / 解除</button>
+          <button class="delBtn">🗑 スレ削除</button>
+        </div>
+      ` : ""}
+    `;
+
+    /* スレを開く */
+    div.querySelector(".openThread").onclick = () => {
+      if (t.pass) {
+        const pw = prompt("このスレは鍵付きだよ🐰\nパスワードを入力してね");
+        if (pw !== t.pass) {
+          alert("パスワードが違うペコ");
+          return;
+        }
+      }
+      location.href = `thread.html?id=${id}`;
+    };
+
+    /* 鍵スレ変更 */
+    const lockBtn = div.querySelector(".lockBtn");
+    if (lockBtn) {
+      lockBtn.onclick = async () => {
+        const newPass = prompt(
+          t.pass
+            ? "現在は鍵付き。\n空欄で解除、または新しいパスを入力"
+            : "鍵スレにするパスワードを入力"
+        );
+        await update(ref(db, "threads/" + id), {
+          pass: newPass || null
+        });
+        alert("変更したペコ 🐰");
+      };
+    }
+
+    /* 削除 */
+    const delBtn = div.querySelector(".delBtn");
+    if (delBtn) {
+      delBtn.onclick = async () => {
+        if (!confirm("このスレを削除する？")) return;
+        await remove(ref(db, "threads/" + id));
+        await remove(ref(db, "posts/" + id));
+        alert("削除したペコ");
+      };
+    }
+
+    box.appendChild(div);
+  }
+});
 
 <hr>
 <button id="adminBtn">管理ページ</button>
