@@ -77,8 +77,15 @@ body.dark a{color:#ff9ad5}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, get, remove }
-  from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import {
+  getDatabase,
+  ref,
+  onValue,
+  push,
+  set,
+  get,
+  remove   // ← ★ 追加（これだけ）
+} from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 /* Firebase */
 const firebaseConfig={
@@ -143,8 +150,9 @@ createBtn.onclick=async()=>{
   location.href="thread.html?id="+newRef.key;
 };
 
-/* スレ一覧 */
+/* スレ一覧（ここが本体） */
 const threadsDiv=document.getElementById("threads");
+
 onValue(ref(db,"threads"),s=>{
   threadsDiv.innerHTML="";
   const arr=Object.entries(s.val()||{})
@@ -170,12 +178,10 @@ onValue(ref(db,"threads"),s=>{
       <p>${t.title}${t.locked?" 🔒":""}</p>
     `;
 
-    /* ★ デザインそのまま・右下に削除ボタンだけ追加 */
+    /* ★ ここだけ追加（既存デザイン・構造は不変） */
     if(isAdmin || t.ownerId===userId){
       const delBtn=document.createElement("button");
       delBtn.textContent="🗑 削除";
-      delBtn.style.background="#ff6b6b";
-      delBtn.style.color="white";
       delBtn.onclick=async()=>{
         if(!confirm("このスレを削除しますか？")) return;
         await remove(ref(db,"threads/"+t.id));
