@@ -15,27 +15,23 @@ body{
 }
 body.dark{background:#121212;color:#eee}
 
-h1{margin-top:0}
-
 button{
-  padding:6px 10px;
+  padding:4px 8px;
   margin:2px;
-  border-radius:8px;
-  cursor:pointer;
-  border:none
+  border-radius:6px;
+  cursor:pointer
 }
 button:hover{opacity:.85}
 
-input,textarea{
+input{
   width:100%;
   padding:6px;
   margin:4px 0;
-  border-radius:8px;
+  border-radius:6px;
   border:1px solid #ccc;
   box-sizing:border-box
 }
-body.dark input,
-body.dark textarea{
+body.dark input{
   background:#222;
   color:#eee;
   border:1px solid #555
@@ -45,8 +41,8 @@ body.dark textarea{
   border:2px solid #ffc6e6;
   background:#fff7fc;
   border-radius:14px;
-  padding:12px;
-  margin:12px 0;
+  padding:10px;
+  margin:10px 0;
   box-shadow:0 2px 6px rgba(255,150,210,.25)
 }
 body.dark .thread{
@@ -56,7 +52,8 @@ body.dark .thread{
 }
 
 .flex{display:flex;align-items:center;gap:10px}
-.flex-between{display:flex;justify-content:space-between;gap:10px}
+.flex-between{display:flex;justify-content:space-between;align-items:center;gap:10px}
+
 .meta{font-size:.8rem;color:#aa7}
 body.dark .meta{color:#aaa}
 
@@ -84,20 +81,20 @@ import { getDatabase, ref, onValue, push, set, get, remove }
   from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 /* Firebase */
-const firebaseConfig = {
+const firebaseConfig={
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const app=initializeApp(firebaseConfig);
+const db=getDatabase(app);
 
 /* ユーザー */
-const userId = localStorage.getItem("usakira_userId")
-  || ("user_"+Math.random().toString(36).slice(2));
+const userId=localStorage.getItem("usakira_userId")
+  ||("user_"+Math.random().toString(36).slice(2));
 if(!localStorage.getItem("usakira_userId")){
   localStorage.setItem("usakira_userId",userId);
 }
-const userName = localStorage.getItem("usakira_name") || "名もなき兎";
+const userName=localStorage.getItem("usakira_name")||"名もなき兎";
 
 /* ダークモード */
 const darkToggle=document.getElementById("darkToggle");
@@ -146,9 +143,8 @@ createBtn.onclick=async()=>{
   location.href="thread.html?id="+newRef.key;
 };
 
-/* スレ一覧表示 */
+/* スレ一覧 */
 const threadsDiv=document.getElementById("threads");
-
 onValue(ref(db,"threads"),s=>{
   threadsDiv.innerHTML="";
   const arr=Object.entries(s.val()||{})
@@ -169,14 +165,12 @@ onValue(ref(db,"threads"),s=>{
           <b>${label}</b>
           <div class="meta">${new Date(t.time).toLocaleString()}</div>
         </div>
-        <div>
-          <a href="thread.html?id=${t.id}">開く</a>
-        </div>
+        <a href="thread.html?id=${t.id}">開く</a>
       </div>
       <p>${t.title}${t.locked?" 🔒":""}</p>
     `;
 
-    /* ★ 管理者 or スレ主のみ削除 */
+    /* ★ デザインそのまま・右下に削除ボタンだけ追加 */
     if(isAdmin || t.ownerId===userId){
       const delBtn=document.createElement("button");
       delBtn.textContent="🗑 削除";
