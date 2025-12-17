@@ -14,77 +14,22 @@ body{
 }
 body.dark{background:#121212;color:#eaeaea}
 
-button{
-  padding:6px 10px;
-  margin:4px;
-  border-radius:6px;
-  cursor:pointer
-}
+button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer}
+input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc}
+body.dark input,body.dark textarea{background:#222;color:#eaeaea;border:1px solid #555}
 
-input,textarea{
-  padding:6px;
-  margin:4px 0;
-  width:100%;
-  box-sizing:border-box;
-  border-radius:6px;
-  border:1px solid #ccc
-}
+.thread{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;margin:14px 0}
+.thread.locked{background:#ddd;border-color:#aaa}
+body.dark .thread{background:#1b1b1b;border-color:#555}
 
-body.dark input,body.dark textarea{
-  background:#222;
-  color:#eaeaea;
-  border:1px solid #555
-}
+.flex{display:flex;align-items:center;gap:10px}
+.icon{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #ffb8e6}
 
-.thread{
-  border:2px solid #ffc6e6;
-  background:#fff7fc;
-  border-radius:14px;
-  padding:14px;
-  margin:14px 0
-}
+.openThread{color:#ff4fa8;font-weight:bold;cursor:pointer}
+body.dark .openThread{color:#ff8cd1}
 
-.thread.locked{
-  background:#ddd;
-  border-color:#aaa
-}
-
-body.dark .thread{
-  background:#1b1b1b;
-  border-color:#555
-}
-
-.flex{
-  display:flex;
-  align-items:center;
-  gap:10px
-}
-
-.icon{
-  width:48px;
-  height:48px;
-  border-radius:50%;
-  object-fit:cover;
-  border:2px solid #ffb8e6
-}
-
-/* タイトル色 */
-.openThread{
-  color:#ff4fa8;
-  font-weight:bold;
-  cursor:pointer
-}
-body.dark .openThread{
-  color:#ff8cd1
-}
-
-.meta{
-  font-size:0.85rem;
-  color:#666
-}
-body.dark .meta{
-  color:#ccc
-}
+.meta{font-size:0.85rem;color:#666}
+body.dark .meta{color:#ccc}
 </style>
 </head>
 <body>
@@ -116,28 +61,34 @@ body.dark .meta{
 <button id="adminBtn">管理ページ</button>
 
 <script type="module">
+/* ★ 完全import ★ */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import {
+  getDatabase,
+  ref,
+  onValue,
+  push,
+  remove,
+  update
+} from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig = {
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
+
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-/* ダークモード */
+/* ダーク */
 const darkToggle=document.getElementById("darkToggle");
-if(localStorage.getItem("usakira_dark")==="true"){
-  document.body.classList.add("dark");
-}
+if(localStorage.getItem("usakira_dark")==="true") document.body.classList.add("dark");
 darkToggle.onclick=()=>{
   document.body.classList.toggle("dark");
   localStorage.setItem("usakira_dark",document.body.classList.contains("dark"));
 };
 
 /* 管理人 */
-const adminToggle=document.getElementById("adminToggle");
 const isAdmin=()=>localStorage.getItem("usakira_admin")==="true";
 adminToggle.onclick=()=>{
   if(isAdmin()){
@@ -152,16 +103,12 @@ adminToggle.onclick=()=>{
   }
 };
 
-/* プロフィール */
+/* プロフ */
 const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
-const nameInput=document.getElementById("nameInput");
-const iconInput=document.getElementById("iconInput");
-
 nameInput.value=localStorage.getItem("usakira_name")||defaultName;
 iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
-
-document.getElementById("saveProfile").onclick=()=>{
+saveProfile.onclick=()=>{
   localStorage.setItem("usakira_name",nameInput.value);
   localStorage.setItem("usakira_icon",iconInput.value);
   alert("保存したよ！");
@@ -172,7 +119,7 @@ const userId=localStorage.getItem("usakira_userId")||("user_"+Math.random().toSt
 localStorage.setItem("usakira_userId",userId);
 
 /* スレ作成 */
-document.getElementById("createThread").onclick=async()=>{
+createThread.onclick=async()=>{
   const title=threadTitle.value.trim();
   if(!title) return alert("タイトルを書いてね");
   const key=(await push(ref(db,"threads"),{
@@ -187,17 +134,18 @@ document.getElementById("createThread").onclick=async()=>{
   location.href=`thread.html?id=${key}`;
 };
 
-/* スレ一覧 */
+/* ★ スレ一覧（確実に出る） */
 onValue(ref(db,"threads"), snap=>{
   const box=document.getElementById("threads");
   box.innerHTML="";
+
   const data=snap.val();
-  if(!data){
+  if(!data || typeof data!=="object"){
     box.innerHTML="<p>まだスレがないペコ 🐰</p>";
     return;
   }
 
-  for(const id in data){
+  Object.keys(data).forEach(id=>{
     const t=data[id];
     const div=document.createElement("div");
     div.className="thread"+(t.pass?" locked":"");
@@ -212,36 +160,33 @@ onValue(ref(db,"threads"), snap=>{
       </div>
 
       ${(userId===t.ownerId||isAdmin())?`
-        <div style="margin-top:6px">
-          <button class="lockBtn">🔒 鍵スレに変更 / 解除</button>
-          <button class="delBtn">🗑 スレ削除</button>
-        </div>
+        <button class="lockBtn">🔒 鍵変更</button>
+        <button class="delBtn">🗑 削除</button>
       `:""}
     `;
 
     div.querySelector(".openThread").onclick=()=>{
       if(t.pass){
         const pw=prompt("このスレは鍵付きだよ🐰");
-        if(pw!==t.pass) return alert("パスワードが違うペコ");
+        if(pw!==t.pass) return alert("違うペコ");
       }
       location.href=`thread.html?id=${id}`;
     };
 
     div.querySelector(".lockBtn")?.onclick=async()=>{
-      const p=prompt(t.pass?"空欄で解除":"鍵のパスワード");
+      const p=prompt(t.pass?"空で解除":"鍵パス");
       await update(ref(db,"threads/"+id),{pass:p||null});
-      alert("変更したよ！");
     };
 
     div.querySelector(".delBtn")?.onclick=async()=>{
-      if(confirm("本当に削除する？")){
+      if(confirm("削除する？")){
         await remove(ref(db,"threads/"+id));
         await remove(ref(db,"posts/"+id));
       }
     };
 
     box.appendChild(div);
-  }
+  });
 });
 
 /* 管理ページ */
