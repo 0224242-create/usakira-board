@@ -107,7 +107,7 @@ onValue(ref(db,"threads/"+threadId),snap=>{
 /* 鍵解除 */
 document.getElementById("unlockBtn").onclick=()=>{
   const p=document.getElementById("threadPass").value;
-  if(p===threadData.password){
+if(threadData.pass){
     sessionStorage.setItem("thread_unlock_"+threadId,"true");
     lockBox.style.display="none";
     postBox.style.display="block";
