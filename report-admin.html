@@ -5,28 +5,31 @@
 <title>🐰 うさ★キラ掲示板 管理ページ✨️</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222;transition:.25s;}
-body.dark{background:#121212;color:#eee;}
-.card{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;}
-body.dark .card{background:#1b1b1b;border-color:#555;}
-.flex{display:flex;align-items:center;}
-.flex-column{display:flex;flex-direction:column;}
-.flex-end{display:flex;justify-content:flex-end;gap:6px;margin-top:8px;}
-.icon{width:48px;height:48px;border-radius:50%;margin-right:10px;}
-button{padding:4px 8px;border-radius:6px;cursor:pointer;}
-#reportList,#banList{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-@media(max-width:800px){#reportList,#banList{grid-template-columns:1fr}}
+body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222;transition:.25s}
+body.dark{background:#121212;color:#eee}
+h1,h2{margin-top:0}
+.card{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px}
+body.dark .card{background:#1b1b1b;border-color:#555}
+.flex{display:flex;align-items:center}
+.flex-column{display:flex;flex-direction:column}
+.flex-end{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
+.icon{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #ffb8e6;margin-right:10px}
+button{padding:4px 8px;border-radius:6px;cursor:pointer}
+#reportList,#banList{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:900px){#reportList,#banList{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){#reportList,#banList{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 
-<button id="darkToggle" style="position:fixed;right:12px;top:12px;">🌙</button>
+<button id="darkToggle" style="position:fixed;right:12px;top:12px">🌙</button>
 <h1>🐰 管理ページ</h1>
 
-<h2>🚨 通報</h2>
+<h2>🚨 通報リスト</h2>
 <div id="reportList"></div>
 
-<h2>🚫 BAN</h2>
+<hr>
+<h2>🚫 BANリスト</h2>
 <div id="banList"></div>
 
 <script type="module">
@@ -39,7 +42,7 @@ const app = initializeApp({
 });
 const db = getDatabase(app);
 
-/* ダーク */
+/* ダークモード */
 const darkToggle=document.getElementById("darkToggle");
 if(localStorage.getItem("usakira_dark")==="true"){
   document.body.classList.add("dark");
@@ -47,50 +50,84 @@ if(localStorage.getItem("usakira_dark")==="true"){
 }
 darkToggle.onclick=()=>{
   document.body.classList.toggle("dark");
-  localStorage.setItem("usakira_dark",document.body.classList.contains("dark"));
-  darkToggle.textContent=document.body.classList.contains("dark")?"☀️":"🌙";
+  const d=document.body.classList.contains("dark");
+  localStorage.setItem("usakira_dark",d);
+  darkToggle.textContent=d?"☀️":"🌙";
 };
 
-/* 🚨 通報 */
+/* 🚨 通報リスト（重複まとめ） */
 const reportList=document.getElementById("reportList");
 onValue(ref(db,"reports"),snap=>{
   reportList.innerHTML="";
-  Object.entries(snap.val()||{}).forEach(([rid,r])=>{
-    const card=document.createElement("div");
-    card.className="card flex-column";
-    card.innerHTML=`
-      <div class="flex">
-        <img class="icon" src="${r.icon||'usagi.png.jpeg'}">
-        <b>${r.name||"名もなき兎"}</b>
-      </div>
-      <p>${r.text}</p>
-      <small>${new Date(r.time).toLocaleString()}</small>
-      <div class="flex-end"></div>
-    `;
-    const tools=card.querySelector(".flex-end");
+  const reports=snap.val()||{};
 
-    const del=document.createElement("button");
-    del.textContent="投稿削除";
-    del.onclick=async()=>{
-      await set(ref(db,"posts/"+r.threadId+"/"+r.postId+"/deleted"),true);
-      await remove(ref(db,"reports/"+rid));
-    };
-
-    const ban=document.createElement("button");
-    ban.textContent="BAN";
-    ban.onclick=async()=>{
-      await set(ref(db,"bans/"+r.uid),{
-        name:r.name,icon:r.icon,time:Date.now()
-      });
-      await remove(ref(db,"reports/"+rid));
-    };
-
-    tools.append(del,ban);
-    reportList.appendChild(card);
+  const grouped={};
+  Object.entries(reports).forEach(([rid,r])=>{
+    const key=r.threadId+"_"+r.postId;
+    if(!grouped[key]){
+      grouped[key]={ r, rids:[rid], count:1 };
+    }else{
+      grouped[key].rids.push(rid);
+      grouped[key].count++;
+    }
   });
+
+  Object.values(grouped)
+    .sort((a,b)=>b.r.time-a.r.time)
+    .forEach(item=>{
+      const r=item.r;
+      const card=document.createElement("div");
+      card.className="card flex-column";
+      card.innerHTML=`
+        <div class="flex">
+          <img class="icon" src="${r.icon||'usagi.png.jpeg'}">
+          <div>
+            <b>${r.name||"名もなき兎"}</b>
+            <div style="font-size:.8rem;color:#888">
+              <a href="thread.html?id=${r.threadId}" target="_blank">スレへ</a>
+            </div>
+          </div>
+        </div>
+        <p>${r.text}</p>
+        <div style="font-size:.8rem;color:#aa7">
+          通報日時: ${new Date(r.time).toLocaleString()}
+          ${item.count>1 ? " ・"+item.count+"件" : ""}
+        </div>
+        <div class="flex-end"></div>
+      `;
+      const tools=card.querySelector(".flex-end");
+
+      /* 投稿削除 */
+      const delBtn=document.createElement("button");
+      delBtn.textContent="投稿削除";
+      delBtn.onclick=async()=>{
+        await set(ref(db,"posts/"+r.threadId+"/"+r.postId+"/deleted"),true);
+      };
+
+      /* BAN */
+      const banBtn=document.createElement("button");
+      banBtn.textContent="BAN";
+      banBtn.onclick=async()=>{
+        await set(ref(db,"bans/"+r.uid),{
+          name:r.name,icon:r.icon,time:Date.now()
+        });
+      };
+
+      /* 通報取り消し（全部） */
+      const clearBtn=document.createElement("button");
+      clearBtn.textContent="通報取り消し";
+      clearBtn.onclick=async()=>{
+        for(const rid of item.rids){
+          await remove(ref(db,"reports/"+rid));
+        }
+      };
+
+      tools.append(delBtn,banBtn,clearBtn);
+      reportList.appendChild(card);
+    });
 });
 
-/* 🚫 BAN */
+/* 🚫 BANリスト */
 const banList=document.getElementById("banList");
 onValue(ref(db,"bans"),snap=>{
   banList.innerHTML="";
@@ -98,11 +135,14 @@ onValue(ref(db,"bans"),snap=>{
     const card=document.createElement("div");
     card.className="card flex";
     card.innerHTML=`
-      <img class="icon" src="${u.icon}">
-      <b>${u.name}</b>
+      <img class="icon" src="${u.icon||'usagi.png.jpeg'}">
+      <div style="flex:1">
+        <b>${u.name||"名もなき兎"}</b><br>
+        <small>${new Date(u.time).toLocaleString()}</small>
+      </div>
     `;
     const un=document.createElement("button");
-    un.textContent="解除";
+    un.textContent="BAN解除";
     un.onclick=()=>remove(ref(db,"bans/"+uid));
     card.appendChild(un);
     banList.appendChild(card);
