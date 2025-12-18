@@ -17,26 +17,33 @@ body{
   padding:10px;
   margin-bottom:10px;
 }
-.admin-post{background:#ffe6c7;}
+.admin-post{
+  background:#fff3e0;
+}
 .name{font-weight:bold;}
 .owner{color:red;}
 .admin{color:#d48a00;}
-.ban{color:#888;font-size:.8rem;}
+.ban{color:#888;font-size:.8rem;margin-left:4px;}
 .text{margin:6px 0;}
-.reaction{font-size:.9rem;cursor:pointer;}
+.reaction{
+  font-size:.9rem;
+  cursor:pointer;
+  user-select:none;
+}
 .reaction.red{color:red;}
 .reaction.rainbow{
   background:linear-gradient(90deg,red,orange,yellow,green,cyan,blue,purple);
   -webkit-background-clip:text;
   color:transparent;
 }
-img.post-img{
-  max-width:220px;
-  display:block;
-  margin-top:6px;
-  border-radius:8px;
+.tools{
+  font-size:.8rem;
+  color:#888;
 }
-.tools{font-size:.8rem;color:#888;}
+.uid{
+  font-size:.7rem;
+  color:#999;
+}
 </style>
 </head>
 
@@ -46,7 +53,6 @@ img.post-img{
 
 <div>
   <textarea id="text" placeholder="コメント" style="width:100%;"></textarea>
-  <input id="imageUrl" placeholder="画像URL（imgur等）" style="width:100%;margin-top:4px;">
   <button id="send">投稿</button>
 </div>
 
@@ -55,7 +61,7 @@ img.post-img{
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, push, onValue, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, push, onValue, set, remove, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -68,36 +74,51 @@ const db=getDatabase(app);
 const params=new URLSearchParams(location.search);
 const threadId=params.get("id");
 
-const uid=localStorage.getItem("uid")||crypto.randomUUID();
-localStorage.setItem("uid",uid);
+let uid=localStorage.getItem("uid");
+if(!uid){
+  uid=crypto.randomUUID();
+  localStorage.setItem("uid",uid);
+}
 
 const name=localStorage.getItem("name")||"名もなき兎";
-const isAdmin=localStorage.getItem("usakira_admin")==="true";
+const isAdmin = localStorage.getItem("usakira_admin")==="true";
 
 const list=document.getElementById("list");
 
 /* 投稿 */
-document.getElementById("send").onclick=()=>{
+document.getElementById("send").onclick=async()=>{
   const text=document.getElementById("text").value.trim();
-  const image=document.getElementById("imageUrl").value.trim();
-  if(!text && !image) return;
+  if(!text) return;
 
-  push(ref(db,"posts/"+threadId),{
-    uid,name,text,image,
+  // BANチェック
+  const banSnap = await get(ref(db,"bans/"+uid));
+  if(banSnap.exists()){
+    alert("あなたはBAN中です");
+    return;
+  }
+
+  await push(ref(db,"posts/"+threadId),{
+    uid,
+    name,
+    text,
     time:Date.now(),
     reactions:0,
     admin:isAdmin
   });
 
   text.value="";
-  imageUrl.value="";
 };
 
 /* 表示 */
 onValue(ref(db,"posts/"+threadId),snap=>{
   list.innerHTML="";
   const posts=snap.val()||{};
-  Object.entries(posts).sort((a,b)=>a[1].time-b[1].time).forEach(([pid,p])=>{
+  const arr=Object.entries(posts).sort((a,b)=>a[1].time-b[1].time);
+
+  let ownerId=null;
+  if(arr.length>0) ownerId=arr[0][1].uid;
+
+  arr.forEach(([pid,p])=>{
     const div=document.createElement("div");
     div.className="post";
     if(p.admin) div.classList.add("admin-post");
@@ -106,33 +127,26 @@ onValue(ref(db,"posts/"+threadId),snap=>{
     nameSpan.className="name";
     nameSpan.textContent=p.name;
 
-    if(p.uid===Object.values(posts)[0].uid) nameSpan.classList.add("owner");
+    if(p.uid===ownerId) nameSpan.classList.add("owner");
     if(p.admin){
       nameSpan.classList.add("admin");
       nameSpan.textContent+=" 👑";
     }
 
     const banSpan=document.createElement("span");
-    onValue(ref(db,"bans/"+p.uid),b=>{
+    get(ref(db,"bans/"+p.uid)).then(b=>{
       if(b.exists()) banSpan.textContent="（BAN中）";
     });
 
-    const uidSpan=document.createElement("div");
-    uidSpan.style.fontSize=".7rem";
-    uidSpan.textContent="ID: "+p.uid;
+    const uidDiv=document.createElement("div");
+    uidDiv.className="uid";
+    uidDiv.textContent="ID: "+p.uid;
 
     const textDiv=document.createElement("div");
     textDiv.className="text";
     textDiv.textContent=p.text;
 
-    div.append(nameSpan,banSpan,uidSpan,textDiv);
-
-    if(p.image){
-      const img=document.createElement("img");
-      img.src=p.image;
-      img.className="post-img";
-      div.appendChild(img);
-    }
+    div.append(nameSpan,banSpan,uidDiv,textDiv);
 
     const reaction=document.createElement("div");
     reaction.className="reaction";
@@ -151,7 +165,12 @@ onValue(ref(db,"posts/"+threadId),snap=>{
     const report=document.createElement("span");
     report.textContent="通報";
     report.onclick=()=>push(ref(db,"reports"),{
-      threadId,postId:pid,uid:p.uid,name:p.name,text:p.text,time:Date.now()
+      threadId,
+      postId:pid,
+      uid:p.uid,
+      name:p.name,
+      text:p.text,
+      time:Date.now()
     });
 
     tools.append(" ",report);
