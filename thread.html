@@ -24,7 +24,8 @@ body.dark .comment{background:#1b1b1b;border-color:#555}
 <button id="darkToggle" style="position:fixed;right:12px;top:12px">🌙</button>
 <h1 id="threadTitleHeader"></h1>
 
-<div id="adminTools"></div>
+<!-- 👑 管理人スレ削除 -->
+<div id="adminTools" style="margin-bottom:10px"></div>
 
 <!-- 🔒 鍵 -->
 <div id="lockBox" style="display:none">
@@ -42,7 +43,7 @@ body.dark .comment{background:#1b1b1b;border-color:#555}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, get, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const app = initializeApp({
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -60,6 +61,7 @@ const threadId = new URLSearchParams(location.search).get("id");
 const postBox = document.getElementById("postBox");
 const commentsDiv = document.getElementById("comments");
 const lockBox = document.getElementById("lockBox");
+const adminTools = document.getElementById("adminTools");
 
 /* ダークモード */
 const darkToggle=document.getElementById("darkToggle");
@@ -81,10 +83,27 @@ let threadData=null;
 /* スレ情報 */
 onValue(ref(db,"threads/"+threadId),snap=>{
   threadData=snap.val();
-  if(!threadData){document.body.innerHTML="スレッドがありません";return;}
+  if(!threadData){
+    document.body.innerHTML="スレッドは削除されました";
+    return;
+  }
 
   document.getElementById("threadTitleHeader").textContent =
     threadData.ownerName+(threadData.ownerId===userId?"★":"")+"："+(threadData.title||"無題");
+
+  /* 👑 管理人用：スレ削除ボタン */
+  if(isAdmin){
+    adminTools.innerHTML="";
+    const delBtn=document.createElement("button");
+    delBtn.textContent="🗑️ このスレを削除";
+    delBtn.onclick=async()=>{
+      if(!confirm("このスレと全コメントを完全に削除します。よろしいですか？"))return;
+      await remove(ref(db,"threads/"+threadId));
+      await remove(ref(db,"posts/"+threadId));
+      location.href="index.html";
+    };
+    adminTools.appendChild(delBtn);
+  }
 
   if(threadData.pass && !isAdmin){
     lockBox.style.display="block";
@@ -93,16 +112,15 @@ onValue(ref(db,"threads/"+threadId),snap=>{
   }
 });
 
-/* 🔓 一般ユーザー用解除 */
+/* 🔓 一般ユーザー解除 */
 document.getElementById("unlockBtn").onclick=()=>{
   const p=document.getElementById("threadPass").value;
   if(p===threadData.pass){
-    sessionStorage.setItem("thread_unlock_"+threadId,"true");
     unlockThread();
   }else alert("パスワードが違います");
 };
 
-/* 解放処理 */
+/* 解放 */
 function unlockThread(){
   lockBox.style.display="none";
   postBox.style.display="block";
@@ -153,7 +171,6 @@ function loadComments(){
       const tools=document.createElement("div");
       tools.className="flex-end";
 
-      /* リアクション */
       ["carrot","star"].forEach(type=>{
         const b=document.createElement("button");
         b.textContent=(type==="carrot"?"🥕":"✨")+" "+(c.reactions?.[type]||0);
@@ -164,7 +181,6 @@ function loadComments(){
         tools.appendChild(b);
       });
 
-      /* 通報 */
       const report=document.createElement("button");
       report.textContent="通報";
       report.onclick=()=>push(ref(db,"reports"),{
@@ -172,7 +188,6 @@ function loadComments(){
       });
       tools.appendChild(report);
 
-      /* 管理人削除 */
       if(isAdmin){
         const del=document.createElement("button");
         del.textContent="削除";
