@@ -183,9 +183,16 @@ function loadComments(){
 
       const report=document.createElement("button");
       report.textContent="通報";
-      report.onclick=()=>push(ref(db,"reports"),{
-        threadId,postId:id,uid:c.uid,text:c.text,time:Date.now()
-      });
+      report.onclick = ()=>push(ref(db,"reports"),{
+  threadId,
+  postId:id,
+  uid:c.uid,
+  name:c.name,
+  icon:c.icon,
+  text:c.text,
+  time:Date.now()
+});
+
       tools.appendChild(report);
 
       if(isAdmin){
