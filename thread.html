@@ -12,12 +12,13 @@ textarea,input{width:100%;padding:6px;margin:4px 0;border-radius:6px;border:1px 
 body.dark textarea,body.dark input{background:#222;color:#eee;border-color:#555}
 .comment{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:10px;margin:10px 0}
 body.dark .comment{background:#1b1b1b;border-color:#555}
+.comment.admin{background:#ffe0b2;border-color:#ff9800}
+body.dark .comment.admin{background:#3a2a10;border-color:#ff9800}
 .flex{display:flex;gap:10px}
 .flex-end{display:flex;justify-content:flex-end;gap:6px}
 .icon{width:40px;height:40px;border-radius:50%}
 .comment a{color:#d22;text-decoration:underline}
 .meta{font-size:.8rem;color:#aa7}
-.banned{color:red;font-weight:bold;margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -26,10 +27,6 @@ body.dark .comment{background:#1b1b1b;border-color:#555}
 <h1 id="threadTitleHeader"></h1>
 
 <div id="adminTools"></div>
-
-<div id="banNotice" class="banned" style="display:none">
-🚫 あなたはBANされています。投稿・リアクション・通報はできません。
-</div>
 
 <div id="lockBox" style="display:none">
   <input id="threadPass" placeholder="パスワードを入力">
@@ -45,7 +42,7 @@ body.dark .comment{background:#1b1b1b;border-color:#555}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, get, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const app = initializeApp({
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -57,25 +54,16 @@ const userId = localStorage.getItem("usakira_userId");
 const userName = localStorage.getItem("usakira_name") || "名もなき兎";
 const userIcon = localStorage.getItem("usakira_icon") || "usagi.png.jpeg";
 const isAdmin = localStorage.getItem("usakira_admin")==="true";
+const adminUid = localStorage.getItem("usakira_admin_uid");
+
 const threadId = new URLSearchParams(location.search).get("id");
 
 const postBox = document.getElementById("postBox");
 const commentsDiv = document.getElementById("comments");
 const lockBox = document.getElementById("lockBox");
 const adminTools = document.getElementById("adminTools");
-const banNotice = document.getElementById("banNotice");
 
-let isBanned=false;
-let threadData=null;
-
-/* BAN監視 */
-onValue(ref(db,"bans/"+userId),snap=>{
-  isBanned = snap.exists() && !isAdmin;
-  banNotice.style.display = isBanned ? "block" : "none";
-  if(isBanned) postBox.style.display="none";
-});
-
-/* ダーク */
+/* ダークモード */
 const darkToggle=document.getElementById("darkToggle");
 if(localStorage.getItem("usakira_dark")==="true"){
   document.body.classList.add("dark");
@@ -89,6 +77,13 @@ darkToggle.onclick=()=>{
 /* URLリンク化 */
 const linkify=t=>t.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank">$1</a>');
 
+let threadData=null;
+let banList={};
+
+onValue(ref(db,"bans"),snap=>{
+  banList=snap.val()||{};
+});
+
 /* スレ情報 */
 onValue(ref(db,"threads/"+threadId),snap=>{
   threadData=snap.val();
@@ -97,45 +92,47 @@ onValue(ref(db,"threads/"+threadId),snap=>{
     return;
   }
 
-  document.getElementById("threadTitleHeader").textContent=
+  threadTitleHeader.textContent=
     threadData.ownerName+(threadData.ownerId===userId?"★":"")+"："+(threadData.title||"無題");
 
   if(isAdmin){
     adminTools.innerHTML="";
-    const del=document.createElement("button");
-    del.textContent="🗑 スレ削除";
-    del.onclick=async()=>{
-      if(!confirm("スレとコメントを完全削除します"))return;
+    const delBtn=document.createElement("button");
+    delBtn.textContent="🗑️ このスレを削除";
+    delBtn.onclick=async()=>{
+      if(!confirm("スレと全コメントを完全に削除します"))return;
       await remove(ref(db,"threads/"+threadId));
       await remove(ref(db,"posts/"+threadId));
       location.href="index.html";
     };
-    adminTools.appendChild(del);
+    adminTools.appendChild(delBtn);
   }
 
   if(threadData.pass && !isAdmin){
     lockBox.style.display="block";
-  }else unlockThread();
+  }else{
+    unlockThread();
+  }
 });
 
 /* 鍵解除 */
-document.getElementById("unlockBtn").onclick=()=>{
-  if(document.getElementById("threadPass").value===threadData.pass){
+unlockBtn.onclick=()=>{
+  if(threadPass.value===threadData.pass){
     unlockThread();
   }else alert("パスワードが違います");
 };
 
 function unlockThread(){
   lockBox.style.display="none";
+  postBox.style.display="block";
   commentsDiv.style.display="block";
-  if(!isBanned) postBox.style.display="block";
   loadComments();
 }
 
 /* 投稿 */
-document.getElementById("postBtn").onclick=async()=>{
-  if(isBanned) return alert("BAN中は投稿できません");
-  const t=document.getElementById("commentInput").value.trim();
+postBtn.onclick=async()=>{
+  if(banList[userId]){ alert("BAN中は投稿できません"); return; }
+  const t=commentInput.value.trim();
   if(!t)return;
   await push(ref(db,"posts/"+threadId),{
     uid:userId,name:userName,icon:userIcon,
@@ -145,15 +142,15 @@ document.getElementById("postBtn").onclick=async()=>{
   commentInput.value="";
 };
 
-/* コメント表示 */
+/* コメント */
 function loadComments(){
   onValue(ref(db,"posts/"+threadId),snap=>{
     commentsDiv.innerHTML="";
     Object.entries(snap.val()||{}).forEach(([id,c],i)=>{
       if(c.deleted)return;
 
-      const total=c.reactions?.total||0;
       let style="";
+      const total=c.reactions?.total||0;
       if(total>=10){
         style="background:linear-gradient(to right,red,orange,yellow,green,blue,indigo,violet);-webkit-background-clip:text;color:transparent";
       }else if(total>=5){
@@ -162,11 +159,21 @@ function loadComments(){
 
       const div=document.createElement("div");
       div.className="comment";
+      if(c.uid===adminUid)div.classList.add("admin");
+
       div.innerHTML=`
         <div class="flex">
           <img class="icon" src="${c.icon}">
           <div>
-            <b>${i+1} ${c.name}${c.uid===threadData.ownerId?"★":""}${isAdmin?"👑":""}</b>
+            <b>
+              ${i+1}
+              <span style="${c.uid===threadData.ownerId?'color:red':''}">
+                ${c.name}
+              </span>
+              ${c.uid===threadData.ownerId?"★":""}
+              ${c.uid===adminUid?"👑":""}
+              ${banList[c.uid]?"（BAN中）":""}
+            </b>
             <p style="${style}">${linkify(c.text)} ペコ</p>
             <p class="meta">${new Date(c.time).toLocaleString()}</p>
           </div>
@@ -179,9 +186,7 @@ function loadComments(){
       ["carrot","star"].forEach(type=>{
         const b=document.createElement("button");
         b.textContent=(type==="carrot"?"🥕":"✨")+" "+(c.reactions?.[type]||0);
-        b.disabled=isBanned;
         b.onclick=async()=>{
-          if(isBanned)return;
           c.reactions[type]++; c.reactions.total++;
           await set(ref(db,"posts/"+threadId+"/"+id+"/reactions"),c.reactions);
         };
@@ -190,9 +195,9 @@ function loadComments(){
 
       const report=document.createElement("button");
       report.textContent="通報";
-      report.disabled=isBanned;
-      report.onclick=()=>!isBanned&&push(ref(db,"reports"),{
-        threadId,postId:id,uid:c.uid,name:c.name,icon:c.icon,text:c.text,time:Date.now()
+      report.onclick=()=>push(ref(db,"reports"),{
+        threadId,postId:id,
+        uid:c.uid,name:c.name,icon:c.icon,text:c.text,time:Date.now()
       });
       tools.appendChild(report);
 
