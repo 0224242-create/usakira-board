@@ -13,12 +13,13 @@ body.dark textarea,body.dark input{background:#222;color:#eee;border-color:#555}
 .comment{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:10px;margin:10px 0}
 body.dark .comment{background:#1b1b1b;border-color:#555}
 .comment.admin{background:#ffe0b2;border-color:#ff9800}
-body.dark .comment.admin{background:#3a2a10;border-color:#ff9800}
+body.dark .comment.admin{background:#3a2a10}
 .flex{display:flex;gap:10px}
 .flex-end{display:flex;justify-content:flex-end;gap:6px}
 .icon{width:40px;height:40px;border-radius:50%}
 .comment a{color:#d22;text-decoration:underline}
-.meta{font-size:.8rem;color:#aa7}
+.meta{font-size:.75rem;color:#aa7}
+.uid{font-size:.7rem;color:#888}
 </style>
 </head>
 <body>
@@ -42,7 +43,7 @@ body.dark .comment.admin{background:#3a2a10;border-color:#ff9800}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, get, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const app = initializeApp({
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -50,18 +51,14 @@ const app = initializeApp({
 });
 const db = getDatabase(app);
 
-const userId = localStorage.getItem("usakira_userId");
+/* ユーザー */
+const userId = localStorage.getItem("usakira_userId") || ("user_"+Math.random().toString(36).slice(2));
+localStorage.setItem("usakira_userId",userId);
 const userName = localStorage.getItem("usakira_name") || "名もなき兎";
 const userIcon = localStorage.getItem("usakira_icon") || "usagi.png.jpeg";
 const isAdmin = localStorage.getItem("usakira_admin")==="true";
-const adminUid = localStorage.getItem("usakira_admin_uid");
 
 const threadId = new URLSearchParams(location.search).get("id");
-
-const postBox = document.getElementById("postBox");
-const commentsDiv = document.getElementById("comments");
-const lockBox = document.getElementById("lockBox");
-const adminTools = document.getElementById("adminTools");
 
 /* ダークモード */
 const darkToggle=document.getElementById("darkToggle");
@@ -74,66 +71,61 @@ darkToggle.onclick=()=>{
   localStorage.setItem("usakira_dark",document.body.classList.contains("dark"));
 };
 
-/* URLリンク化 */
-const linkify=t=>t.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank">$1</a>');
-
-let threadData=null;
+/* BANリスト */
 let banList={};
-
 onValue(ref(db,"bans"),snap=>{
   banList=snap.val()||{};
 });
 
+/* URLリンク */
+const linkify=t=>t.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank">$1</a>');
+
+let threadData=null;
+
 /* スレ情報 */
 onValue(ref(db,"threads/"+threadId),snap=>{
   threadData=snap.val();
-  if(!threadData){
-    document.body.innerHTML="スレッドは削除されました";
-    return;
-  }
+  if(!threadData){document.body.innerHTML="スレッドは削除されました";return;}
 
-  threadTitleHeader.textContent=
-    threadData.ownerName+(threadData.ownerId===userId?"★":"")+"："+(threadData.title||"無題");
+  document.getElementById("threadTitleHeader").textContent=
+    threadData.ownerName+"："+(threadData.title||"無題");
 
   if(isAdmin){
-    adminTools.innerHTML="";
-    const delBtn=document.createElement("button");
-    delBtn.textContent="🗑️ このスレを削除";
-    delBtn.onclick=async()=>{
-      if(!confirm("スレと全コメントを完全に削除します"))return;
-      await remove(ref(db,"threads/"+threadId));
-      await remove(ref(db,"posts/"+threadId));
-      location.href="index.html";
+    const btn=document.createElement("button");
+    btn.textContent="🗑 スレ削除";
+    btn.onclick=async()=>{
+      if(confirm("スレと全コメントを削除しますか？")){
+        await remove(ref(db,"threads/"+threadId));
+        await remove(ref(db,"posts/"+threadId));
+        location.href="index.html";
+      }
     };
-    adminTools.appendChild(delBtn);
+    adminTools.appendChild(btn);
   }
 
   if(threadData.pass && !isAdmin){
     lockBox.style.display="block";
-  }else{
-    unlockThread();
-  }
+  }else unlock();
 });
 
 /* 鍵解除 */
 unlockBtn.onclick=()=>{
-  if(threadPass.value===threadData.pass){
-    unlockThread();
-  }else alert("パスワードが違います");
+  if(threadPass.value===threadData.pass) unlock();
+  else alert("パスワードが違います");
 };
 
-function unlockThread(){
+function unlock(){
   lockBox.style.display="none";
   postBox.style.display="block";
-  commentsDiv.style.display="block";
+  comments.style.display="block";
   loadComments();
 }
 
 /* 投稿 */
 postBtn.onclick=async()=>{
-  if(banList[userId]){ alert("BAN中は投稿できません"); return; }
+  if(banList[userId]) return alert("BAN中は投稿できません");
   const t=commentInput.value.trim();
-  if(!t)return;
+  if(!t) return;
   await push(ref(db,"posts/"+threadId),{
     uid:userId,name:userName,icon:userIcon,
     text:t,time:Date.now(),
@@ -142,76 +134,74 @@ postBtn.onclick=async()=>{
   commentInput.value="";
 };
 
-/* コメント */
+/* コメント表示 */
 function loadComments(){
-  onValue(ref(db,"posts/"+threadId),snap=>{
-    commentsDiv.innerHTML="";
-    Object.entries(snap.val()||{}).forEach(([id,c],i)=>{
-      if(c.deleted)return;
+onValue(ref(db,"posts/"+threadId),snap=>{
+  comments.innerHTML="";
+  Object.entries(snap.val()||{}).forEach(([id,c],i)=>{
+    if(c.deleted)return;
 
-      let style="";
-      const total=c.reactions?.total||0;
-      if(total>=10){
-        style="background:linear-gradient(to right,red,orange,yellow,green,blue,indigo,violet);-webkit-background-clip:text;color:transparent";
-      }else if(total>=5){
-        style="color:red";
-      }
+    let style="";
+    if(c.reactions?.total>=10){
+      style="background:linear-gradient(to right,red,orange,yellow,green,blue,indigo,violet);-webkit-background-clip:text;color:transparent";
+    }else if(c.reactions?.total>=5){
+      style="color:red";
+    }
 
-      const div=document.createElement("div");
-      div.className="comment";
-      if(c.uid===adminUid)div.classList.add("admin");
+    const div=document.createElement("div");
+    div.className="comment";
+    if(isAdmin && c.uid===userId) div.classList.add("admin");
 
-      div.innerHTML=`
-        <div class="flex">
-          <img class="icon" src="${c.icon}">
-          <div>
-            <b>
-              ${i+1}
-              <span style="${c.uid===threadData.ownerId?'color:red':''}">
-                ${c.name}
-              </span>
-              ${c.uid===threadData.ownerId?"★":""}
-              ${c.uid===adminUid?"👑":""}
-              ${banList[c.uid]?"（BAN中）":""}
-            </b>
-            <p style="${style}">${linkify(c.text)} ペコ</p>
-            <p class="meta">${new Date(c.time).toLocaleString()}</p>
-          </div>
+    div.innerHTML=`
+      <div class="flex">
+        <img class="icon" src="${c.icon}">
+        <div>
+          <b>
+            <span style="${c.uid===threadData.ownerId?'color:red':''}">
+              ${i+1} ${c.name}
+            </span>
+            ${c.uid===threadData.ownerId?"★":""}
+            ${isAdmin && c.uid===userId?"👑":""}
+            ${banList[c.uid]?"（BAN中）":""}
+          </b>
+          <div class="uid">ID: ${c.uid}</div>
+          <p style="${style}">${linkify(c.text)} ペコ</p>
+          <div class="meta">${new Date(c.time).toLocaleString()}</div>
         </div>
-      `;
+      </div>
+    `;
 
-      const tools=document.createElement("div");
-      tools.className="flex-end";
+    const tools=document.createElement("div");
+    tools.className="flex-end";
 
-      ["carrot","star"].forEach(type=>{
-        const b=document.createElement("button");
-        b.textContent=(type==="carrot"?"🥕":"✨")+" "+(c.reactions?.[type]||0);
-        b.onclick=async()=>{
-          c.reactions[type]++; c.reactions.total++;
-          await set(ref(db,"posts/"+threadId+"/"+id+"/reactions"),c.reactions);
-        };
-        tools.appendChild(b);
-      });
-
-      const report=document.createElement("button");
-      report.textContent="通報";
-      report.onclick=()=>push(ref(db,"reports"),{
-        threadId,postId:id,
-        uid:c.uid,name:c.name,icon:c.icon,text:c.text,time:Date.now()
-      });
-      tools.appendChild(report);
-
-      if(isAdmin){
-        const del=document.createElement("button");
-        del.textContent="削除";
-        del.onclick=()=>set(ref(db,"posts/"+threadId+"/"+id+"/deleted"),true);
-        tools.appendChild(del);
-      }
-
-      div.appendChild(tools);
-      commentsDiv.appendChild(div);
+    ["carrot","star"].forEach(t=>{
+      const b=document.createElement("button");
+      b.textContent=(t==="carrot"?"🥕":"✨")+" "+(c.reactions?.[t]||0);
+      b.onclick=async()=>{
+        c.reactions[t]++; c.reactions.total++;
+        await set(ref(db,"posts/"+threadId+"/"+id+"/reactions"),c.reactions);
+      };
+      tools.appendChild(b);
     });
+
+    const report=document.createElement("button");
+    report.textContent="通報";
+    report.onclick=()=>push(ref(db,"reports"),{
+      threadId,postId:id,uid:c.uid,name:c.name,icon:c.icon,text:c.text,time:Date.now()
+    });
+    tools.appendChild(report);
+
+    if(isAdmin){
+      const del=document.createElement("button");
+      del.textContent="削除";
+      del.onclick=()=>set(ref(db,"posts/"+threadId+"/"+id+"/deleted"),true);
+      tools.appendChild(del);
+    }
+
+    div.appendChild(tools);
+    comments.appendChild(div);
   });
+});
 }
 </script>
 </body>
