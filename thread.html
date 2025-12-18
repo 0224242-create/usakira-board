@@ -28,7 +28,7 @@ body.dark .comment{background:#1b1b1b;border-color:#555}
 <div id="adminTools"></div>
 
 <div id="banNotice" class="banned" style="display:none">
-🚫 あなたはBANされています。投稿・リアクションはできません。
+🚫 あなたはBANされています。投稿・リアクション・通報はできません。
 </div>
 
 <div id="lockBox" style="display:none">
@@ -45,7 +45,7 @@ body.dark .comment{background:#1b1b1b;border-color:#555}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, remove, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const app = initializeApp({
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -57,7 +57,6 @@ const userId = localStorage.getItem("usakira_userId");
 const userName = localStorage.getItem("usakira_name") || "名もなき兎";
 const userIcon = localStorage.getItem("usakira_icon") || "usagi.png.jpeg";
 const isAdmin = localStorage.getItem("usakira_admin")==="true";
-
 const threadId = new URLSearchParams(location.search).get("id");
 
 const postBox = document.getElementById("postBox");
@@ -66,13 +65,14 @@ const lockBox = document.getElementById("lockBox");
 const adminTools = document.getElementById("adminTools");
 const banNotice = document.getElementById("banNotice");
 
-let isBanned = false;
+let isBanned=false;
+let threadData=null;
 
-/* 🔥 BAN監視 */
+/* BAN監視 */
 onValue(ref(db,"bans/"+userId),snap=>{
   isBanned = snap.exists() && !isAdmin;
   banNotice.style.display = isBanned ? "block" : "none";
-  if(isBanned) postBox.style.display = "none";
+  if(isBanned) postBox.style.display="none";
 });
 
 /* ダーク */
@@ -87,36 +87,35 @@ darkToggle.onclick=()=>{
 };
 
 /* URLリンク化 */
-const linkify = t => t.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank">$1</a>');
-
-let threadData=null;
+const linkify=t=>t.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank">$1</a>');
 
 /* スレ情報 */
 onValue(ref(db,"threads/"+threadId),snap=>{
   threadData=snap.val();
-  if(!threadData){ document.body.innerHTML="スレッドは削除されました"; return; }
+  if(!threadData){
+    document.body.innerHTML="スレッドは削除されました";
+    return;
+  }
 
-  document.getElementById("threadTitleHeader").textContent =
+  document.getElementById("threadTitleHeader").textContent=
     threadData.ownerName+(threadData.ownerId===userId?"★":"")+"："+(threadData.title||"無題");
 
   if(isAdmin){
     adminTools.innerHTML="";
-    const delBtn=document.createElement("button");
-    delBtn.textContent="🗑️ このスレを削除";
-    delBtn.onclick=async()=>{
-      if(!confirm("スレを完全削除します"))return;
+    const del=document.createElement("button");
+    del.textContent="🗑 スレ削除";
+    del.onclick=async()=>{
+      if(!confirm("スレとコメントを完全削除します"))return;
       await remove(ref(db,"threads/"+threadId));
       await remove(ref(db,"posts/"+threadId));
       location.href="index.html";
     };
-    adminTools.appendChild(delBtn);
+    adminTools.appendChild(del);
   }
 
   if(threadData.pass && !isAdmin){
     lockBox.style.display="block";
-  }else{
-    unlockThread();
-  }
+  }else unlockThread();
 });
 
 /* 鍵解除 */
@@ -153,6 +152,14 @@ function loadComments(){
     Object.entries(snap.val()||{}).forEach(([id,c],i)=>{
       if(c.deleted)return;
 
+      const total=c.reactions?.total||0;
+      let style="";
+      if(total>=10){
+        style="background:linear-gradient(to right,red,orange,yellow,green,blue,indigo,violet);-webkit-background-clip:text;color:transparent";
+      }else if(total>=5){
+        style="color:red";
+      }
+
       const div=document.createElement("div");
       div.className="comment";
       div.innerHTML=`
@@ -160,7 +167,7 @@ function loadComments(){
           <img class="icon" src="${c.icon}">
           <div>
             <b>${i+1} ${c.name}${c.uid===threadData.ownerId?"★":""}${isAdmin?"👑":""}</b>
-            <p>${linkify(c.text)} ペコ</p>
+            <p style="${style}">${linkify(c.text)} ペコ</p>
             <p class="meta">${new Date(c.time).toLocaleString()}</p>
           </div>
         </div>
@@ -172,7 +179,7 @@ function loadComments(){
       ["carrot","star"].forEach(type=>{
         const b=document.createElement("button");
         b.textContent=(type==="carrot"?"🥕":"✨")+" "+(c.reactions?.[type]||0);
-        b.disabled = isBanned;
+        b.disabled=isBanned;
         b.onclick=async()=>{
           if(isBanned)return;
           c.reactions[type]++; c.reactions.total++;
@@ -183,7 +190,7 @@ function loadComments(){
 
       const report=document.createElement("button");
       report.textContent="通報";
-      report.disabled = isBanned;
+      report.disabled=isBanned;
       report.onclick=()=>!isBanned&&push(ref(db,"reports"),{
         threadId,postId:id,uid:c.uid,name:c.name,icon:c.icon,text:c.text,time:Date.now()
       });
