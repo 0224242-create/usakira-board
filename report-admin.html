@@ -7,131 +7,104 @@
 <style>
 body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222;transition:.25s;}
 body.dark{background:#121212;color:#eee;}
-h1,h2{margin-top:0;}
-.card{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;box-shadow:0 2px 6px rgba(255,150,210,.25);}
+.card{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;}
 body.dark .card{background:#1b1b1b;border-color:#555;}
 .flex{display:flex;align-items:center;}
 .flex-column{display:flex;flex-direction:column;}
 .flex-end{display:flex;justify-content:flex-end;gap:6px;margin-top:8px;}
-.icon{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #ffb8e6;margin-right:10px;}
+.icon{width:48px;height:48px;border-radius:50%;margin-right:10px;}
 button{padding:4px 8px;border-radius:6px;cursor:pointer;}
-#reportList,#banList{margin-top:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-@media(max-width:900px){#reportList,#banList{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:600px){#reportList,#banList{grid-template-columns:1fr}}
+#reportList,#banList{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+@media(max-width:800px){#reportList,#banList{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 
 <button id="darkToggle" style="position:fixed;right:12px;top:12px;">🌙</button>
-<h1>🐰 うさ★キラ掲示板 管理ページ✨️</h1>
+<h1>🐰 管理ページ</h1>
 
-<h2>🚨 通報リスト</h2>
+<h2>🚨 通報</h2>
 <div id="reportList"></div>
-<hr>
-<h2>🚫 BANリスト</h2>
+
+<h2>🚫 BAN</h2>
 <div id="banList"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getDatabase, ref, onValue, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-const firebaseConfig = {
+const app = initializeApp({
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
-};
-const app = initializeApp(firebaseConfig);
+});
 const db = getDatabase(app);
 
-/* ダークモード */
+/* ダーク */
 const darkToggle=document.getElementById("darkToggle");
-const savedDark=localStorage.getItem("usakira_dark")==="true";
-if(savedDark) document.body.classList.add("dark");
-darkToggle.textContent=savedDark?"☀️":"🌙";
+if(localStorage.getItem("usakira_dark")==="true"){
+  document.body.classList.add("dark");
+  darkToggle.textContent="☀️";
+}
 darkToggle.onclick=()=>{
   document.body.classList.toggle("dark");
-  const now=document.body.classList.contains("dark");
-  localStorage.setItem("usakira_dark",now);
-  darkToggle.textContent=now?"☀️":"🌙";
+  localStorage.setItem("usakira_dark",document.body.classList.contains("dark"));
+  darkToggle.textContent=document.body.classList.contains("dark")?"☀️":"🌙";
 };
 
-/* 管理者フラグ */
-localStorage.setItem("usakira_admin","true");
-
-/* 通報リスト */
+/* 🚨 通報 */
 const reportList=document.getElementById("reportList");
 onValue(ref(db,"reports"),snap=>{
   reportList.innerHTML="";
-  const reports = snap.val()||{};
-
-  // 同じコメントでまとめる
-  const grouped = {};
-  Object.entries(reports).forEach(([rid,r])=>{
-    const key = r.threadId + "_" + r.postId;
-    if(!grouped[key]) grouped[key] = {r,rids:[rid],count:1};
-    else { grouped[key].rids.push(rid); grouped[key].count++; }
-  });
-
-  Object.values(grouped).sort((a,b)=>b.r.time - a.r.time).forEach(item=>{
-    const r = item.r;
-    const card = document.createElement("div");
+  Object.entries(snap.val()||{}).forEach(([rid,r])=>{
+    const card=document.createElement("div");
     card.className="card flex-column";
     card.innerHTML=`
       <div class="flex">
         <img class="icon" src="${r.icon||'usagi.png.jpeg'}">
-        <div>
-          <b>${r.name||"名もなき兎"}</b>
-          <div style="font-size:.8rem;color:#888;">スレッド: <a href="thread.html?id=${r.threadId}">移動</a></div>
-        </div>
+        <b>${r.name||"名もなき兎"}</b>
       </div>
       <p>${r.text}</p>
-      <div style="font-size:.8rem;color:#aa7;">
-        通報日時: ${new Date(r.time).toLocaleString()}${item.count>1 ? " ・"+item.count+"回追放されました" : ""}
-      </div>
+      <small>${new Date(r.time).toLocaleString()}</small>
       <div class="flex-end"></div>
     `;
-    const tools = card.querySelector(".flex-end");
+    const tools=card.querySelector(".flex-end");
 
-    // 投稿削除
-    const delBtn = document.createElement("button");
-    delBtn.textContent="削除"; 
-    delBtn.onclick=async()=>await set(ref(db,"posts/"+r.threadId+"/"+r.postId+"/deleted"),true);
-
-    // BAN
-    const banBtn = document.createElement("button");
-    banBtn.textContent="BAN"; 
-    banBtn.onclick=async()=>await set(ref(db,"bans/"+r.uid),{name:r.name,icon:r.icon,time:Date.now()});
-
-    // 通報解除（すべてのridを削除）
-    const clearBtn = document.createElement("button");
-    clearBtn.textContent="通報解除"; 
-    clearBtn.onclick=async()=>{ 
-      for(const rid of item.rids) await remove(ref(db,"reports/"+rid));
+    const del=document.createElement("button");
+    del.textContent="投稿削除";
+    del.onclick=async()=>{
+      await set(ref(db,"posts/"+r.threadId+"/"+r.postId+"/deleted"),true);
+      await remove(ref(db,"reports/"+rid));
     };
 
-    tools.append(delBtn,banBtn,clearBtn);
+    const ban=document.createElement("button");
+    ban.textContent="BAN";
+    ban.onclick=async()=>{
+      await set(ref(db,"bans/"+r.uid),{
+        name:r.name,icon:r.icon,time:Date.now()
+      });
+      await remove(ref(db,"reports/"+rid));
+    };
+
+    tools.append(del,ban);
     reportList.appendChild(card);
   });
 });
 
-/* BANリスト */
+/* 🚫 BAN */
 const banList=document.getElementById("banList");
 onValue(ref(db,"bans"),snap=>{
   banList.innerHTML="";
-  const bans = snap.val()||{};
-  Object.entries(bans).forEach(([uid,u])=>{
-    const card = document.createElement("div");
+  Object.entries(snap.val()||{}).forEach(([uid,u])=>{
+    const card=document.createElement("div");
     card.className="card flex";
     card.innerHTML=`
-      <img class="icon" src="${u.icon||'usagi.png.jpeg'}">
-      <div style="flex:1">
-        <b>${u.name||"名もなき兎"}</b><br>
-        <span style="font-size:.8rem;color:#aa7;">BAN日時: ${new Date(u.time).toLocaleString()}</span>
-      </div>
+      <img class="icon" src="${u.icon}">
+      <b>${u.name}</b>
     `;
-    const unbanBtn = document.createElement("button");
-    unbanBtn.textContent="BAN解除"; 
-    unbanBtn.onclick=async()=>await remove(ref(db,"bans/"+uid));
-    card.appendChild(unbanBtn);
+    const un=document.createElement("button");
+    un.textContent="解除";
+    un.onclick=()=>remove(ref(db,"bans/"+uid));
+    card.appendChild(un);
     banList.appendChild(card);
   });
 });
