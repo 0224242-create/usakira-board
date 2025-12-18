@@ -80,7 +80,8 @@ onValue(ref(db,"threads/"+threadId),snap=>{
   threadData=snap.val();
   if(!threadData){document.body.innerHTML="スレッドがありません";return;}
 
-  if(threadData.password){
+  /* ★ 修正① ここだけ */
+  if(threadData.pass){
     if(sessionStorage.getItem("thread_unlock_"+threadId)!=="true"){
       postBox.style.display="none";
       lockBox.style.display="block";
@@ -104,14 +105,16 @@ onValue(ref(db,"threads/"+threadId),snap=>{
   }
 });
 
-/* 鍵解除 */
+/* ★ 修正② 鍵解除 */
 document.getElementById("unlockBtn").onclick=()=>{
   const p=document.getElementById("threadPass").value;
-if(threadData.pass){
+  if(p === threadData.pass){
     sessionStorage.setItem("thread_unlock_"+threadId,"true");
     lockBox.style.display="none";
     postBox.style.display="block";
-  }else alert("パスワードが違います");
+  }else{
+    alert("パスワードが違います");
+  }
 };
 
 /* 投稿 */
