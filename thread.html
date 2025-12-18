@@ -18,7 +18,7 @@ body.dark .comment.admin{background:#3a2a10}
 .flex-end{display:flex;justify-content:flex-end;gap:6px}
 .icon{width:40px;height:40px;border-radius:50%}
 .comment a{color:#d22;text-decoration:underline}
-.meta{font-size:.75rem;color:#aa7}
+.meta{font-size:.8rem;color:#aa7}
 .uid{font-size:.7rem;color:#888}
 </style>
 </head>
@@ -36,6 +36,7 @@ body.dark .comment.admin{background:#3a2a10}
 
 <div id="postBox" style="display:none">
   <textarea id="commentInput" placeholder="コメントを入力..."></textarea>
+  <input type="file" id="imageInput" accept="image/*">
   <button id="postBtn">投稿する</button>
 </div>
 
@@ -44,23 +45,28 @@ body.dark .comment.admin{background:#3a2a10}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getDatabase, ref, onValue, push, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-storage.js";
 
 const app = initializeApp({
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 });
 const db = getDatabase(app);
+const storage = getStorage(app);
 
-/* ユーザー */
-const userId = localStorage.getItem("usakira_userId") || ("user_"+Math.random().toString(36).slice(2));
-localStorage.setItem("usakira_userId",userId);
+const userId = localStorage.getItem("usakira_userId");
 const userName = localStorage.getItem("usakira_name") || "名もなき兎";
 const userIcon = localStorage.getItem("usakira_icon") || "usagi.png.jpeg";
 const isAdmin = localStorage.getItem("usakira_admin")==="true";
 
 const threadId = new URLSearchParams(location.search).get("id");
 
-/* ダークモード */
+const postBox = document.getElementById("postBox");
+const commentsDiv = document.getElementById("comments");
+const lockBox = document.getElementById("lockBox");
+const adminTools = document.getElementById("adminTools");
+
+/* ダーク */
 const darkToggle=document.getElementById("darkToggle");
 if(localStorage.getItem("usakira_dark")==="true"){
   document.body.classList.add("dark");
@@ -71,16 +77,13 @@ darkToggle.onclick=()=>{
   localStorage.setItem("usakira_dark",document.body.classList.contains("dark"));
 };
 
-/* BANリスト */
-let banList={};
-onValue(ref(db,"bans"),snap=>{
-  banList=snap.val()||{};
-});
-
-/* URLリンク */
 const linkify=t=>t.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank">$1</a>');
 
 let threadData=null;
+let banList={};
+
+/* BAN */
+onValue(ref(db,"bans"),snap=>banList=snap.val()||{});
 
 /* スレ情報 */
 onValue(ref(db,"threads/"+threadId),snap=>{
@@ -91,16 +94,17 @@ onValue(ref(db,"threads/"+threadId),snap=>{
     threadData.ownerName+"："+(threadData.title||"無題");
 
   if(isAdmin){
-    const btn=document.createElement("button");
-    btn.textContent="🗑 スレ削除";
-    btn.onclick=async()=>{
-      if(confirm("スレと全コメントを削除しますか？")){
+    adminTools.innerHTML="";
+    const b=document.createElement("button");
+    b.textContent="🗑 このスレを削除";
+    b.onclick=async()=>{
+      if(confirm("スレとコメントを全削除します")) {
         await remove(ref(db,"threads/"+threadId));
         await remove(ref(db,"posts/"+threadId));
         location.href="index.html";
       }
     };
-    adminTools.appendChild(btn);
+    adminTools.appendChild(b);
   }
 
   if(threadData.pass && !isAdmin){
@@ -117,36 +121,43 @@ unlockBtn.onclick=()=>{
 function unlock(){
   lockBox.style.display="none";
   postBox.style.display="block";
-  comments.style.display="block";
+  commentsDiv.style.display="block";
   loadComments();
 }
 
 /* 投稿 */
 postBtn.onclick=async()=>{
-  if(banList[userId]) return alert("BAN中は投稿できません");
-  const t=commentInput.value.trim();
-  if(!t) return;
+  if(banList[userId]) return alert("BAN中です");
+  const text=commentInput.value.trim();
+  const file=imageInput.files[0];
+  if(!text && !file) return;
+
+  let image="";
+  if(file){
+    const r=sRef(storage,"images/"+threadId+"/"+Date.now()+"_"+file.name);
+    await uploadBytes(r,file);
+    image=await getDownloadURL(r);
+  }
+
   await push(ref(db,"posts/"+threadId),{
     uid:userId,name:userName,icon:userIcon,
-    text:t,time:Date.now(),
+    text,image,time:Date.now(),
     reactions:{carrot:0,star:0,total:0}
   });
-  commentInput.value="";
+  commentInput.value="";imageInput.value="";
 };
 
 /* コメント表示 */
 function loadComments(){
 onValue(ref(db,"posts/"+threadId),snap=>{
-  comments.innerHTML="";
+  commentsDiv.innerHTML="";
   Object.entries(snap.val()||{}).forEach(([id,c],i)=>{
     if(c.deleted)return;
 
     let style="";
-    if(c.reactions?.total>=10){
-      style="background:linear-gradient(to right,red,orange,yellow,green,blue,indigo,violet);-webkit-background-clip:text;color:transparent";
-    }else if(c.reactions?.total>=5){
-      style="color:red";
-    }
+    const t=c.reactions?.total||0;
+    if(t>=10) style="background:linear-gradient(to right,red,orange,yellow,green,blue,indigo,violet);-webkit-background-clip:text;color:transparent";
+    else if(t>=5) style="color:red";
 
     const div=document.createElement("div");
     div.className="comment";
@@ -157,8 +168,9 @@ onValue(ref(db,"posts/"+threadId),snap=>{
         <img class="icon" src="${c.icon}">
         <div>
           <b>
+            ${i+1}
             <span style="${c.uid===threadData.ownerId?'color:red':''}">
-              ${i+1} ${c.name}
+              ${c.name}
             </span>
             ${c.uid===threadData.ownerId?"★":""}
             ${isAdmin && c.uid===userId?"👑":""}
@@ -166,6 +178,7 @@ onValue(ref(db,"posts/"+threadId),snap=>{
           </b>
           <div class="uid">ID: ${c.uid}</div>
           <p style="${style}">${linkify(c.text)} ペコ</p>
+          ${c.image?`<img src="${c.image}" style="max-width:100%;border-radius:10px">`:""}
           <div class="meta">${new Date(c.time).toLocaleString()}</div>
         </div>
       </div>
@@ -174,32 +187,33 @@ onValue(ref(db,"posts/"+threadId),snap=>{
     const tools=document.createElement("div");
     tools.className="flex-end";
 
-    ["carrot","star"].forEach(t=>{
+    ["carrot","star"].forEach(k=>{
       const b=document.createElement("button");
-      b.textContent=(t==="carrot"?"🥕":"✨")+" "+(c.reactions?.[t]||0);
+      b.textContent=(k==="carrot"?"🥕":"✨")+" "+(c.reactions?.[k]||0);
       b.onclick=async()=>{
-        c.reactions[t]++; c.reactions.total++;
+        c.reactions[k]++;c.reactions.total++;
         await set(ref(db,"posts/"+threadId+"/"+id+"/reactions"),c.reactions);
       };
       tools.appendChild(b);
     });
 
-    const report=document.createElement("button");
-    report.textContent="通報";
-    report.onclick=()=>push(ref(db,"reports"),{
-      threadId,postId:id,uid:c.uid,name:c.name,icon:c.icon,text:c.text,time:Date.now()
+    const r=document.createElement("button");
+    r.textContent="通報";
+    r.onclick=()=>push(ref(db,"reports"),{
+      threadId,postId:id,uid:c.uid,
+      name:c.name,icon:c.icon,text:c.text,time:Date.now()
     });
-    tools.appendChild(report);
+    tools.appendChild(r);
 
     if(isAdmin){
-      const del=document.createElement("button");
-      del.textContent="削除";
-      del.onclick=()=>set(ref(db,"posts/"+threadId+"/"+id+"/deleted"),true);
-      tools.appendChild(del);
+      const d=document.createElement("button");
+      d.textContent="削除";
+      d.onclick=()=>set(ref(db,"posts/"+threadId+"/"+id+"/deleted"),true);
+      tools.appendChild(d);
     }
 
     div.appendChild(tools);
-    comments.appendChild(div);
+    commentsDiv.appendChild(div);
   });
 });
 }
