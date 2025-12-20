@@ -182,39 +182,24 @@ onValue(ref(db,"posts/"+threadId),snap=>{
     const tools=document.createElement("div");
     tools.className="flex-end";
 
-   ["carrot","star"].forEach(t=>{
+["carrot","star"].forEach(t=>{
   const b=document.createElement("button");
   b.textContent=(t==="carrot"?"🥕":"✨")+" "+(c.reactions?.[t]||0);
-
-  let locking = false; // ★ 追加
-
   b.onclick=async()=>{
-    if(locking) return;      // ★ 連打ガード
-    locking = true;
-    b.disabled = true;       // ★ UI的にも押せなくする
-
     c.reactions[t]++;
     c.reactions.total++;
 
-    await set(
-      ref(db,"posts/"+threadId+"/"+id+"/reactions"),
-      c.reactions
-    );
+    await set(ref(db,"posts/"+threadId+"/"+id+"/reactions"),c.reactions);
 
     runTransaction(ref(db,"threads/"+threadId), data=>{
       if(!data) return data;
       data.reactionTotal = (data.reactionTotal || 0) + 1;
       return data;
     });
-
-    setTimeout(()=>{          // ★ クールタイム
-      locking = false;
-      b.disabled = false;
-    }, 800); // 0.8秒
   };
-
   tools.appendChild(b);
 });
+
     const report=document.createElement("button");
     report.textContent="通報";
     report.onclick=()=>push(ref(db,"reports"),{
