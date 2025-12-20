@@ -126,13 +126,17 @@ if(!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId
 document.getElementById("createThread").onclick=async()=>{
   const title=document.getElementById("threadTitle").value.trim();
   if(!title) return alert("タイトルを書いてね");
-  const body=document.getElementById("threadBody").value.trim();
   const pass=document.getElementById("threadPass").value.trim();
+
   const key=(await push(ref(db,"threads"),{
-    title,body,pass:pass||null,
-    ownerId:userId,ownerName:nameInput.value||defaultName,
-    ownerIcon:iconInput.value||defaultIcon,time:Date.now()
+    title,
+    pass:pass||null,
+    ownerId:userId,
+    ownerName:nameInput.value||defaultName,
+    ownerIcon:iconInput.value||defaultIcon,
+    time:Date.now()
   })).key;
+
   alert("作成したよ！");
   location.href=`thread.html?id=${key}`;
 };
