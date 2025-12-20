@@ -12,14 +12,8 @@ textarea,input{width:100%;padding:6px;margin:4px 0;border-radius:6px;border:1px 
 body.dark textarea,body.dark input{background:#222;color:#eee;border-color:#555}
 .comment{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:10px;margin:10px 0}
 body.dark .comment{background:#1b1b1b;border-color:#555}
-.comment.admin{
-  background:#fff3e0;   /* かなり淡いオレンジ */
-  border-color:#ffcc80;
-}
-body.dark .comment.admin{
-  background:#2a2216;   /* ダークでもうっすら */
-}
-
+.comment.admin{background:#fff3e0;border-color:#ffcc80}
+body.dark .comment.admin{background:#2a2216}
 .flex{display:flex;gap:10px}
 .flex-end{display:flex;justify-content:flex-end;gap:6px}
 .icon{width:40px;height:40px;border-radius:50%}
@@ -49,7 +43,9 @@ body.dark .comment.admin{
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import {
+  getDatabase, ref, onValue, push, set, remove, runTransaction
+} from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const app = initializeApp({
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -79,9 +75,7 @@ darkToggle.onclick=()=>{
 
 /* BANリスト */
 let banList={};
-onValue(ref(db,"bans"),snap=>{
-  banList=snap.val()||{};
-});
+onValue(ref(db,"bans"),snap=>banList=snap.val()||{});
 
 /* URLリンク */
 const linkify=t=>t.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank">$1</a>');
@@ -93,7 +87,7 @@ onValue(ref(db,"threads/"+threadId),snap=>{
   threadData=snap.val();
   if(!threadData){document.body.innerHTML="スレッドは削除されました";return;}
 
-  document.getElementById("threadTitleHeader").textContent=
+  threadTitleHeader.textContent =
     threadData.ownerName+"："+(threadData.title||"無題");
 
   if(isAdmin){
@@ -127,16 +121,24 @@ function unlock(){
   loadComments();
 }
 
-/* 投稿 */
+/* 投稿（★ commentCount +1 追加） */
 postBtn.onclick=async()=>{
   if(banList[userId]) return alert("BAN中は投稿できません");
   const t=commentInput.value.trim();
   if(!t) return;
+
   await push(ref(db,"posts/"+threadId),{
     uid:userId,name:userName,icon:userIcon,
     text:t,time:Date.now(),
     reactions:{carrot:0,star:0,total:0}
   });
+
+  runTransaction(ref(db,"threads/"+threadId), data=>{
+    if(!data) return data;
+    data.commentCount = (data.commentCount || 0) + 1;
+    return data;
+  });
+
   commentInput.value="";
 };
 
@@ -184,8 +186,16 @@ onValue(ref(db,"posts/"+threadId),snap=>{
       const b=document.createElement("button");
       b.textContent=(t==="carrot"?"🥕":"✨")+" "+(c.reactions?.[t]||0);
       b.onclick=async()=>{
-        c.reactions[t]++; c.reactions.total++;
+        c.reactions[t]++;
+        c.reactions.total++;
+
         await set(ref(db,"posts/"+threadId+"/"+id+"/reactions"),c.reactions);
+
+        runTransaction(ref(db,"threads/"+threadId), data=>{
+          if(!data) return data;
+          data.reactionTotal = (data.reactionTotal || 0) + 1;
+          return data;
+        });
       };
       tools.appendChild(b);
     });
