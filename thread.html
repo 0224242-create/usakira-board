@@ -53,7 +53,6 @@ const app = initializeApp({
 });
 const db = getDatabase(app);
 
-/* ユーザー */
 const userId = localStorage.getItem("usakira_userId") || ("user_"+Math.random().toString(36).slice(2));
 localStorage.setItem("usakira_userId",userId);
 const userName = localStorage.getItem("usakira_name") || "名もなき兎";
@@ -62,22 +61,9 @@ const isAdmin = localStorage.getItem("usakira_admin")==="true";
 
 const threadId = new URLSearchParams(location.search).get("id");
 
-/* ダークモード */
-const darkToggle=document.getElementById("darkToggle");
-if(localStorage.getItem("usakira_dark")==="true"){
-  document.body.classList.add("dark");
-  darkToggle.textContent="☀️";
-}
-darkToggle.onclick=()=>{
-  document.body.classList.toggle("dark");
-  localStorage.setItem("usakira_dark",document.body.classList.contains("dark"));
-};
-
-/* BANリスト */
 let banList={};
 onValue(ref(db,"bans"),snap=>banList=snap.val()||{});
 
-/* URLリンク */
 const linkify=t=>t.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank">$1</a>');
 
 let threadData=null;
@@ -85,7 +71,12 @@ let threadData=null;
 /* スレ情報 */
 onValue(ref(db,"threads/"+threadId),snap=>{
   threadData=snap.val();
-  if(!threadData){document.body.innerHTML="スレッドは削除されました";return;}
+  if(!threadData){
+    document.body.innerHTML="スレッドは削除されました";
+    return;
+  }
+
+  adminTools.innerHTML = ""; // ★ 増殖防止
 
   threadTitleHeader.textContent =
     threadData.ownerName+"："+(threadData.title||"無題");
@@ -108,20 +99,7 @@ onValue(ref(db,"threads/"+threadId),snap=>{
   }else unlock();
 });
 
-/* 鍵解除 */
-unlockBtn.onclick=()=>{
-  if(threadPass.value===threadData.pass) unlock();
-  else alert("パスワードが違います");
-};
-
-function unlock(){
-  lockBox.style.display="none";
-  postBox.style.display="block";
-  comments.style.display="block";
-  loadComments();
-}
-
-/* 投稿（★ commentCount +1 追加） */
+/* 投稿 */
 postBtn.onclick=async()=>{
   if(banList[userId]) return alert("BAN中は投稿できません");
   const t=commentInput.value.trim();
@@ -133,91 +111,52 @@ postBtn.onclick=async()=>{
     reactions:{carrot:0,star:0,total:0}
   });
 
-  runTransaction(ref(db,"threads/"+threadId), data=>{
-    if(!data) return data;
-    data.commentCount = (data.commentCount || 0) + 1;
-    return data;
+  runTransaction(ref(db,"threads/"+threadId),d=>{
+    if(!d) return d;
+    d.commentCount=(d.commentCount||0)+1;
+    return d;
   });
 
   commentInput.value="";
 };
 
 /* コメント表示 */
-function loadComments(){
-onValue(ref(db,"posts/"+threadId),snap=>{
-  comments.innerHTML="";
-  Object.entries(snap.val()||{}).forEach(([id,c],i)=>{
-    if(c.deleted)return;
+function unlock(){
+  lockBox.style.display="none";
+  postBox.style.display="block";
+  comments.style.display="block";
 
-    let style="";
-    if(c.reactions?.total>=10){
-      style="background:linear-gradient(to right,red,orange,yellow,green,blue,indigo,violet);-webkit-background-clip:text;color:transparent";
-    }else if(c.reactions?.total>=5){
-      style="color:red";
-    }
+  onValue(ref(db,"posts/"+threadId),snap=>{
+    comments.innerHTML="";
+    Object.entries(snap.val()||{}).forEach(([id,c],i)=>{
+      if(c.deleted)return;
 
-    const div=document.createElement("div");
-    div.className="comment";
-    if(isAdmin && c.uid===userId) div.classList.add("admin");
+      const div=document.createElement("div");
+      div.className="comment";
+      div.innerHTML=`
+        <b>${i+1} ${c.name}</b>
+        <p>${linkify(c.text)} ペコ</p>
+      `;
 
-    div.innerHTML=`
-      <div class="flex">
-        <img class="icon" src="${c.icon}">
-        <div>
-          <b>
-            <span style="${c.uid===threadData.ownerId?'color:red':''}">
-              ${i+1} ${c.name}
-            </span>
-            ${c.uid===threadData.ownerId?"★":""}
-            ${isAdmin && c.uid===userId?"👑":""}
-            ${banList[c.uid]?"（BAN中）":""}
-          </b>
-          <div class="uid">ID: ${c.uid}</div>
-          <p style="${style}">${linkify(c.text)} ペコ</p>
-          <div class="meta">${new Date(c.time).toLocaleString()}</div>
-        </div>
-      </div>
-    `;
+      ["carrot","star"].forEach(t=>{
+        const b=document.createElement("button");
+        b.textContent=(t==="carrot"?"🥕":"✨")+" "+(c.reactions?.[t]||0);
+        b.onclick=async()=>{
+          c.reactions[t]++;
+          c.reactions.total++;
+          await set(ref(db,"posts/"+threadId+"/"+id+"/reactions"),c.reactions);
+          runTransaction(ref(db,"threads/"+threadId),d=>{
+            if(!d) return d;
+            d.reactionTotal=(d.reactionTotal||0)+1;
+            return d;
+          });
+        };
+        div.appendChild(b);
+      });
 
-    const tools=document.createElement("div");
-    tools.className="flex-end";
-
-["carrot","star"].forEach(t=>{
-  const b=document.createElement("button");
-  b.textContent=(t==="carrot"?"🥕":"✨")+" "+(c.reactions?.[t]||0);
-  b.onclick=async()=>{
-    c.reactions[t]++;
-    c.reactions.total++;
-
-    await set(ref(db,"posts/"+threadId+"/"+id+"/reactions"),c.reactions);
-
-    runTransaction(ref(db,"threads/"+threadId), data=>{
-      if(!data) return data;
-      data.reactionTotal = (data.reactionTotal || 0) + 1;
-      return data;
+      comments.appendChild(div);
     });
-  };
-  tools.appendChild(b);
-});
-
-    const report=document.createElement("button");
-    report.textContent="通報";
-    report.onclick=()=>push(ref(db,"reports"),{
-      threadId,postId:id,uid:c.uid,name:c.name,icon:c.icon,text:c.text,time:Date.now()
-    });
-    tools.appendChild(report);
-
-    if(isAdmin){
-      const del=document.createElement("button");
-      del.textContent="削除";
-      del.onclick=()=>set(ref(db,"posts/"+threadId+"/"+id+"/deleted"),true);
-      tools.appendChild(del);
-    }
-
-    div.appendChild(tools);
-    comments.appendChild(div);
   });
-});
 }
 </script>
 </body>
