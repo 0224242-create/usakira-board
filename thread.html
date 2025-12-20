@@ -215,9 +215,6 @@ onValue(ref(db,"posts/"+threadId),snap=>{
 
   tools.appendChild(b);
 });
-
-    });
-
     const report=document.createElement("button");
     report.textContent="通報";
     report.onclick=()=>push(ref(db,"reports"),{
