@@ -43,6 +43,7 @@ body.dark .icon{border-color:#ff8cd1}
 <hr>
 <h2>スレッド作成</h2>
 <input id="threadTitle" placeholder="タイトル">
+<textarea id="threadBody" placeholder="本文（任意）"></textarea>
 <input id="threadPass" placeholder="鍵スレのパスワード（任意）">
 <button id="createThread">スレッドを作る</button>
 
@@ -123,31 +124,18 @@ const userId=localStorage.getItem("usakira_userId")||("user_"+Math.random().toSt
 if(!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId",userId);
 
 /* スレッド作成 */
-document.getElementById("createThread").onclick = async()=>{
-  const title = threadTitle.value.trim();
-  if(!title){
-    alert("タイトルを書いてね！");
-    return;
-  }
-
-  const body = threadBody.value.trim();
-  const pass = threadPass.value.trim();
-
-  const newRef = push(ref(db,"threads"));
-  await set(newRef,{
-    title,
-    body,
-    pass: pass || null,
-    ownerId: userId,
-    ownerName: nameInput.value || defaultName,
-    ownerIcon: iconInput.value || defaultIcon,
-    time: Date.now(),
-    commentCount: 0,
-    reactionTotal: 0
-  });
-
+document.getElementById("createThread").onclick=async()=>{
+  const title=document.getElementById("threadTitle").value.trim();
+  if(!title) return alert("タイトルを書いてね");
+  const body=document.getElementById("threadBody").value.trim();
+  const pass=document.getElementById("threadPass").value.trim();
+  const key=(await push(ref(db,"threads"),{
+    title,body,pass:pass||null,
+    ownerId:userId,ownerName:nameInput.value||defaultName,
+    ownerIcon:iconInput.value||defaultIcon,time:Date.now()
+  })).key;
   alert("作成したよ！");
-  location.href = `thread.html?id=${newRef.key}`;
+  location.href=`thread.html?id=${key}`;
 };
 
 /* スレ一覧表示 */
