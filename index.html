@@ -2,213 +2,133 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>🐰 うさ★キラ掲示板 スレッド</title>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>🐰うさ★キラ掲示板✨️</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
-body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222;transition:.25s}
-body.dark{background:#121212;color:#eee}
-button{padding:4px 8px;margin:2px;border-radius:6px;cursor:pointer}
-textarea,input{width:100%;padding:6px;margin:4px 0;border-radius:6px;border:1px solid #ccc}
-body.dark textarea,body.dark input{background:#222;color:#eee;border-color:#555}
-.comment{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:10px;margin:10px 0}
-body.dark .comment{background:#1b1b1b;border-color:#555}
-.comment.admin{
-  background:#fff3e0;   /* かなり淡いオレンジ */
-  border-color:#ffcc80;
-}
-body.dark .comment.admin{
-  background:#2a2216;   /* ダークでもうっすら */
-}
-
-.flex{display:flex;gap:10px}
-.flex-end{display:flex;justify-content:flex-end;gap:6px}
-.icon{width:40px;height:40px;border-radius:50%}
-.comment a{color:#d22;text-decoration:underline}
-.meta{font-size:.75rem;color:#aa7}
-.uid{font-size:.7rem;color:#888}
+body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222;transition:0.25s}
+body.dark{background:#121212;color:#eaeaea}
+button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer}
+input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc}
+body.dark input,body.dark textarea{background:#222;color:#eaeaea;border:1px solid #555}
+.thread{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;margin:14px 0}
+.thread.locked{background:#ddd;border-color:#aaa}
+body.dark .thread{background:#1b1b1b;border-color:#555}
+.flex{display:flex;align-items:center;gap:10px}
+.icon{width:48px;height:48px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover}
+.thread h3 a{color:#ff4fa8;font-weight:bold;text-decoration:none}
+.meta{font-size:0.85rem;color:#777}
 </style>
 </head>
 <body>
 
 <button id="darkToggle" style="position:fixed;right:12px;top:12px">🌙</button>
-<h1 id="threadTitleHeader"></h1>
+<button id="adminToggle" style="position:fixed;left:12px;top:12px">管理人ログイン</button>
 
-<div id="adminTools"></div>
+<h1>🐰うさ★キラ掲示板✨️</h1>
 
-<div id="lockBox" style="display:none">
-  <input id="threadPass" placeholder="パスワードを入力">
-  <button id="unlockBtn">🔓 入室</button>
+<div id="profileBox">
+<h3>プロフィール</h3>
+<input id="nameInput" placeholder="名前">
+<input id="iconInput" placeholder="アイコンURL">
+<button id="saveProfile">保存</button>
 </div>
 
-<div id="postBox" style="display:none">
-  <textarea id="commentInput" placeholder="コメントを入力..."></textarea>
-  <button id="postBtn">投稿する</button>
-</div>
+<hr>
+<h2>スレッド作成</h2>
+<input id="threadTitle" placeholder="タイトル">
+<textarea id="threadBody" placeholder="本文（任意）"></textarea>
+<input id="threadPass" placeholder="鍵スレのパスワード（任意）">
+<button id="createThread">スレッドを作る</button>
 
-<div id="comments" style="display:none"></div>
+<hr>
+<h2>スレッド一覧</h2>
+<div id="threads">読み込み中…</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-const app = initializeApp({
+/* Firebase */
+const firebaseConfig = {
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
-});
+};
+const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-/* ユーザー */
-const userId = localStorage.getItem("usakira_userId") || ("user_"+Math.random().toString(36).slice(2));
-localStorage.setItem("usakira_userId",userId);
-const userName = localStorage.getItem("usakira_name") || "名もなき兎";
-const userIcon = localStorage.getItem("usakira_icon") || "usagi.png.jpeg";
-const isAdmin = localStorage.getItem("usakira_admin")==="true";
+/* プロフィール */
+const defaultName="名もなき兎";
+const defaultIcon="usagi.png.jpeg";
+const nameInput=document.getElementById("nameInput");
+const iconInput=document.getElementById("iconInput");
+nameInput.value=localStorage.getItem("usakira_name")||defaultName;
+iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
 
-const threadId = new URLSearchParams(location.search).get("id");
-
-/* ダークモード */
-const darkToggle=document.getElementById("darkToggle");
-if(localStorage.getItem("usakira_dark")==="true"){
-  document.body.classList.add("dark");
-  darkToggle.textContent="☀️";
-}
-darkToggle.onclick=()=>{
-  document.body.classList.toggle("dark");
-  localStorage.setItem("usakira_dark",document.body.classList.contains("dark"));
+document.getElementById("saveProfile").onclick=()=>{
+  localStorage.setItem("usakira_name",nameInput.value);
+  localStorage.setItem("usakira_icon",iconInput.value);
+  alert("保存したよ！");
 };
 
-/* BANリスト */
-let banList={};
-onValue(ref(db,"bans"),snap=>{
-  banList=snap.val()||{};
-});
+/* ユーザーID */
+const userId=localStorage.getItem("usakira_userId")||("user_"+Math.random().toString(36).slice(2));
+localStorage.setItem("usakira_userId",userId);
 
-/* URLリンク */
-const linkify=t=>t.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank">$1</a>');
+/* スレ作成 */
+document.getElementById("createThread").onclick=async()=>{
+  const title=threadTitle.value.trim();
+  if(!title) return alert("タイトルを書いてね");
+  const key=(await push(ref(db,"threads"),{
+    title,
+    body:threadBody.value,
+    pass:threadPass.value||null,
+    ownerId:userId,
+    ownerName:nameInput.value||defaultName,
+    ownerIcon:iconInput.value||defaultIcon,
+    time:Date.now()
+  })).key;
+  location.href=`thread.html?id=${key}`;
+};
 
-let threadData=null;
+/* スレ一覧 */
+const box=document.getElementById("threads");
 
-/* スレ情報 */
-onValue(ref(db,"threads/"+threadId),snap=>{
-  threadData=snap.val();
-  if(!threadData){document.body.innerHTML="スレッドは削除されました";return;}
-
-  document.getElementById("threadTitleHeader").textContent=
-    threadData.ownerName+"："+(threadData.title||"無題");
-
-  if(isAdmin){
-    const btn=document.createElement("button");
-    btn.textContent="🗑 スレ削除";
-    btn.onclick=async()=>{
-      if(confirm("スレと全コメントを削除しますか？")){
-        await remove(ref(db,"threads/"+threadId));
-        await remove(ref(db,"posts/"+threadId));
-        location.href="index.html";
-      }
-    };
-    adminTools.appendChild(btn);
+onValue(ref(db,"threads"), snap=>{
+  box.innerHTML="";
+  const data=snap.val();
+  if(!data){
+    box.innerHTML="<p>まだスレがないペコ 🐰</p>";
+    return;
   }
 
-  if(threadData.pass && !isAdmin){
-    lockBox.style.display="block";
-  }else unlock();
-});
+  Object.entries(data)
+    .sort((a,b)=>b[1].time-a[1].time)
+    .forEach(([id,t])=>{
+      const div=document.createElement("div");
+      div.className="thread"+(t.pass?" locked":"");
 
-/* 鍵解除 */
-unlockBtn.onclick=()=>{
-  if(threadPass.value===threadData.pass) unlock();
-  else alert("パスワードが違います");
-};
-
-function unlock(){
-  lockBox.style.display="none";
-  postBox.style.display="block";
-  comments.style.display="block";
-  loadComments();
-}
-
-/* 投稿 */
-postBtn.onclick=async()=>{
-  if(banList[userId]) return alert("BAN中は投稿できません");
-  const t=commentInput.value.trim();
-  if(!t) return;
-  await push(ref(db,"posts/"+threadId),{
-    uid:userId,name:userName,icon:userIcon,
-    text:t,time:Date.now(),
-    reactions:{carrot:0,star:0,total:0}
-  });
-  commentInput.value="";
-};
-
-/* コメント表示 */
-function loadComments(){
-onValue(ref(db,"posts/"+threadId),snap=>{
-  comments.innerHTML="";
-  Object.entries(snap.val()||{}).forEach(([id,c],i)=>{
-    if(c.deleted)return;
-
-    let style="";
-    if(c.reactions?.total>=10){
-      style="background:linear-gradient(to right,red,orange,yellow,green,blue,indigo,violet);-webkit-background-clip:text;color:transparent";
-    }else if(c.reactions?.total>=5){
-      style="color:red";
-    }
-
-    const div=document.createElement("div");
-    div.className="comment";
-    if(isAdmin && c.uid===userId) div.classList.add("admin");
-
-    div.innerHTML=`
-      <div class="flex">
-        <img class="icon" src="${c.icon}">
-        <div>
-          <b>
-            <span style="${c.uid===threadData.ownerId?'color:red':''}">
-              ${i+1} ${c.name}
-            </span>
-            ${c.uid===threadData.ownerId?"★":""}
-            ${isAdmin && c.uid===userId?"👑":""}
-            ${banList[c.uid]?"（BAN中）":""}
-          </b>
-          <div class="uid">ID: ${c.uid}</div>
-          <p style="${style}">${linkify(c.text)} ペコ</p>
-          <div class="meta">${new Date(c.time).toLocaleString()}</div>
+      div.innerHTML=`
+        <div class="flex">
+          <img class="icon" src="${t.ownerIcon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+          <div>
+            <h3><a href="#">${t.title}</a> ${t.pass?"🔒":""}</h3>
+            <div class="meta">by ${t.ownerName}</div>
+          </div>
         </div>
-      </div>
-    `;
+      `;
 
-    const tools=document.createElement("div");
-    tools.className="flex-end";
-
-    ["carrot","star"].forEach(t=>{
-      const b=document.createElement("button");
-      b.textContent=(t==="carrot"?"🥕":"✨")+" "+(c.reactions?.[t]||0);
-      b.onclick=async()=>{
-        c.reactions[t]++; c.reactions.total++;
-        await set(ref(db,"posts/"+threadId+"/"+id+"/reactions"),c.reactions);
+      /* 鍵チェック付き遷移 */
+      div.querySelector("a").onclick=()=>{
+        if(t.pass){
+          const pw=prompt("このスレは鍵付きだよ🐰");
+          if(pw!==t.pass) return alert("パスワードが違うペコ");
+        }
+        location.href=`thread.html?id=${id}`;
       };
-      tools.appendChild(b);
+
+      box.appendChild(div);
     });
-
-    const report=document.createElement("button");
-    report.textContent="通報";
-    report.onclick=()=>push(ref(db,"reports"),{
-      threadId,postId:id,uid:c.uid,name:c.name,icon:c.icon,text:c.text,time:Date.now()
-    });
-    tools.appendChild(report);
-
-    if(isAdmin){
-      const del=document.createElement("button");
-      del.textContent="削除";
-      del.onclick=()=>set(ref(db,"posts/"+threadId+"/"+id+"/deleted"),true);
-      tools.appendChild(del);
-    }
-
-    div.appendChild(tools);
-    comments.appendChild(div);
-  });
 });
-}
 </script>
 </body>
-</html>　
+</html>
