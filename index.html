@@ -5,86 +5,25 @@
 <title>🐰うさ★キラ掲示板✨️</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
-body{
-  font-family:"Hiragino Kaku Gothic ProN",sans-serif;
-  background:#fff0f8;
-  padding:20px;
-  color:#222;
-  transition:0.25s
-}
+body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222;transition:0.25s}
 body.dark{background:#121212;color:#eaeaea}
-
-button{
-  padding:6px 10px;
-  margin:4px;
-  border-radius:6px;
-  cursor:pointer
-}
-
-input,textarea{
-  padding:6px;
-  margin:4px 0;
-  width:100%;
-  box-sizing:border-box;
-  border-radius:6px;
-  border:1px solid #ccc
-}
-
-body.dark input,body.dark textarea{
-  background:#222;
-  color:#eaeaea;
-  border:1px solid #555
-}
-
-.thread{
-  border:2px solid #ffc6e6;
-  background:#fff7fc;
-  border-radius:14px;
-  padding:14px;
-  margin:14px 0
-}
-
-.thread.locked{
-  background:#ddd;
-  border-color:#aaa
-}
-
-body.dark .thread{
-  background:#1b1b1b;
-  border-color:#555
-}
-
-.flex{
-  display:flex;
-  align-items:center;
-  gap:10px
-}
-
-.icon{
-  width:48px;
-  height:48px;
-  border-radius:50%;
-  object-fit:cover;
-  border:2px solid #ffb8e6
-}
-
-/* タイトル色 */
-.openThread{
-  color:#ff4fa8;
-  font-weight:bold;
-  cursor:pointer
-}
-body.dark .openThread{
-  color:#ff8cd1
-}
-
-.meta{
-  font-size:0.85rem;
-  color:#666
-}
-body.dark .meta{
-  color:#ccc
-}
+button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer;transition:0.15s}
+button:hover{opacity:0.85}
+input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc}
+body.dark input,body.dark textarea{background:#222;color:#eaeaea;border:1px solid #555}
+a{text-decoration:underline;color:#d22}
+.thread{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;margin:14px 0;box-shadow:0 2px 6px rgba(255,150,210,0.25);transition:0.15s}
+.thread:hover{transform:translateY(-3px);box-shadow:0 6px 12px rgba(255,150,210,0.32)}
+.thread.locked{background:#ccc;border-color:#999}
+body.dark .thread{background:#1b1b1b;border-color:#555;box-shadow:0 2px 6px rgba(0,0,0,0.3)}
+body.dark .thread:hover{box-shadow:0 6px 12px rgba(0,0,0,0.5)}
+.thread h3 a{color:#ff4fa8;font-weight:bold;font-size:1.15rem;text-decoration:none}
+body.dark .thread h3 a{color:#ff8cd1}
+.thread p{color:#444;margin:6px 0}
+.thread .meta{font-size:0.85rem;color:#aa7}
+.flex{display:flex;align-items:center;gap:10px}
+.icon{width:48px;height:48px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover}
+body.dark .icon{border-color:#ff8cd1}
 </style>
 </head>
 <body>
@@ -110,6 +49,13 @@ body.dark .meta{
 
 <hr>
 <h2>スレッド一覧</h2>
+<div>
+<label>並び順:</label>
+<select id="sortSelect">
+<option value="new">新しい順</option>
+<option value="reaction">リアクション多い順</option>
+</select>
+</div>
 <div id="threads"></div>
 
 <hr>
@@ -117,39 +63,47 @@ body.dark .meta{
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-  databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
+apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 /* ダークモード */
 const darkToggle=document.getElementById("darkToggle");
-if(localStorage.getItem("usakira_dark")==="true"){
-  document.body.classList.add("dark");
-}
+const savedDark=localStorage.getItem("usakira_dark")==="true";
+if(savedDark) document.body.classList.add("dark");
+darkToggle.textContent=savedDark?"☀️":"🌙";
 darkToggle.onclick=()=>{
+  const now=!(document.body.classList.contains("dark"));
   document.body.classList.toggle("dark");
-  localStorage.setItem("usakira_dark",document.body.classList.contains("dark"));
+  localStorage.setItem("usakira_dark",now);
+  darkToggle.textContent=now?"☀️":"🌙";
 };
 
-/* 管理人 */
+/* 管理人ログイン/アウト */
 const adminToggle=document.getElementById("adminToggle");
-const isAdmin=()=>localStorage.getItem("usakira_admin")==="true";
+function updateAdminBtn(){
+  const isAdmin=localStorage.getItem("usakira_admin")==="true";
+  adminToggle.textContent=isAdmin?"管理人ログアウト 👑":"管理人ログイン";
+}
+updateAdminBtn();
 adminToggle.onclick=()=>{
-  if(isAdmin()){
+  const isAdmin=localStorage.getItem("usakira_admin")==="true";
+  if(isAdmin){
     localStorage.removeItem("usakira_admin");
-    alert("管理人ログアウト");
-  }else{
+    alert("管理人ログアウトしたペコ");
+  } else {
     const pw=prompt("管理パスワード");
     if(pw==="master"){
       localStorage.setItem("usakira_admin","true");
       alert("管理人になったペコ 👑");
-    }
+    } else alert("パスワード違うペコ");
   }
+  updateAdminBtn();
 };
 
 /* プロフィール */
@@ -157,10 +111,8 @@ const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
 const nameInput=document.getElementById("nameInput");
 const iconInput=document.getElementById("iconInput");
-
 nameInput.value=localStorage.getItem("usakira_name")||defaultName;
 iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
-
 document.getElementById("saveProfile").onclick=()=>{
   localStorage.setItem("usakira_name",nameInput.value);
   localStorage.setItem("usakira_icon",iconInput.value);
@@ -169,90 +121,86 @@ document.getElementById("saveProfile").onclick=()=>{
 
 /* ユーザーID */
 const userId=localStorage.getItem("usakira_userId")||("user_"+Math.random().toString(36).slice(2));
-localStorage.setItem("usakira_userId",userId);
+if(!localStorage.getItem("usakira_userId")) localStorage.setItem("usakira_userId",userId);
 
-/* スレ作成 */
+/* スレッド作成 */
 document.getElementById("createThread").onclick=async()=>{
-  const title=threadTitle.value.trim();
+  const title=document.getElementById("threadTitle").value.trim();
   if(!title) return alert("タイトルを書いてね");
+  const body=document.getElementById("threadBody").value.trim();
+  const pass=document.getElementById("threadPass").value.trim();
   const key=(await push(ref(db,"threads"),{
-    title,
-    body:threadBody.value,
-    pass:threadPass.value||null,
-    ownerId:userId,
-    ownerName:nameInput.value||defaultName,
-    ownerIcon:iconInput.value||defaultIcon,
-    time:Date.now()
+    title,body,pass:pass||null,
+    ownerId:userId,ownerName:nameInput.value||defaultName,
+    ownerIcon:iconInput.value||defaultIcon,time:Date.now()
   })).key;
+  alert("作成したよ！");
   location.href=`thread.html?id=${key}`;
 };
 
-/* スレ一覧 */
-onValue(ref(db,"threads"), snap=>{
-  const box=document.getElementById("threads");
-  box.innerHTML="";
-  const data=snap.val();
-  if(!data){
-    box.innerHTML="<p>まだスレがないペコ 🐰</p>";
-    return;
-  }
+/* スレ一覧表示 */
+const PER=20;
+let threadArr=[];
+const threadsRef=ref(db,"threads");
 
-  for(const id in data){
-    const t=data[id];
-    const div=document.createElement("div");
-    div.className="thread"+(t.pass?" locked":"");
-
-    div.innerHTML=`
-      <div class="flex">
-        <img class="icon" src="${t.ownerIcon}" onerror="this.src='${defaultIcon}'">
-        <div>
-          <div class="openThread">${t.title} ${t.pass?"🔒":""}</div>
-          <div class="meta">by ${t.ownerName}</div>
-        </div>
-      </div>
-
-      ${(userId===t.ownerId||isAdmin())?`
-        <div style="margin-top:6px">
-          <button class="lockBtn">🔒 鍵スレに変更 / 解除</button>
-          <button class="delBtn">🗑 スレ削除</button>
-        </div>
-      `:""}
-    `;
-
-    div.querySelector(".openThread").onclick=()=>{
-      if(t.pass){
-        const pw=prompt("このスレは鍵付きだよ🐰");
-        if(pw!==t.pass) return alert("パスワードが違うペコ");
-      }
-      location.href=`thread.html?id=${id}`;
-    };
-
-    div.querySelector(".lockBtn")?.onclick=async()=>{
-      const p=prompt(t.pass?"空欄で解除":"鍵のパスワード");
-      await update(ref(db,"threads/"+id),{pass:p||null});
-      alert("変更したよ！");
-    };
-
-    div.querySelector(".delBtn")?.onclick=async()=>{
-      if(confirm("本当に削除する？")){
-        await remove(ref(db,"threads/"+id));
-        await remove(ref(db,"posts/"+id));
-      }
-    };
-
-    box.appendChild(div);
-  }
+onValue(threadsRef, snap=>{
+  const data=snap.val()||{};
+  threadArr=Object.entries(data);
+  renderThreads();
 });
 
+const sortSelect=document.getElementById("sortSelect");
+sortSelect.onchange=()=>renderThreads();
+
+async function renderThreads(){
+  const box=document.getElementById("threads");
+  box.innerHTML="";
+  let arr=[];
+  for(const [id,t] of threadArr){
+    const postsSnap = await get(ref(db,"posts/"+id));
+    const posts = postsSnap.val()||{};
+    const commentCount = Object.keys(posts).length;
+    let reactionTotal = 0;
+    for(const pid in posts){
+      reactionTotal += posts[pid].reactions?.total || 0;
+    }
+    arr.push({...t,id,commentCount,reactionTotal});
+  }
+
+  // 並び替え
+  if(sortSelect.value==="reaction") arr.sort((a,b)=>b.reactionTotal-a.reactionTotal);
+  else arr.sort((a,b)=>b.time-a.time);
+
+  for(const t of arr){
+    const div=document.createElement("div");
+    div.className="thread"+(t.pass?" locked":"");
+    div.innerHTML=`
+      <div class="flex">
+        <img class="icon" src="${t.ownerIcon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+        <div>
+          <h3><a href="thread.html?id=${t.id}">${t.title||"（無題）"}</a></h3>
+          <div style="font-size:0.9rem;color:#888">
+            by ${t.ownerName||defaultName} ${t.pass?"🔒":""}
+          </div>
+        </div>
+      </div>
+      <p>コメント数: ${t.commentCount} リアクション合計: ${t.reactionTotal}</p>
+      <p class="meta">${new Date(t.time).toLocaleString()}</p>
+    `;
+    box.appendChild(div);
+  }
+}
+
 /* 管理ページ */
-adminBtn.onclick=()=>{
-  if(!isAdmin()){
+document.getElementById("adminBtn").onclick=()=>{
+  const isAdmin=localStorage.getItem("usakira_admin")==="true";
+  if(!isAdmin){
     const pw=prompt("管理パスワード");
-    if(pw!=="master") return;
-    localStorage.setItem("usakira_admin","true");
+    if(pw==="master") localStorage.setItem("usakira_admin","true");
+    else return alert("パスワード違うペコ");
   }
   location.href="report-admin.html";
 };
 </script>
 </body>
-</html>
+</html>　
