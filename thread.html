@@ -1,205 +1,141 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
 <meta charset="utf-8">
-<title>スレッド</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-
+<title>🐰スレッド</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
-body{
-  font-family:"Hiragino Kaku Gothic ProN",sans-serif;
-  background:#fff0f8;
-  padding:20px;
-}
-.comment{
-  border:1px solid #ffc6e6;
-  border-radius:10px;
-  padding:10px;
-  margin:10px 0;
-  background:#fff;
-}
-.reply{
-  background:#f0f0ff;
-}
-button{
-  margin:4px;
-}
-.anchor{
-  color:#4a6cff;
-  cursor:pointer;
-}
+body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222}
+button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer}
+input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc}
+.post{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:12px;margin:12px 0}
+.meta{font-size:0.8rem;color:#777}
+.icon{width:36px;height:36px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover}
+.flex{display:flex;align-items:center;gap:8px}
 </style>
 </head>
-
 <body>
 
-<a href="index.html">← 戻る</a>
+<button onclick="location.href='index.html'">← 戻る</button>
 
-<h2 id="threadTitle"></h2>
-
-<div id="comments"></div>
+<h2 id="threadTitle">読み込み中…</h2>
+<div id="threadBody"></div>
 
 <hr>
 
-<textarea id="commentText" placeholder="コメント"></textarea>
-<button id="sendComment">投稿</button>
+<h3>投稿する</h3>
+<textarea id="postText" placeholder="コメントを書く"></textarea>
+<button id="postBtn">投稿</button>
+
+<hr>
+
+<h3>コメント一覧</h3>
+<div id="postsBox">読み込み中…</div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, update, remove, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-/* Firebase */
-const firebaseConfig={
+function safe(fn){
+  try{ fn(); }
+  catch(e){ console.error(e); }
+}
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+
+/* ===== Firebase ===== */
+const firebaseConfig = {
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
-const app=initializeApp(firebaseConfig);
-const db=getDatabase(app);
 
-/* パラメータ */
-const params=new URLSearchParams(location.search);
-const threadId=params.get("id");
-if(!threadId) location.href="index.html";
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-/* ユーザー */
-const userId=localStorage.getItem("uid");
-const userName=localStorage.getItem("name")||"名もなき兎";
-const userIcon=localStorage.getItem("icon")||"usagi.png.jpeg";
-const isAdmin=localStorage.getItem("admin")==="1";
+/* ===== スレID取得 ===== */
+const params = new URLSearchParams(location.search);
+const threadId = params.get("id");
 
-/* スレ情報取得 */
-let threadData=null;
-const threadRef=ref(db,"threads/"+threadId);
+if(!threadId){
+  document.body.innerHTML="スレッドIDがありません";
+}
 
-get(threadRef).then(snap=>{
-  threadData=snap.val();
-  if(!threadData) location.href="index.html";
-  document.getElementById("threadTitle").textContent=threadData.title;
-});
+/* ===== ユーザー情報 ===== */
+const defaultName="名もなき兎";
+const defaultIcon="usagi.png.jpeg";
 
-/* コメント */
-const commentsRef=ref(db,"comments/"+threadId);
-let commentArr=[];
+const userName=localStorage.getItem("usakira_name")||defaultName;
+const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
-onValue(commentsRef,snap=>{
-  commentArr=Object.entries(snap.val()||{});
-  renderComments();
-});
-
-function renderComments(){
-  const box=document.getElementById("comments");
-  box.innerHTML="";
-  let number=1;
-
-  for(const [id,c] of commentArr){
-    if(c.removed) continue;
-
-    const div=document.createElement("div");
-    div.className="comment";
-    div.id="c"+number;
-
-    const isOwner=c.userId===threadData.ownerId;
-
-    let mark="";
-    if(isAdmin) mark+="👑";
-    if(isOwner) mark+="★";
-
-    div.innerHTML=`
-      <b>${number}</b> ${c.name}${mark}<br>
-      ${formatText(c.text)}ペコ<br>
-      <small>${new Date(c.time).toLocaleString()}</small><br>
-      👍 ${c.likes?Object.keys(c.likes).length:0}
-    `;
-
-    /* 返信ボタン */
-    const replyBtn=document.createElement("button");
-    replyBtn.textContent="返信";
-    replyBtn.onclick=()=>{
-      document.getElementById("commentText").value+=">>"+number+"\n";
-      document.getElementById("commentText").focus();
-    };
-    div.appendChild(replyBtn);
-
-    /* リアクション */
-    const likeBtn=document.createElement("button");
-    likeBtn.textContent="👍";
-    likeBtn.onclick=()=>{
-      const likeRef=ref(db,"comments/"+threadId+"/"+id+"/likes/"+userId);
-      if(c.likes && c.likes[userId]){
-        remove(likeRef);
-      }else{
-        update(likeRef,true);
-      }
-    };
-    div.appendChild(likeBtn);
-
-    /* 通報 */
-    const reportBtn=document.createElement("button");
-    reportBtn.textContent="通報";
-    reportBtn.onclick=async()=>{
-      const reportRef=ref(db,"reports/"+threadId+"/"+id+"/"+userId);
-      const snap=await get(reportRef);
-      if(snap.exists()){
-        alert("通報済み");
-      }else{
-        update(reportRef,true);
-        alert("通報した");
-      }
-    };
-    div.appendChild(reportBtn);
-
-    /* 管理人削除 */
-    if(isAdmin){
-      const delBtn=document.createElement("button");
-      delBtn.textContent="削除";
-      delBtn.onclick=()=>{
-        update(ref(db,"comments/"+threadId+"/"+id),{removed:true});
-      };
-      div.appendChild(delBtn);
-
-      const banBtn=document.createElement("button");
-      banBtn.textContent="BAN";
-      banBtn.onclick=()=>{
-        update(ref(db,"bans/"+c.userId),true);
-        alert("BANした");
-      };
-      div.appendChild(banBtn);
+/* ===== スレ情報表示 ===== */
+safe(()=>{
+  onValue(ref(db,"threads/"+threadId), snap=>{
+    const data=snap.val();
+    if(!data){
+      document.getElementById("threadTitle").innerText="スレが存在しません";
+      return;
     }
 
-    box.appendChild(div);
-    number++;
-  }
-}
-
-/* アンカー変換 */
-function formatText(text){
-  return text.replace(/>>(\d+)/g,(match,p1)=>{
-    return `<span class="anchor" onclick="document.getElementById('c${p1}').scrollIntoView({behavior:'smooth'})">>>${p1}</span>`;
-  }).replace(/\n/g,"<br>");
-}
-
-/* 投稿 */
-document.getElementById("sendComment").onclick=async()=>{
-  const text=document.getElementById("commentText").value.trim();
-  if(!text) return;
-
-  const banSnap=await get(ref(db,"bans/"+userId));
-  if(banSnap.exists()){
-    alert("あなたはBANされています");
-    return;
-  }
-
-  await push(commentsRef,{
-    text,
-    name:userName,
-    icon:userIcon,
-    userId,
-    time:Date.now(),
-    removed:false
+    document.getElementById("threadTitle").innerText=data.title;
+    document.getElementById("threadBody").innerText=data.body||"";
   });
+});
 
-  document.getElementById("commentText").value="";
+/* ===== 投稿処理 ===== */
+document.getElementById("postBtn").onclick=()=>{
+  safe(async ()=>{
+    const text=document.getElementById("postText").value.trim();
+    if(!text) return alert("内容を書いてね");
+
+    await push(ref(db,"posts/"+threadId),{
+      text:text,
+      name:userName,
+      icon:userIcon,
+      time:Date.now()
+    });
+
+    document.getElementById("postText").value="";
+  });
 };
+
+/* ===== コメント一覧 ===== */
+const postsBox=document.getElementById("postsBox");
+
+safe(()=>{
+  onValue(ref(db,"posts/"+threadId), snap=>{
+    postsBox.innerHTML="";
+
+    const data=snap.val();
+    if(!data){
+      postsBox.innerHTML="<p>まだコメントがないよ 🐰</p>";
+      return;
+    }
+
+    const entries=Object.entries(data)
+      .sort((a,b)=>a[1].time-b[1].time);
+
+    entries.forEach(([id,p])=>{
+      const div=document.createElement("div");
+      div.className="post";
+
+      div.innerHTML=`
+        <div class="flex">
+          <img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+          <div>
+            <div><strong>${p.name}</strong></div>
+            <div class="meta">${new Date(p.time).toLocaleString()}</div>
+          </div>
+        </div>
+        <p>${p.text}</p>
+      `;
+
+      postsBox.appendChild(div);
+    });
+  }, err=>{
+    postsBox.innerHTML="⚠ 読み込みエラー（ルール確認）";
+    console.error(err);
+  });
+});
+
 </script>
 </body>
 </html>
