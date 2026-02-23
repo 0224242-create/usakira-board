@@ -8,10 +8,20 @@
 body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222}
 button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer}
 input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc}
-.post{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:12px;margin:12px 0}
+.post{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:12px;margin:12px 0;position:relative}
 .meta{font-size:0.8rem;color:#777}
 .icon{width:36px;height:36px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover}
 .flex{display:flex;align-items:center;gap:8px}
+.deleteBtn{
+  position:absolute;
+  right:10px;
+  top:10px;
+  font-size:0.75rem;
+  background:#ff8ab5;
+  border:none;
+  color:white;
+}
+a{color:#d22;word-break:break-all;}
 </style>
 </head>
 <body>
@@ -34,86 +44,84 @@ input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-
 
 <script type="module">
 
-function safe(fn){
-  try{ fn(); }
-  catch(e){ console.error(e); }
-}
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-/* ===== Firebase ===== */
+/* Firebase */
 const firebaseConfig = {
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-/* ===== スレID取得 ===== */
+/* スレID */
 const params = new URLSearchParams(location.search);
 const threadId = params.get("id");
-
 if(!threadId){
   document.body.innerHTML="スレッドIDがありません";
 }
 
-/* ===== ユーザー情報 ===== */
+/* ユーザー情報 */
 const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
-
+let userId=localStorage.getItem("usakira_userId");
+if(!userId){
+  userId="user_"+Math.random().toString(36).slice(2);
+  localStorage.setItem("usakira_userId",userId);
+}
 const userName=localStorage.getItem("usakira_name")||defaultName;
 const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
-/* ===== スレ情報表示 ===== */
-safe(()=>{
-  onValue(ref(db,"threads/"+threadId), snap=>{
-    const data=snap.val();
-    if(!data){
-      document.getElementById("threadTitle").innerText="スレが存在しません";
-      return;
-    }
+/* URLリンク変換 */
+function linkify(text){
+  const urlRegex=/https?:\/\/[^\s]+/g;
+  return text.replace(urlRegex, url =>
+    `<a href="${url}" target="_blank">${url}</a>`
+  );
+}
 
-    document.getElementById("threadTitle").innerText=data.title;
-    document.getElementById("threadBody").innerText=data.body||"";
-  });
+/* スレ表示 */
+onValue(ref(db,"threads/"+threadId), snap=>{
+  const data=snap.val();
+  if(!data){
+    document.getElementById("threadTitle").innerText="スレが存在しません";
+    return;
+  }
+  document.getElementById("threadTitle").innerText=data.title;
+  document.getElementById("threadBody").innerText=data.body||"";
 });
 
-/* ===== 投稿処理 ===== */
-document.getElementById("postBtn").onclick=()=>{
-  safe(async ()=>{
-    const text=document.getElementById("postText").value.trim();
-    if(!text) return alert("内容を書いてね");
+/* 投稿 */
+document.getElementById("postBtn").onclick=async()=>{
+  const text=document.getElementById("postText").value.trim();
+  if(!text) return alert("内容を書いてね");
 
-    await push(ref(db,"posts/"+threadId),{
-      text:text,
-      name:userName,
-      icon:userIcon,
-      time:Date.now()
-    });
-
-    document.getElementById("postText").value="";
+  await push(ref(db,"posts/"+threadId),{
+    text:text,
+    name:userName,
+    icon:userIcon,
+    uid:userId,
+    time:Date.now()
   });
+
+  document.getElementById("postText").value="";
 };
 
-/* ===== コメント一覧 ===== */
+/* コメント表示 */
 const postsBox=document.getElementById("postsBox");
 
-safe(()=>{
-  onValue(ref(db,"posts/"+threadId), snap=>{
-    postsBox.innerHTML="";
+onValue(ref(db,"posts/"+threadId), snap=>{
+  postsBox.innerHTML="";
+  const data=snap.val();
+  if(!data){
+    postsBox.innerHTML="<p>まだコメントがないよ 🐰</p>";
+    return;
+  }
 
-    const data=snap.val();
-    if(!data){
-      postsBox.innerHTML="<p>まだコメントがないよ 🐰</p>";
-      return;
-    }
-
-    const entries=Object.entries(data)
-      .sort((a,b)=>a[1].time-b[1].time);
-
-    entries.forEach(([id,p])=>{
+  Object.entries(data)
+    .sort((a,b)=>a[1].time-b[1].time)
+    .forEach(([id,p])=>{
       const div=document.createElement("div");
       div.className="post";
 
@@ -125,15 +133,24 @@ safe(()=>{
             <div class="meta">${new Date(p.time).toLocaleString()}</div>
           </div>
         </div>
-        <p>${p.text}</p>
+        <p>${linkify(p.text)}</p>
       `;
+
+      /* 自分の投稿なら削除ボタン */
+      if(p.uid===userId){
+        const delBtn=document.createElement("button");
+        delBtn.textContent="削除";
+        delBtn.className="deleteBtn";
+        delBtn.onclick=()=>{
+          if(confirm("削除する？")){
+            remove(ref(db,"posts/"+threadId+"/"+id));
+          }
+        };
+        div.appendChild(delBtn);
+      }
 
       postsBox.appendChild(div);
     });
-  }, err=>{
-    postsBox.innerHTML="⚠ 読み込みエラー（ルール確認）";
-    console.error(err);
-  });
 });
 
 </script>
