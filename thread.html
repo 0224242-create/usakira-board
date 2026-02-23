@@ -2,157 +2,123 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>🐰スレッド</title>
+<title>スレッド | うさ★キラ掲示板</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
 body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222}
 button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer}
 input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc}
-.post{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:12px;margin:12px 0;position:relative}
+.comment{border:1px solid #ffc6e6;background:#fff7fc;border-radius:10px;padding:10px;margin:10px 0}
+.flex{display:flex;align-items:center;gap:10px}
+.icon{width:40px;height:40px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover}
 .meta{font-size:0.8rem;color:#777}
-.icon{width:36px;height:36px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover}
-.flex{display:flex;align-items:center;gap:8px}
-.deleteBtn{
-  position:absolute;
-  right:10px;
-  top:10px;
-  font-size:0.75rem;
-  background:#ff8ab5;
-  border:none;
-  color:white;
-}
-a{color:#d22;word-break:break-all;}
 </style>
 </head>
 <body>
 
-<button onclick="location.href='index.html'">← 戻る</button>
+<a href="index.html">← 戻る</a>
 
-<h2 id="threadTitle">読み込み中…</h2>
+<h2 id="threadTitle">読み込み中...</h2>
 <div id="threadBody"></div>
 
 <hr>
 
-<h3>投稿する</h3>
-<textarea id="postText" placeholder="コメントを書く"></textarea>
-<button id="postBtn">投稿</button>
+<h3>コメントする</h3>
+<textarea id="commentInput" placeholder="コメントを書いてね"></textarea>
+<button id="sendBtn">送信</button>
 
 <hr>
 
 <h3>コメント一覧</h3>
-<div id="postsBox">読み込み中…</div>
+<div id="commentsBox">読み込み中...</div>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-/* Firebase */
+/* ===== Firebase ===== */
 const firebaseConfig = {
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
+
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-/* スレID */
+/* ===== URLからID取得 ===== */
 const params = new URLSearchParams(location.search);
 const threadId = params.get("id");
 if(!threadId){
-  document.body.innerHTML="スレッドIDがありません";
+  alert("スレIDがないよ");
+  location.href="index.html";
 }
 
-/* ユーザー情報 */
+/* ===== ユーザー情報 ===== */
 const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
-let userId=localStorage.getItem("usakira_userId");
-if(!userId){
-  userId="user_"+Math.random().toString(36).slice(2);
-  localStorage.setItem("usakira_userId",userId);
-}
-const userName=localStorage.getItem("usakira_name")||defaultName;
-const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
-/* URLリンク変換 */
-function linkify(text){
-  const urlRegex=/https?:\/\/[^\s]+/g;
-  return text.replace(urlRegex, url =>
-    `<a href="${url}" target="_blank">${url}</a>`
-  );
-}
+const currentName=localStorage.getItem("usakira_name")||defaultName;
+const currentIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
-/* スレ表示 */
+/* ===== スレ情報表示 ===== */
 onValue(ref(db,"threads/"+threadId), snap=>{
-  const data=snap.val();
-  if(!data){
-    document.getElementById("threadTitle").innerText="スレが存在しません";
+  const t=snap.val();
+  if(!t){
+    document.getElementById("threadTitle").innerText="スレが見つからないよ";
     return;
   }
-  document.getElementById("threadTitle").innerText=data.title;
-  document.getElementById("threadBody").innerText=data.body||"";
+  document.getElementById("threadTitle").innerText=t.title;
+  document.getElementById("threadBody").innerText=t.body||"";
 });
 
-/* 投稿 */
-document.getElementById("postBtn").onclick=async()=>{
-  const text=document.getElementById("postText").value.trim();
-  if(!text) return alert("内容を書いてね");
+/* ===== コメント送信（自動ぺこ化） ===== */
+document.getElementById("sendBtn").onclick=async ()=>{
+  const rawText=document.getElementById("commentInput").value.trim();
+  if(!rawText) return;
 
-  await push(ref(db,"posts/"+threadId),{
+  let text = rawText.endsWith("ぺこ") ? rawText : rawText + "ぺこ";
+
+  await push(ref(db,"comments/"+threadId),{
     text:text,
-    name:userName,
-    icon:userIcon,
-    uid:userId,
+    name:currentName,
+    icon:currentIcon,
     time:Date.now()
   });
 
-  document.getElementById("postText").value="";
+  document.getElementById("commentInput").value="";
 };
 
-/* コメント表示 */
-const postsBox=document.getElementById("postsBox");
+/* ===== コメント一覧表示（過去分も強制ぺこ） ===== */
+const commentsBox=document.getElementById("commentsBox");
 
-onValue(ref(db,"posts/"+threadId), snap=>{
-  postsBox.innerHTML="";
+onValue(ref(db,"comments/"+threadId), snap=>{
+  commentsBox.innerHTML="";
   const data=snap.val();
   if(!data){
-    postsBox.innerHTML="<p>まだコメントがないよ 🐰</p>";
+    commentsBox.innerHTML="<p>まだコメントがないよ 🐰</p>";
     return;
   }
 
-  Object.entries(data)
-    .sort((a,b)=>a[1].time-b[1].time)
-    .forEach(([id,p])=>{
-      const div=document.createElement("div");
-      div.className="post";
+  const entries=Object.values(data)
+    .sort((a,b)=>a.time-b.time);
 
-      div.innerHTML=`
-        <div class="flex">
-          <img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
-          <div>
-            <div><strong>${p.name}</strong></div>
-            <div class="meta">${new Date(p.time).toLocaleString()}</div>
-          </div>
-        </div>
-        <p>${linkify(p.text)}</p>
-      `;
+  entries.forEach(c=>{
+    let displayText = c.text.endsWith("ぺこ") ? c.text : c.text + "ぺこ";
 
-      /* 自分の投稿なら削除ボタン */
-      if(p.uid===userId){
-        const delBtn=document.createElement("button");
-        delBtn.textContent="削除";
-        delBtn.className="deleteBtn";
-        delBtn.onclick=()=>{
-          if(confirm("削除する？")){
-            remove(ref(db,"posts/"+threadId+"/"+id));
-          }
-        };
-        div.appendChild(delBtn);
-      }
-
-      postsBox.appendChild(div);
-    });
+    const div=document.createElement("div");
+    div.className="comment";
+    div.innerHTML=`
+      <div class="flex">
+        <img class="icon" src="${c.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+        <strong>${c.name||defaultName}</strong>
+      </div>
+      <div>${displayText}</div>
+      <div class="meta">${new Date(c.time).toLocaleString()}</div>
+    `;
+    commentsBox.appendChild(div);
+  });
 });
-
 </script>
+
 </body>
 </html>
