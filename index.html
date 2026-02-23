@@ -2,157 +2,130 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>🐰うさ★キラ掲示板✨️</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>🐰 うさ★キラ掲示板</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <style>
-body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222}
-button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer}
-input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc}
-.thread{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:14px;margin:14px 0}
-.thread.locked{background:#eee;border-color:#aaa}
-.flex{display:flex;align-items:center;gap:10px}
-.icon{width:48px;height:48px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover}
-.thread h3 a{color:#ff4fa8;font-weight:bold;text-decoration:none;cursor:pointer}
-.meta{font-size:0.85rem;color:#777}
+body{
+  font-family:"Hiragino Kaku Gothic ProN",sans-serif;
+  background:#fff0f8;
+  padding:20px;
+  color:#222;
+}
+body.dark{background:#121212;color:#eee}
+h1{margin-bottom:10px}
+.thread{
+  border:2px solid #ffc6e6;
+  background:#fff7fc;
+  border-radius:14px;
+  padding:10px;
+  margin:10px 0;
+}
+body.dark .thread{background:#1b1b1b;border-color:#555}
+a{color:#d22;text-decoration:none}
+input,button{
+  padding:6px;
+  margin:4px 0;
+  border-radius:6px;
+  border:1px solid #ccc;
+}
+button{cursor:pointer}
+.meta{font-size:.75rem;color:#aa7}
 </style>
 </head>
 <body>
 
-<h1>🐰うさ★キラ掲示板✨️</h1>
+<button id="darkToggle" style="position:fixed;right:12px;top:12px">🌙</button>
 
-<h3>プロフィール</h3>
-<input id="nameInput" placeholder="名前">
-<input id="iconInput" placeholder="アイコンURL">
-<button id="saveProfileBtn">保存</button>
+<h1>🐰 うさ★キラ掲示板</h1>
 
-<hr>
-
-<h2>スレッド作成</h2>
-<input id="threadTitle" placeholder="タイトル">
-<textarea id="threadBody" placeholder="本文（任意）"></textarea>
-<input id="threadPass" placeholder="鍵スレのパスワード（任意）">
-<button id="createThreadBtn">スレッドを作る</button>
+<!-- スレ作成 -->
+<div>
+  <input id="titleInput" placeholder="スレタイトル">
+  <button id="createBtn">➕ スレ作成</button>
+</div>
 
 <hr>
 
-<h2>スレッド一覧</h2>
-<div id="threadsBox">読み込み中…</div>
+<!-- スレ一覧 -->
+<div id="threadList"></div>
 
 <script type="module">
+import { initializeApp } from
+ "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import {
+  getDatabase, ref, onValue, push
+} from
+ "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-/* ===== エラーで全停止しない安全ラッパー ===== */
-function safe(fn){
-  try{ fn(); }
-  catch(e){
-    console.error("エラー:",e);
-  }
-}
-
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
-
-/* ===== Firebase ===== */
-const firebaseConfig = {
+const app = initializeApp({
   apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
-};
-
-const app = initializeApp(firebaseConfig);
+});
 const db = getDatabase(app);
 
-/* ===== ユーザー情報 ===== */
-const defaultName="名もなき兎";
-const defaultIcon="usagi.png.jpeg";
+/* ユーザー */
+const userId =
+  localStorage.getItem("usakira_userId")
+  || ("user_"+Math.random().toString(36).slice(2));
+localStorage.setItem("usakira_userId",userId);
 
-const nameInput=document.getElementById("nameInput");
-const iconInput=document.getElementById("iconInput");
+const userName =
+  localStorage.getItem("usakira_name")
+  || "名もなき兎";
 
-nameInput.value=localStorage.getItem("usakira_name")||defaultName;
-iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
-
-document.getElementById("saveProfileBtn").onclick=()=>{
-  localStorage.setItem("usakira_name",nameInput.value);
-  localStorage.setItem("usakira_icon",iconInput.value);
-  alert("保存したよ 🐰");
-};
-
-/* ===== userId固定 ===== */
-let userId=localStorage.getItem("usakira_userId");
-if(!userId){
-  userId="user_"+Math.random().toString(36).slice(2);
-  localStorage.setItem("usakira_userId",userId);
+/* ダークモード */
+const darkToggle=document.getElementById("darkToggle");
+if(localStorage.getItem("usakira_dark")==="true"){
+  document.body.classList.add("dark");
+  darkToggle.textContent="☀️";
 }
-
-/* ===== スレ作成 ===== */
-document.getElementById("createThreadBtn").onclick=()=>{
-  safe(async ()=>{
-    const title=document.getElementById("threadTitle").value.trim();
-    if(!title) return alert("タイトルを書いてね");
-
-    const newRef=await push(ref(db,"threads"),{
-      title:title,
-      body:document.getElementById("threadBody").value,
-      pass:document.getElementById("threadPass").value||null,
-      ownerId:userId,
-      ownerName:nameInput.value||defaultName,
-      ownerIcon:iconInput.value||defaultIcon,
-      time:Date.now()
-    });
-
-    location.href="thread.html?id="+newRef.key;
-  });
+darkToggle.onclick=()=>{
+  document.body.classList.toggle("dark");
+  localStorage.setItem(
+    "usakira_dark",
+    document.body.classList.contains("dark")
+  );
 };
 
-/* ===== スレ一覧表示（壊れない構造） ===== */
-const threadsBox=document.getElementById("threadsBox");
+/* スレ作成 */
+createBtn.onclick=async()=>{
+  const title=titleInput.value.trim();
+  if(!title)return alert("タイトルを入れてね");
+  await push(ref(db,"threads"),{
+    title,
+    ownerId:userId,
+    ownerName:userName,
+    time:Date.now()
+  });
+  titleInput.value="";
+};
 
-safe(()=>{
-  onValue(ref(db,"threads"), snap=>{
-    threadsBox.innerHTML="";
+/* スレ一覧表示 */
+onValue(ref(db,"threads"), snap=>{
+  threadList.innerHTML="";
+  const data=snap.val();
+  if(!data){
+    threadList.textContent="スレッドがまだありません";
+    return;
+  }
 
-    const data=snap.val();
-    if(!data){
-      threadsBox.innerHTML="<p>まだスレがないよ 🐰</p>";
-      return;
-    }
-
-    const entries=Object.entries(data)
-      .sort((a,b)=>b[1].time-a[1].time);
-
-    entries.forEach(([id,t])=>{
-      const div=document.createElement("div");
-      div.className="thread"+(t.pass?" locked":"");
-
-      div.innerHTML=`
-        <div class="flex">
-          <img class="icon" src="${t.ownerIcon||defaultIcon}" onerror="this.src='${defaultIcon}'">
-          <div>
-            <h3><a data-id="${id}">${t.title}</a> ${t.pass?"🔒":""}</h3>
-            <div class="meta">by ${t.ownerName}</div>
-          </div>
+  Object.entries(data)
+    .sort((a,b)=>b[1].time-a[1].time)
+    .forEach(([id,t])=>{
+      const d=document.createElement("div");
+      d.className="thread";
+      d.innerHTML=`
+        <a href="thread.html?id=${id}">
+          <b>${t.title || "無題"}</b>
+        </a>
+        <div class="meta">
+          ${t.ownerName} ｜ ${new Date(t.time).toLocaleString()}
         </div>
       `;
-
-      /* クリックイベント */
-      div.querySelector("a").onclick=()=>{
-        if(t.pass){
-          const pw=prompt("このスレは鍵付きだよ 🔒");
-          if(pw!==t.pass){
-            alert("パスワードが違うよ");
-            return;
-          }
-        }
-        location.href="thread.html?id="+id;
-      };
-
-      threadsBox.appendChild(div);
+      threadList.appendChild(d);
     });
-  }, err=>{
-    threadsBox.innerHTML="⚠ Firebaseルールか接続エラー";
-    console.error(err);
-  });
 });
-
 </script>
+
 </body>
 </html>
