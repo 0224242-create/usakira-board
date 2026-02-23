@@ -1,233 +1,141 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>うさ★キラ掲示板</title>
-  <style>
-    body {
-      font-family: 'Arial', sans-serif;
-      background: linear-gradient(135deg, #ffc0cb, #ffb6c1);
-      margin: 0;
-      padding: 20px;
-    }
-
-    h1 {
-      text-align: center;
-      color: #fff;
-      text-shadow: 2px 2px #ff69b4;
-    }
-
-    #commentForm {
-      display: flex;
-      flex-direction: column;
-      margin-bottom: 20px;
-    }
-
-    #commentForm input, #commentForm textarea, #commentForm button {
-      margin: 5px 0;
-      padding: 10px;
-      border-radius: 10px;
-      border: 1px solid #ff69b4;
-      outline: none;
-      font-size: 14px;
-    }
-
-    #commentForm button {
-      background-color: #ff69b4;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-
-    #commentForm button:hover {
-      background-color: #ff85c1;
-    }
-
-    .post {
-      background: rgba(255, 255, 255, 0.8);
-      border-radius: 15px;
-      padding: 10px;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: flex-start;
-      box-shadow: 0 0 10px #ffb6c1;
-      animation: sparkle 2s infinite;
-      position: relative;
-    }
-
-    .post img {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      margin-right: 10px;
-      border: 2px solid #ff69b4;
-    }
-
-    .post-content {
-      flex: 1;
-    }
-
-    .post-content .name {
-      font-weight: bold;
-      color: #d148a3;
-    }
-
-    .post-content .time {
-      font-size: 12px;
-      color: #888;
-      margin-left: 10px;
-    }
-
-    .post-number {
-      font-weight: bold;
-      margin-right: 10px;
-      color: #d148a3;
-    }
-
-    .reactions {
-      margin-top: 5px;
-      font-size: 14px;
-    }
-
-    .reaction-button {
-      cursor: pointer;
-      margin-right: 10px;
-      padding: 2px 5px;
-      border-radius: 5px;
-      border: 1px solid #ff69b4;
-      background-color: #ffe4e1;
-      transition: 0.2s;
-    }
-
-    .reaction-button:hover {
-      background-color: #ffb6c1;
-    }
-
-    .delete-button {
-      position: absolute;
-      top: 5px;
-      right: 5px;
-      cursor: pointer;
-      font-size: 12px;
-      color: #d148a3;
-      border: none;
-      background: none;
-    }
-
-    @keyframes sparkle {
-      0% { box-shadow: 0 0 5px #ffb6c1; }
-      50% { box-shadow: 0 0 15px #ff69b4; }
-      100% { box-shadow: 0 0 5px #ffb6c1; }
-    }
-  </style>
+<meta charset="utf-8">
+<title>🐰スレッド</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222}
+button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer}
+input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc}
+.post{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:12px;margin:12px 0}
+.meta{font-size:0.8rem;color:#777}
+.icon{width:36px;height:36px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover}
+.flex{display:flex;align-items:center;gap:8px}
+</style>
 </head>
 <body>
 
-<h1>うさ★キラ掲示板</h1>
+<button onclick="location.href='index.html'">← 戻る</button>
 
-<form id="commentForm">
-  <input type="text" id="name" placeholder="名前" value="名もなき兎" />
-  <input type="text" id="icon" placeholder="アイコン画像URL" value="usagi.png.jpeg" />
-  <textarea id="comment" placeholder="コメントを書こう"></textarea>
-  <button type="submit">投稿</button>
-</form>
+<h2 id="threadTitle">読み込み中…</h2>
+<div id="threadBody"></div>
 
-<div id="posts"></div>
+<hr>
 
-<script>
-  const postsDiv = document.getElementById("posts");
-  const form = document.getElementById("commentForm");
+<h3>投稿する</h3>
+<textarea id="postText" placeholder="コメントを書く"></textarea>
+<button id="postBtn">投稿</button>
 
-  function loadPosts() {
-    let stored = localStorage.getItem("usakila_posts");
-    if(!stored) return [];
-    try {
-      return JSON.parse(stored);
-    } catch(e) {
-      console.error("LocalStorageデータ読み込みエラー", e);
-      return [];
+<hr>
+
+<h3>コメント一覧</h3>
+<div id="postsBox">読み込み中…</div>
+
+<script type="module">
+
+function safe(fn){
+  try{ fn(); }
+  catch(e){ console.error(e); }
+}
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+
+/* ===== Firebase ===== */
+const firebaseConfig = {
+  apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+  databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+/* ===== スレID取得 ===== */
+const params = new URLSearchParams(location.search);
+const threadId = params.get("id");
+
+if(!threadId){
+  document.body.innerHTML="スレッドIDがありません";
+}
+
+/* ===== ユーザー情報 ===== */
+const defaultName="名もなき兎";
+const defaultIcon="usagi.png.jpeg";
+
+const userName=localStorage.getItem("usakira_name")||defaultName;
+const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
+
+/* ===== スレ情報表示 ===== */
+safe(()=>{
+  onValue(ref(db,"threads/"+threadId), snap=>{
+    const data=snap.val();
+    if(!data){
+      document.getElementById("threadTitle").innerText="スレが存在しません";
+      return;
     }
-  }
 
-  function savePosts(posts) {
-    localStorage.setItem("usakila_posts", JSON.stringify(posts));
-  }
+    document.getElementById("threadTitle").innerText=data.title;
+    document.getElementById("threadBody").innerText=data.body||"";
+  });
+});
 
-  // URLをリンク化する関数
-  function linkify(text) {
-    const urlPattern = /(https?:\/\/[^\s]+)/g;
-    return text.replace(urlPattern, '<a href="$1" target="_blank">$1</a>');
-  }
+/* ===== 投稿処理 ===== */
+document.getElementById("postBtn").onclick=()=>{
+  safe(async ()=>{
+    const text=document.getElementById("postText").value.trim();
+    if(!text) return alert("内容を書いてね");
 
-  function renderPosts(posts) {
-    postsDiv.innerHTML = "";
-    posts.forEach((p, index) => {
-      const div = document.createElement("div");
-      div.className = "post";
+    await push(ref(db,"posts/"+threadId),{
+      text:text,
+      name:userName,
+      icon:userIcon,
+      time:Date.now()
+    });
 
-      // コメントに「ペコ」を追加してリンク化
-      const commentHtml = linkify(p.comment + " ペコ");
+    document.getElementById("postText").value="";
+  });
+};
 
-      div.innerHTML = `
-        <div class="post-number">${index + 1}</div>
-        <img src="${p.icon}" alt="アイコン">
-        <div class="post-content">
-          <span class="name">${p.name}</span>
-          <span class="time">${p.time}</span>
-          <div class="comment-text">${commentHtml}</div>
-          <div class="reactions">
-            <span class="reaction-button" data-type="carrot">🥕 ${p.reactions.carrot}</span>
-            <span class="reaction-button" data-type="spark">✨ ${p.reactions.spark}</span>
+/* ===== コメント一覧 ===== */
+const postsBox=document.getElementById("postsBox");
+
+safe(()=>{
+  onValue(ref(db,"posts/"+threadId), snap=>{
+    postsBox.innerHTML="";
+
+    const data=snap.val();
+    if(!data){
+      postsBox.innerHTML="<p>まだコメントがないよ 🐰</p>";
+      return;
+    }
+
+    const entries=Object.entries(data)
+      .sort((a,b)=>a[1].time-b[1].time);
+
+    entries.forEach(([id,p])=>{
+      const div=document.createElement("div");
+      div.className="post";
+
+      div.innerHTML=`
+        <div class="flex">
+          <img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+          <div>
+            <div><strong>${p.name}</strong></div>
+            <div class="meta">${new Date(p.time).toLocaleString()}</div>
           </div>
         </div>
-        <button class="delete-button">削除</button>
+        <p>${p.text}</p>
       `;
-      postsDiv.appendChild(div);
 
-      // リアクションクリック処理
-      div.querySelectorAll(".reaction-button").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const type = btn.getAttribute("data-type");
-          p.reactions[type]++;
-          savePosts(posts);
-          renderPosts(posts);
-        });
-      });
-
-      // 削除ボタン（主のみ削除可能）
-      div.querySelector(".delete-button").addEventListener("click", () => {
-        const currentUser = document.getElementById("name").value;
-        if(currentUser === p.name) {
-          posts.splice(index, 1);
-          savePosts(posts);
-          renderPosts(posts);
-        } else {
-          alert("自分のコメントしか削除できません");
-        }
-      });
+      postsBox.appendChild(div);
     });
-  }
-
-  // 初期ロード
-  let posts = loadPosts();
-  posts.forEach(p => { if(!p.reactions) p.reactions = {carrot:0, spark:0}; });
-  renderPosts(posts);
-
-  form.addEventListener("submit", function(e){
-    e.preventDefault();
-    const name = document.getElementById("name").value || "名無し";
-    const icon = document.getElementById("icon").value || "usagi.png.jpeg";
-    const comment = document.getElementById("comment").value.trim();
-    if(!comment) return;
-
-    const time = new Date().toLocaleString();
-    posts.push({name, icon, comment, time, reactions:{carrot:0, spark:0}});
-    savePosts(posts);
-    renderPosts(posts);
-    document.getElementById("comment").value = "";
+  }, err=>{
+    postsBox.innerHTML="⚠ 読み込みエラー（ルール確認）";
+    console.error(err);
   });
-</script>
+});
 
+</script>
 </body>
 </html>
