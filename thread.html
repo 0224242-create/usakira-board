@@ -5,23 +5,74 @@
 <title>🐰スレッド</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
-body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#fff0f8;padding:20px;color:#222}
-button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer}
-input,textarea{padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc}
-.post{border:2px solid #ffc6e6;background:#fff7fc;border-radius:14px;padding:12px;margin:12px 0;position:relative}
-.meta{font-size:0.8rem;color:#777}
-.icon{width:36px;height:36px;border-radius:50%;border:2px solid #ffb8e6;object-fit:cover}
-.flex{display:flex;align-items:center;gap:8px}
-.deleteBtn{
-  position:absolute;
-  right:10px;
-  top:10px;
-  font-size:0.75rem;
-  background:#ff8ab5;
-  border:none;
-  color:white;
+
+body{
+font-family:"Hiragino Kaku Gothic ProN",sans-serif;
+background:linear-gradient(180deg,#ffffff,#f2edff);
+padding:20px;
+padding-bottom:150px;
+color:#222
 }
+
+button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer}
+
+textarea{
+padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc
+}
+
+.post{
+border:2px solid #dcd6ff;
+background:#fff;
+border-radius:14px;
+padding:12px;
+margin:12px 0;
+position:relative
+}
+
+.meta{font-size:0.8rem;color:#777}
+
+.icon{
+width:36px;
+height:36px;
+border-radius:50%;
+border:2px solid #dcd6ff;
+object-fit:cover
+}
+
+.flex{display:flex;align-items:center;gap:8px}
+
+.deleteBtn{
+position:absolute;
+right:10px;
+top:10px;
+font-size:0.75rem;
+background:#c9bfff;
+border:none;
+color:white
+}
+
+.editBtn{
+position:absolute;
+right:60px;
+top:10px;
+font-size:0.75rem;
+background:#c9bfff;
+border:none;
+color:white
+}
+
 a{color:#d22;word-break:break-all;}
+
+.postArea{
+position:fixed;
+bottom:0;
+left:0;
+width:100%;
+background:white;
+padding:10px;
+border-top:2px solid #dcd6ff
+}
+
 </style>
 </head>
 <body>
@@ -33,139 +84,145 @@ a{color:#d22;word-break:break-all;}
 
 <hr>
 
-<h3>投稿する</h3>
-<textarea id="postText" placeholder="コメントを書く"></textarea>
-<button id="postBtn">投稿</button>
-
-<hr>
-
 <h3>コメント一覧</h3>
 <div id="postsBox">読み込み中…</div>
 
+<div class="postArea">
+<textarea id="postText" placeholder="コメントを書く"></textarea>
+<button id="postBtn">投稿</button>
+</div>
+
 <script type="module">
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-/* ===== Firebase ===== */
-const firebaseConfig = {
-  apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-  databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
+const firebaseConfig={
+apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
 
-/* ===== スレID ===== */
-const params = new URLSearchParams(location.search);
-const threadId = params.get("id");
-if(!threadId){
-  document.body.innerHTML="スレッドIDがありません";
-  throw new Error("threadId null");
-}
+const app=initializeApp(firebaseConfig);
+const db=getDatabase(app);
 
-/* ===== ユーザー情報 ===== */
+const params=new URLSearchParams(location.search);
+const threadId=params.get("id");
+
 const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
 
 let userId=localStorage.getItem("usakira_userId");
 if(!userId){
-  userId="user_"+Math.random().toString(36).slice(2);
-  localStorage.setItem("usakira_userId",userId);
+userId="user_"+Math.random().toString(36).slice(2);
+localStorage.setItem("usakira_userId",userId);
 }
 
 const userName=localStorage.getItem("usakira_name")||defaultName;
 const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
-/* ===== URLリンク変換 ===== */
 function linkify(text){
-  const urlRegex=/https?:\/\/[^\s]+/g;
-  return text.replace(urlRegex, url =>
-    `<a href="${url}" target="_blank">${url}</a>`
-  );
+const urlRegex=/https?:\/\/[^\s]+/g;
+return text.replace(urlRegex,url=>`<a href="${url}" target="_blank">${url}</a>`);
 }
 
-/* ===== スレ表示 ===== */
-onValue(ref(db,"threads/"+threadId), snap=>{
-  const data=snap.val();
-  if(!data){
-    document.getElementById("threadTitle").innerText="スレが存在しません";
-    return;
-  }
-  document.getElementById("threadTitle").innerText=data.title;
-  document.getElementById("threadBody").innerText=data.body||"";
+onValue(ref(db,"threads/"+threadId),snap=>{
+const data=snap.val();
+if(!data)return;
+document.getElementById("threadTitle").innerText=data.title;
+document.getElementById("threadBody").innerText=data.body||"";
 });
 
-/* ===== 投稿（自動ぺこ） ===== */
 document.getElementById("postBtn").onclick=async()=>{
-  const raw=document.getElementById("postText").value.trim();
-  if(!raw) return alert("内容を書いてね");
+const raw=document.getElementById("postText").value.trim();
+if(!raw)return alert("内容を書いてね");
 
-  const text = raw.endsWith("ぺこ") ? raw : raw+"ぺこ";
+const text=raw.endsWith("ぺこ")?raw:raw+"ぺこ";
 
-  await push(ref(db,"posts/"+threadId),{
-    text:text,
-    name:userName,
-    icon:userIcon,
-    uid:userId,
-    time:Date.now()
-  });
+await push(ref(db,"posts/"+threadId),{
+text:text,
+name:userName,
+icon:userIcon,
+uid:userId,
+time:Date.now()
+});
 
-  document.getElementById("postText").value="";
+await update(ref(db,"threads/"+threadId),{
+time:Date.now()
+});
+
+document.getElementById("postText").value="";
 };
 
-/* ===== コメント表示 ===== */
 const postsBox=document.getElementById("postsBox");
 
-onValue(ref(db,"posts/"+threadId), snap=>{
-  try{
-    postsBox.innerHTML="";
-    const data=snap.val();
-    if(!data){
-      postsBox.innerHTML="<p>まだコメントがないよ 🐰</p>";
-      return;
-    }
+onValue(ref(db,"posts/"+threadId),snap=>{
 
-    Object.entries(data)
-      .sort((a,b)=>(a[1].time||0)-(b[1].time||0))
-      .forEach(([id,p])=>{
+postsBox.innerHTML="";
+const data=snap.val();
 
-        const safeText = (p.text||"").endsWith("ぺこ")
-          ? p.text
-          : (p.text||"")+"ぺこ";
+if(!data){
+postsBox.innerHTML="<p>まだコメントがないよ 🐰</p>";
+return;
+}
 
-        const div=document.createElement("div");
-        div.className="post";
+Object.entries(data)
+.sort((a,b)=>(b[1].time||0)-(a[1].time||0))
+.forEach(([id,p])=>{
 
-        div.innerHTML=`
-          <div class="flex">
-            <img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
-            <div>
-              <div><strong>${p.name||defaultName}</strong></div>
-              <div class="meta">${p.time ? new Date(p.time).toLocaleString() : ""}</div>
-            </div>
-          </div>
-          <p>${linkify(safeText)}</p>
-        `;
+const safeText=(p.text||"").endsWith("ぺこ")?p.text:(p.text||"")+"ぺこ";
 
-        if(p.uid===userId){
-          const delBtn=document.createElement("button");
-          delBtn.textContent="削除";
-          delBtn.className="deleteBtn";
-          delBtn.onclick=()=>{
-            if(confirm("削除する？")){
-              remove(ref(db,"posts/"+threadId+"/"+id));
-            }
-          };
-          div.appendChild(delBtn);
-        }
+const div=document.createElement("div");
+div.className="post";
 
-        postsBox.appendChild(div);
-      });
+div.innerHTML=`
+<div class="flex">
+<img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+<div>
+<div><strong>${p.name||defaultName}</strong></div>
+<div class="meta">${p.time?new Date(p.time).toLocaleString():""}</div>
+</div>
+</div>
 
-  }catch(e){
-    console.error(e);
-    postsBox.innerHTML="<p>エラーが発生しました ⚠</p>";
-  }
+<p>${linkify(safeText)} ${p.edited?'<span class="meta">(編集済み)</span>':''}</p>
+`;
+
+if(p.uid===userId){
+
+const delBtn=document.createElement("button");
+delBtn.textContent="削除";
+delBtn.className="deleteBtn";
+
+delBtn.onclick=()=>{
+if(confirm("削除する？")){
+remove(ref(db,"posts/"+threadId+"/"+id));
+}
+};
+
+const editBtn=document.createElement("button");
+editBtn.textContent="編集";
+editBtn.className="editBtn";
+
+editBtn.onclick=()=>{
+const newText=prompt("編集",p.text);
+if(!newText)return;
+
+update(ref(db,"posts/"+threadId+"/"+id),{
+text:newText,
+edited:true
 });
+};
+
+div.appendChild(editBtn);
+div.appendChild(delBtn);
+
+}
+
+postsBox.appendChild(div);
+
+});
+
+});
+
 </script>
 </body>
 </html>
