@@ -26,6 +26,35 @@ margin-bottom:10px;
 box-shadow:0 2px 5px rgba(0,0,0,0.1);
 }
 
+.header{
+display:flex;
+align-items:center;
+gap:8px;
+margin-bottom:5px;
+}
+
+.icon{
+width:32px;
+height:32px;
+border-radius:50%;
+object-fit:cover;
+}
+
+.name{
+font-weight:bold;
+}
+
+.time{
+font-size:12px;
+color:#777;
+margin-left:auto;
+}
+
+.deleteBtn{
+font-size:12px;
+margin-left:5px;
+}
+
 .comment img{
 max-width:200px;
 border-radius:8px;
@@ -35,6 +64,10 @@ margin-top:5px;
 .edit{
 font-size:12px;
 color:gray;
+}
+
+.text{
+word-break:break-word;
 }
 
 #commentBox{
@@ -70,7 +103,7 @@ padding:8px;
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
 apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -84,6 +117,12 @@ const params=new URLSearchParams(location.search);
 const threadId=params.get("id");
 
 const commentsRef=ref(db,"posts/"+threadId);
+
+const defaultName="名もなき兎";
+const defaultIcon="usagi.png.jpeg";
+
+const userName=localStorage.getItem("usakira_name")||defaultName;
+const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
 function escapeHtml(str){
 if(!str)return "";
@@ -109,7 +148,21 @@ const text=c.text?escapeHtml(c.text):"";
 
 html+=`<div class="comment">
 
-<div>${text}</div>
+<div class="header">
+
+<img class="icon" src="${c.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+
+<div class="name">${c.name||defaultName}</div>
+
+<div class="time">
+${c.time ? new Date(c.time).toLocaleString() : ""}
+</div>
+
+<button class="deleteBtn" onclick="deleteComment('${key}')">削除</button>
+
+</div>
+
+<div class="text">${text}</div>
 
 ${c.image?`<img src="${c.image}">`:""}
 
@@ -165,7 +218,9 @@ push(commentsRef,{
 text:text,
 image:imageURL,
 time:Date.now(),
-edited:false
+edited:false,
+name:userName,
+icon:userIcon
 });
 
 document.getElementById("commentInput").value="";
@@ -179,10 +234,20 @@ const newText=prompt("編集",oldText);
 
 if(newText!==null){
 
-update(ref(db,"comments/"+threadId+"/"+key),{
+update(ref(db,"posts/"+threadId+"/"+key),{
 text:newText,
 edited:true
 });
+
+}
+
+};
+
+window.deleteComment=(key)=>{
+
+if(confirm("削除する？")){
+
+remove(ref(db,"posts/"+threadId+"/"+key));
 
 }
 
