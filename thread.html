@@ -14,8 +14,8 @@ background:linear-gradient(#ffffff,#e8dcff);
 }
 
 #comments{
-padding:15px;
-padding-bottom:120px;
+padding:12px;
+padding-bottom:90px;
 }
 
 .comment{
@@ -34,41 +34,45 @@ margin-bottom:5px;
 }
 
 .icon{
-width:32px;
-height:32px;
+width:30px;
+height:30px;
 border-radius:50%;
 object-fit:cover;
 }
 
 .name{
 font-weight:bold;
+font-size:14px;
 }
 
 .time{
-font-size:12px;
+font-size:11px;
 color:#777;
 margin-left:auto;
 }
 
 .deleteBtn{
-font-size:12px;
-margin-left:5px;
+font-size:11px;
+margin-left:4px;
+}
+
+.text{
+word-break:break-word;
+font-size:14px;
 }
 
 .comment img{
-max-width:200px;
+max-width:180px;
 border-radius:8px;
 margin-top:5px;
 }
 
 .edit{
-font-size:12px;
+font-size:11px;
 color:gray;
 }
 
-.text{
-word-break:break-word;
-}
+/* 投稿欄 */
 
 #commentBox{
 position:fixed;
@@ -76,15 +80,32 @@ bottom:0;
 left:0;
 width:100%;
 background:white;
-padding:10px;
+padding:6px;
 box-shadow:0 -2px 5px rgba(0,0,0,0.1);
 display:flex;
-gap:5px;
+align-items:center;
+gap:4px;
 }
 
 #commentInput{
 flex:1;
-padding:8px;
+padding:6px;
+font-size:14px;
+}
+
+#imageInput{
+width:90px;
+font-size:11px;
+}
+
+#postBtn{
+padding:6px 8px;
+font-size:13px;
+}
+
+a{
+color:#5a4cff;
+word-break:break-all;
 }
 
 </style>
@@ -124,6 +145,17 @@ const defaultIcon="usagi.png.jpeg";
 const userName=localStorage.getItem("usakira_name")||defaultName;
 const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
+/* URLリンク化 */
+function linkify(text){
+
+const urlRegex=/https?:\/\/[^\s]+/g;
+
+return text.replace(urlRegex,url=>{
+return `<a href="${url}" target="_blank">${url}</a>`;
+});
+
+}
+
 function escapeHtml(str){
 if(!str)return "";
 return str.replace(/&/g,"&amp;")
@@ -144,7 +176,8 @@ const list=Object.entries(data).sort((a,b)=>b[1].time-a[1].time);
 
 list.forEach(([key,c])=>{
 
-const text=c.text?escapeHtml(c.text):"";
+let text=c.text?escapeHtml(c.text):"";
+text=linkify(text);
 
 html+=`<div class="comment">
 
@@ -155,7 +188,7 @@ html+=`<div class="comment">
 <div class="name">${c.name||defaultName}</div>
 
 <div class="time">
-${c.time ? new Date(c.time).toLocaleString() : ""}
+${c.time?new Date(c.time).toLocaleString():""}
 </div>
 
 <button class="deleteBtn" onclick="deleteComment('${key}')">削除</button>
