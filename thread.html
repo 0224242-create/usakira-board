@@ -83,7 +83,7 @@ const db=getDatabase(app);
 const params=new URLSearchParams(location.search);
 const threadId=params.get("id");
 
-const commentsRef=ref(db,"comments/"+threadId);
+const commentsRef=ref(db,"posts/"+threadId);
 
 function escapeHtml(str){
 if(!str)return "";
