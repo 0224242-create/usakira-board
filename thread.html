@@ -2,227 +2,199 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>🐰スレッド</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>スレッド</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
 <style>
 
 body{
-font-family:"Hiragino Kaku Gothic ProN",sans-serif;
-background:linear-gradient(180deg,#ffffff,#f2edff);
-padding:20px;
-padding-bottom:150px;
-color:#222
+margin:0;
+font-family:sans-serif;
+background:linear-gradient(#ffffff,#e8dcff);
 }
 
-button{padding:6px 10px;margin:4px;border-radius:6px;cursor:pointer}
-
-textarea{
-padding:6px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ccc
+#comments{
+padding:15px;
+padding-bottom:120px;
 }
 
-.post{
-border:2px solid #dcd6ff;
-background:#fff;
-border-radius:14px;
-padding:12px;
-margin:12px 0;
-position:relative
+.comment{
+background:white;
+border-radius:10px;
+padding:10px;
+margin-bottom:10px;
+box-shadow:0 2px 5px rgba(0,0,0,0.1);
 }
 
-.meta{font-size:0.8rem;color:#777}
-
-.icon{
-width:36px;
-height:36px;
-border-radius:50%;
-border:2px solid #dcd6ff;
-object-fit:cover
+.comment img{
+max-width:200px;
+border-radius:8px;
+margin-top:5px;
 }
 
-.flex{display:flex;align-items:center;gap:8px}
-
-.deleteBtn{
-position:absolute;
-right:10px;
-top:10px;
-font-size:0.75rem;
-background:#c9bfff;
-border:none;
-color:white
+.edit{
+font-size:12px;
+color:gray;
 }
 
-.editBtn{
-position:absolute;
-right:60px;
-top:10px;
-font-size:0.75rem;
-background:#c9bfff;
-border:none;
-color:white
-}
-
-a{color:#d22;word-break:break-all;}
-
-.postArea{
+#commentBox{
 position:fixed;
 bottom:0;
 left:0;
 width:100%;
 background:white;
 padding:10px;
-border-top:2px solid #dcd6ff
+box-shadow:0 -2px 5px rgba(0,0,0,0.1);
+display:flex;
+gap:5px;
+}
+
+#commentInput{
+flex:1;
+padding:8px;
 }
 
 </style>
 </head>
+
 <body>
 
-<button onclick="location.href='index.html'">← 戻る</button>
+<div id="comments"></div>
 
-<h2 id="threadTitle">読み込み中…</h2>
-<div id="threadBody"></div>
-
-<hr>
-
-<h3>コメント一覧</h3>
-<div id="postsBox">読み込み中…</div>
-
-<div class="postArea">
-<textarea id="postText" placeholder="コメントを書く"></textarea>
-<button id="postBtn">投稿</button>
+<div id="commentBox">
+<input id="commentInput" placeholder="コメントを書くぺこ">
+<input type="file" id="imageInput" accept="image/*">
+<button onclick="postComment()">投稿</button>
 </div>
 
-<script type="module">
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+<script>
 
-const firebaseConfig={
-apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
+const firebaseConfig = {
+apiKey:"",
+authDomain:"",
+databaseURL:"",
+projectId:"",
+storageBucket:"",
+messagingSenderId:"",
+appId:""
 };
 
-const app=initializeApp(firebaseConfig);
-const db=getDatabase(app);
+firebase.initializeApp(firebaseConfig);
 
 const params=new URLSearchParams(location.search);
 const threadId=params.get("id");
 
-const defaultName="名もなき兎";
-const defaultIcon="usagi.png.jpeg";
+const commentsRef=firebase.database().ref("comments/"+threadId);
 
-let userId=localStorage.getItem("usakira_userId");
-if(!userId){
-userId="user_"+Math.random().toString(36).slice(2);
-localStorage.setItem("usakira_userId",userId);
-}
+function loadComments(){
 
-const userName=localStorage.getItem("usakira_name")||defaultName;
-const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
+commentsRef.on("value",snap=>{
 
-function linkify(text){
-const urlRegex=/https?:\/\/[^\s]+/g;
-return text.replace(urlRegex,url=>`<a href="${url}" target="_blank">${url}</a>`);
-}
-
-onValue(ref(db,"threads/"+threadId),snap=>{
 const data=snap.val();
-if(!data)return;
-document.getElementById("threadTitle").innerText=data.title;
-document.getElementById("threadBody").innerText=data.body||"";
+
+let html="";
+
+if(data){
+
+const list=Object.entries(data).reverse();
+
+list.forEach(([key,c])=>{
+
+html+=`<div class="comment">
+
+<div>${escapeHtml(c.text)}</div>
+
+${c.image?`<img src="${c.image}">`:""}
+
+${c.edited?`<div class="edit">編集済み</div>`:""}
+
+<button onclick="editComment('${key}','${c.text}')">編集</button>
+
+</div>`;
+
 });
 
-document.getElementById("postBtn").onclick=async()=>{
-const raw=document.getElementById("postText").value.trim();
-if(!raw)return alert("内容を書いてね");
+}
 
-const text=raw.endsWith("ぺこ")?raw:raw+"ぺこ";
+document.getElementById("comments").innerHTML=html;
 
-await push(ref(db,"posts/"+threadId),{
+});
+
+}
+
+function escapeHtml(str){
+return str
+.replace(/&/g,"&amp;")
+.replace(/</g,"&lt;")
+.replace(/>/g,"&gt;");
+}
+
+async function uploadImage(file){
+
+const formData=new FormData();
+
+formData.append("file",file);
+formData.append("upload_preset","usakira_upload");
+
+const res=await fetch(
+"https://api.cloudinary.com/v1_1/dfhevulda/image/upload",
+{
+method:"POST",
+body:formData
+});
+
+const data=await res.json();
+
+return data.secure_url;
+
+}
+
+async function postComment(){
+
+const text=document.getElementById("commentInput").value;
+
+const file=document.getElementById("imageInput").files[0];
+
+let imageURL="";
+
+if(file){
+imageURL=await uploadImage(file);
+}
+
+const commentData={
 text:text,
-name:userName,
-icon:userIcon,
-uid:userId,
+image:imageURL,
 time:Date.now()
-});
-
-await update(ref(db,"threads/"+threadId),{
-time:Date.now()
-});
-
-document.getElementById("postText").value="";
 };
 
-const postsBox=document.getElementById("postsBox");
+commentsRef.push(commentData);
 
-onValue(ref(db,"posts/"+threadId),snap=>{
+document.getElementById("commentInput").value="";
+document.getElementById("imageInput").value="";
 
-postsBox.innerHTML="";
-const data=snap.val();
-
-if(!data){
-postsBox.innerHTML="<p>まだコメントがないよ 🐰</p>";
-return;
 }
 
-Object.entries(data)
-.sort((a,b)=>(b[1].time||0)-(a[1].time||0))
-.forEach(([id,p])=>{
+function editComment(key,oldText){
 
-const safeText=(p.text||"").endsWith("ぺこ")?p.text:(p.text||"")+"ぺこ";
+const newText=prompt("編集",oldText);
 
-const div=document.createElement("div");
-div.className="post";
+if(newText!==null){
 
-div.innerHTML=`
-<div class="flex">
-<img class="icon" src="${p.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
-<div>
-<div><strong>${p.name||defaultName}</strong></div>
-<div class="meta">${p.time?new Date(p.time).toLocaleString():""}</div>
-</div>
-</div>
-
-<p>${linkify(safeText)} ${p.edited?'<span class="meta">(編集済み)</span>':''}</p>
-`;
-
-if(p.uid===userId){
-
-const delBtn=document.createElement("button");
-delBtn.textContent="削除";
-delBtn.className="deleteBtn";
-
-delBtn.onclick=()=>{
-if(confirm("削除する？")){
-remove(ref(db,"posts/"+threadId+"/"+id));
-}
-};
-
-const editBtn=document.createElement("button");
-editBtn.textContent="編集";
-editBtn.className="editBtn";
-
-editBtn.onclick=()=>{
-const newText=prompt("編集",p.text);
-if(!newText)return;
-
-update(ref(db,"posts/"+threadId+"/"+id),{
+commentsRef.child(key).update({
 text:newText,
 edited:true
 });
-};
-
-div.appendChild(editBtn);
-div.appendChild(delBtn);
 
 }
 
-postsBox.appendChild(div);
+}
 
-});
-
-});
+loadComments();
 
 </script>
+
 </body>
 </html>
