@@ -103,15 +103,17 @@ const list=Object.entries(data).reverse();
 
 list.forEach(([key,c])=>{
 
+const text = c.text ? escapeHtml(c.text) : "";
+
 html+=`<div class="comment">
 
-<div>${escapeHtml(c.text)}</div>
+<div>${text}</div>
 
 ${c.image?`<img src="${c.image}">`:""}
 
 ${c.edited?`<div class="edit">編集済み</div>`:""}
 
-<button onclick="editComment('${key}','${c.text}')">編集</button>
+<button onclick="editComment('${key}',\`${text}\`)">編集</button>
 
 </div>`;
 
@@ -126,6 +128,9 @@ document.getElementById("comments").innerHTML=html;
 }
 
 function escapeHtml(str){
+
+if(!str) return "";
+
 return str
 .replace(/&/g,"&amp;")
 .replace(/</g,"&lt;")
@@ -155,7 +160,6 @@ return data.secure_url;
 async function postComment(){
 
 const text=document.getElementById("commentInput").value;
-
 const file=document.getElementById("imageInput").files[0];
 
 let imageURL="";
