@@ -17,7 +17,7 @@ background:linear-gradient(#ffffff,#e8dcff);
 
 #comments{
 padding:16px;
-padding-bottom:140px;
+padding-bottom:110px;
 }
 
 .comment{
@@ -26,7 +26,6 @@ border-radius:12px;
 padding:14px;
 margin-bottom:14px;
 box-shadow:0 3px 6px rgba(0,0,0,0.12);
-position:relative;
 }
 
 .header{
@@ -54,12 +53,8 @@ color:#777;
 margin-left:4px;
 }
 
-/* ボタン右上 */
-
 .actions{
-position:absolute;
-top:10px;
-right:10px;
+margin-left:auto;
 display:flex;
 gap:5px;
 }
@@ -69,15 +64,12 @@ font-size:12px;
 padding:3px 6px;
 }
 
-/* 本文 */
-
 .text{
 font-size:15px;
-line-height:1.5;
+line-height:1.4;
 white-space:pre-wrap;
 word-break:break-word;
 overflow-wrap:anywhere;
-margin-top:6px;
 }
 
 .comment img{
@@ -90,7 +82,7 @@ cursor:pointer;
 .edit{
 font-size:12px;
 color:gray;
-margin-top:4px;
+margin-top:3px;
 }
 
 /* 投稿欄 */
@@ -101,27 +93,19 @@ bottom:0;
 left:0;
 width:100%;
 background:white;
-padding:8px;
-box-shadow:0 -2px 5px rgba(0,0,0,0.1);
-display:flex;
-flex-direction:column;
-gap:5px;
-}
-
-#commentInput{
-width:100%;
-min-height:45px;
-resize:none;
 padding:6px;
-font-size:14px;
-box-sizing:border-box;
-}
-
-.controls{
+box-shadow:0 -2px 5px rgba(0,0,0,0.1);
 display:flex;
 align-items:center;
 gap:5px;
 flex-wrap:wrap;
+}
+
+#commentInput{
+flex:1;
+padding:7px;
+font-size:14px;
+min-width:150px;
 }
 
 #imageInput{
@@ -134,7 +118,7 @@ color:#555;
 }
 
 #postBtn{
-padding:6px 10px;
+padding:7px 10px;
 font-size:13px;
 }
 
@@ -178,9 +162,7 @@ max-height:90%;
 
 <div id="commentBox">
 
-<textarea id="commentInput" placeholder="コメントを書くぺこ"></textarea>
-
-<div class="controls">
+<input id="commentInput" placeholder="コメントを書くぺこ">
 
 <input type="file" id="imageInput" accept="image/*">
 
@@ -189,8 +171,6 @@ max-height:90%;
 <button id="postBtn">投稿</button>
 
 <span id="postStatus"></span>
-
-</div>
 
 </div>
 
@@ -258,11 +238,6 @@ text=linkify(text);
 
 html+=`<div class="comment">
 
-<div class="actions">
-<button onclick="editComment('${key}',\`${text}\`)">編集</button>
-<button onclick="deleteComment('${key}')">削除</button>
-</div>
-
 <div class="header">
 
 <img class="icon" src="${c.icon||defaultIcon}">
@@ -272,6 +247,11 @@ ${c.name||defaultName}
 <span class="time">
 ${c.time?new Date(c.time).toLocaleString():""}
 </span>
+</div>
+
+<div class="actions">
+<button onclick="editComment('${key}',\`${text}\`)">編集</button>
+<button onclick="deleteComment('${key}')">削除</button>
 </div>
 
 </div>
@@ -294,6 +274,72 @@ document.getElementById("comments").innerHTML=html;
 
 }
 
+/* 画像圧縮 */
+
+function compressImage(file){
+
+return new Promise(resolve=>{
+
+const img=new Image();
+const canvas=document.createElement("canvas");
+const ctx=canvas.getContext("2d");
+
+img.onload=()=>{
+
+let w=img.width;
+let h=img.height;
+
+const max=1000;
+
+if(w>h){
+if(w>max){
+h*=max/w;
+w=max;
+}
+}else{
+if(h>max){
+w*=max/h;
+h=max;
+}
+}
+
+canvas.width=w;
+canvas.height=h;
+
+ctx.drawImage(img,0,0,w,h);
+
+canvas.toBlob(blob=>{
+resolve(blob);
+},"image/jpeg",0.7);
+
+};
+
+img.src=URL.createObjectURL(file);
+
+});
+
+}
+
+/* 画像アップロード */
+
+async function uploadImage(file){
+
+const compressed=await compressImage(file);
+
+const formData=new FormData();
+formData.append("file",compressed);
+formData.append("upload_preset","usakira_upload");
+
+const res=await fetch(
+"https://api.cloudinary.com/v1_1/dfhevulda/image/upload",
+{method:"POST",body:formData}
+);
+
+const data=await res.json();
+return data.secure_url;
+
+}
+
 /* 投稿 */
 
 document.getElementById("postBtn").onclick=async()=>{
@@ -305,8 +351,6 @@ if(!text && !file){
 alert("コメントか画像を入れてください");
 return;
 }
-
-document.getElementById("postBtn").disabled=true;
 
 let imageURL="";
 
@@ -323,13 +367,19 @@ name:userName,
 icon:userIcon
 });
 
-document.getElementById("postStatus").textContent="投稿しました";
+document.getElementById("commentInput").value="";
+document.getElementById("imageInput").value="";
+document.getElementById("fileName").textContent="";
 
-location.reload();
+document.getElementById("postStatus").textContent="投稿しました！";
+
+setTimeout(()=>{
+document.getElementById("postStatus").textContent="";
+},2000);
 
 };
 
-/* ファイル名 */
+/* ファイル名表示 */
 
 document.getElementById("imageInput").onchange=e=>{
 const file=e.target.files[0];
