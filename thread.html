@@ -13,12 +13,12 @@ font-family:sans-serif;
 background:linear-gradient(#ffffff,#e8dcff);
 }
 
+/* コメントエリア */
+
 #comments{
 padding:16px;
-padding-bottom:95px;
+padding-bottom:110px;
 }
-
-/* コメント */
 
 .comment{
 background:white;
@@ -53,12 +53,10 @@ color:#777;
 margin-left:4px;
 }
 
-/* ボタン */
-
 .actions{
 margin-left:auto;
 display:flex;
-gap:4px;
+gap:5px;
 }
 
 .actions button{
@@ -66,18 +64,19 @@ font-size:12px;
 padding:3px 6px;
 }
 
-/* 本文 */
-
 .text{
-word-break:break-word;
 font-size:15px;
 line-height:1.4;
+white-space:pre-wrap;
+word-break:break-word;
+overflow-wrap:anywhere;
 }
 
 .comment img{
 max-width:220px;
 border-radius:8px;
 margin-top:6px;
+cursor:pointer;
 }
 
 .edit{
@@ -99,17 +98,23 @@ box-shadow:0 -2px 5px rgba(0,0,0,0.1);
 display:flex;
 align-items:center;
 gap:5px;
+flex-wrap:wrap;
 }
 
 #commentInput{
 flex:1;
 padding:7px;
 font-size:14px;
+min-width:150px;
 }
 
 #imageInput{
-width:95px;
-font-size:11px;
+font-size:12px;
+}
+
+#fileName{
+font-size:12px;
+color:#555;
 }
 
 #postBtn{
@@ -117,9 +122,35 @@ padding:7px 10px;
 font-size:13px;
 }
 
+#postStatus{
+font-size:12px;
+color:green;
+}
+
+/* URL */
+
 a{
 color:#5a4cff;
 word-break:break-all;
+}
+
+/* 画像拡大 */
+
+#imageModal{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,0.8);
+display:none;
+align-items:center;
+justify-content:center;
+}
+
+#imageModal img{
+max-width:90%;
+max-height:90%;
 }
 
 </style>
@@ -130,9 +161,21 @@ word-break:break-all;
 <div id="comments"></div>
 
 <div id="commentBox">
+
 <input id="commentInput" placeholder="コメントを書くぺこ">
+
 <input type="file" id="imageInput" accept="image/*">
+
+<span id="fileName"></span>
+
 <button id="postBtn">投稿</button>
+
+<span id="postStatus"></span>
+
+</div>
+
+<div id="imageModal" onclick="this.style.display='none'">
+<img id="modalImg">
 </div>
 
 <script type="module">
@@ -159,16 +202,13 @@ const defaultIcon="usagi.png.jpeg";
 const userName=localStorage.getItem("usakira_name")||defaultName;
 const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
-/* URLリンク化 */
+/* URLリンク */
 
 function linkify(text){
-
 const urlRegex=/https?:\/\/[^\s]+/g;
-
 return text.replace(urlRegex,url=>{
 return `<a href="${url}" target="_blank">${url}</a>`;
 });
-
 }
 
 function escapeHtml(str){
@@ -177,6 +217,8 @@ return str.replace(/&/g,"&amp;")
 .replace(/</g,"&lt;")
 .replace(/>/g,"&gt;");
 }
+
+/* コメント表示 */
 
 function loadComments(){
 
@@ -198,7 +240,7 @@ html+=`<div class="comment">
 
 <div class="header">
 
-<img class="icon" src="${c.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+<img class="icon" src="${c.icon||defaultIcon}">
 
 <div class="name">
 ${c.name||defaultName}
@@ -208,17 +250,15 @@ ${c.time?new Date(c.time).toLocaleString():""}
 </div>
 
 <div class="actions">
-
 <button onclick="editComment('${key}',\`${text}\`)">編集</button>
 <button onclick="deleteComment('${key}')">削除</button>
-
 </div>
 
 </div>
 
 <div class="text">${text}</div>
 
-${c.image?`<img src="${c.image}">`:""}
+${c.image?`<img src="${c.image}" onclick="openImage('${c.image}')">`:""}
 
 ${c.edited?`<div class="edit">編集済み</div>`:""}
 
@@ -234,10 +274,60 @@ document.getElementById("comments").innerHTML=html;
 
 }
 
+/* 画像圧縮 */
+
+function compressImage(file){
+
+return new Promise(resolve=>{
+
+const img=new Image();
+const canvas=document.createElement("canvas");
+const ctx=canvas.getContext("2d");
+
+img.onload=()=>{
+
+let w=img.width;
+let h=img.height;
+
+const max=1000;
+
+if(w>h){
+if(w>max){
+h*=max/w;
+w=max;
+}
+}else{
+if(h>max){
+w*=max/h;
+h=max;
+}
+}
+
+canvas.width=w;
+canvas.height=h;
+
+ctx.drawImage(img,0,0,w,h);
+
+canvas.toBlob(blob=>{
+resolve(blob);
+},"image/jpeg",0.7);
+
+};
+
+img.src=URL.createObjectURL(file);
+
+});
+
+}
+
+/* 画像アップロード */
+
 async function uploadImage(file){
 
+const compressed=await compressImage(file);
+
 const formData=new FormData();
-formData.append("file",file);
+formData.append("file",compressed);
 formData.append("upload_preset","usakira_upload");
 
 const res=await fetch(
@@ -249,6 +339,8 @@ const data=await res.json();
 return data.secure_url;
 
 }
+
+/* 投稿 */
 
 document.getElementById("postBtn").onclick=async()=>{
 
@@ -266,7 +358,7 @@ if(file){
 imageURL=await uploadImage(file);
 }
 
-push(commentsRef,{
+await push(commentsRef,{
 text:text,
 image:imageURL,
 time:Date.now(),
@@ -277,8 +369,24 @@ icon:userIcon
 
 document.getElementById("commentInput").value="";
 document.getElementById("imageInput").value="";
+document.getElementById("fileName").textContent="";
+
+document.getElementById("postStatus").textContent="投稿しました！";
+
+setTimeout(()=>{
+document.getElementById("postStatus").textContent="";
+},2000);
 
 };
+
+/* ファイル名表示 */
+
+document.getElementById("imageInput").onchange=e=>{
+const file=e.target.files[0];
+document.getElementById("fileName").textContent=file?file.name:"";
+};
+
+/* 編集 */
 
 window.editComment=(key,oldText)=>{
 
@@ -295,14 +403,21 @@ edited:true
 
 };
 
+/* 削除 */
+
 window.deleteComment=(key)=>{
 
 if(confirm("削除する？")){
-
 remove(ref(db,"posts/"+threadId+"/"+key));
-
 }
 
+};
+
+/* 画像拡大 */
+
+window.openImage=(src)=>{
+document.getElementById("modalImg").src=src;
+document.getElementById("imageModal").style.display="flex";
 };
 
 loadComments();
