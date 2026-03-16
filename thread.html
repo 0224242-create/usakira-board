@@ -14,62 +14,76 @@ background:linear-gradient(#ffffff,#e8dcff);
 }
 
 #comments{
-padding:12px;
-padding-bottom:90px;
+padding:16px;
+padding-bottom:95px;
 }
+
+/* コメント */
 
 .comment{
 background:white;
-border-radius:10px;
-padding:10px;
-margin-bottom:10px;
-box-shadow:0 2px 5px rgba(0,0,0,0.1);
+border-radius:12px;
+padding:14px;
+margin-bottom:14px;
+box-shadow:0 3px 6px rgba(0,0,0,0.12);
 }
 
 .header{
 display:flex;
 align-items:center;
 gap:8px;
-margin-bottom:5px;
+margin-bottom:6px;
 }
 
 .icon{
-width:30px;
-height:30px;
+width:36px;
+height:36px;
 border-radius:50%;
 object-fit:cover;
 }
 
 .name{
 font-weight:bold;
-font-size:14px;
+font-size:15px;
 }
 
 .time{
-font-size:11px;
+font-size:12px;
 color:#777;
-margin-left:auto;
-}
-
-.deleteBtn{
-font-size:11px;
 margin-left:4px;
 }
 
+/* ボタン */
+
+.actions{
+margin-left:auto;
+display:flex;
+gap:4px;
+}
+
+.actions button{
+font-size:12px;
+padding:3px 6px;
+}
+
+/* 本文 */
+
 .text{
 word-break:break-word;
-font-size:14px;
+font-size:15px;
+line-height:1.4;
 }
 
 .comment img{
-max-width:180px;
+max-width:220px;
 border-radius:8px;
-margin-top:5px;
+margin-top:6px;
 }
 
 .edit{
-font-size:11px;
+font-size:12px;
 color:gray;
+margin-top:3px;
 }
 
 /* 投稿欄 */
@@ -84,22 +98,22 @@ padding:6px;
 box-shadow:0 -2px 5px rgba(0,0,0,0.1);
 display:flex;
 align-items:center;
-gap:4px;
+gap:5px;
 }
 
 #commentInput{
 flex:1;
-padding:6px;
+padding:7px;
 font-size:14px;
 }
 
 #imageInput{
-width:90px;
+width:95px;
 font-size:11px;
 }
 
 #postBtn{
-padding:6px 8px;
+padding:7px 10px;
 font-size:13px;
 }
 
@@ -146,6 +160,7 @@ const userName=localStorage.getItem("usakira_name")||defaultName;
 const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
 /* URLリンク化 */
+
 function linkify(text){
 
 const urlRegex=/https?:\/\/[^\s]+/g;
@@ -185,13 +200,19 @@ html+=`<div class="comment">
 
 <img class="icon" src="${c.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
 
-<div class="name">${c.name||defaultName}</div>
-
-<div class="time">
+<div class="name">
+${c.name||defaultName}
+<span class="time">
 ${c.time?new Date(c.time).toLocaleString():""}
+</span>
 </div>
 
-<button class="deleteBtn" onclick="deleteComment('${key}')">削除</button>
+<div class="actions">
+
+<button onclick="editComment('${key}',\`${text}\`)">編集</button>
+<button onclick="deleteComment('${key}')">削除</button>
+
+</div>
 
 </div>
 
@@ -200,8 +221,6 @@ ${c.time?new Date(c.time).toLocaleString():""}
 ${c.image?`<img src="${c.image}">`:""}
 
 ${c.edited?`<div class="edit">編集済み</div>`:""}
-
-<button onclick="editComment('${key}',\`${text}\`)">編集</button>
 
 </div>`;
 
