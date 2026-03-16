@@ -64,35 +64,37 @@ padding:8px;
 <div id="commentBox">
 <input id="commentInput" placeholder="コメントを書くぺこ">
 <input type="file" id="imageInput" accept="image/*">
-<button onclick="postComment()">投稿</button>
+<button id="postBtn">投稿</button>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<script type="module">
 
-<script>
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getDatabase, ref, onValue, push, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-  authDomain: "keijiban-7c651.firebaseapp.com",
-  databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com",
-  projectId: "keijiban-7c651",
-  storageBucket: "keijiban-7c651.firebasestorage.app",
-  messagingSenderId: "342192640264",
-  appId: "1:342192640264:web:a004a725b470741aaf1cbd"
+const firebaseConfig={
+apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
 
-
-firebase.initializeApp(firebaseConfig);
+const app=initializeApp(firebaseConfig);
+const db=getDatabase(app);
 
 const params=new URLSearchParams(location.search);
 const threadId=params.get("id");
 
-const commentsRef=firebase.database().ref("comments/"+threadId);
+const commentsRef=ref(db,"comments/"+threadId);
+
+function escapeHtml(str){
+if(!str)return "";
+return str.replace(/&/g,"&amp;")
+.replace(/</g,"&lt;")
+.replace(/>/g,"&gt;");
+}
 
 function loadComments(){
 
-commentsRef.on("value",snap=>{
+onValue(commentsRef,snap=>{
 
 const data=snap.val();
 let html="";
@@ -103,7 +105,7 @@ const list=Object.entries(data).sort((a,b)=>b[1].time-a[1].time);
 
 list.forEach(([key,c])=>{
 
-const text = c.text ? escapeHtml(c.text) : "";
+const text=c.text?escapeHtml(c.text):"";
 
 html+=`<div class="comment">
 
@@ -127,37 +129,23 @@ document.getElementById("comments").innerHTML=html;
 
 }
 
-function escapeHtml(str){
-
-if(!str) return "";
-
-return str
-.replace(/&/g,"&amp;")
-.replace(/</g,"&lt;")
-.replace(/>/g,"&gt;");
-}
-
 async function uploadImage(file){
 
 const formData=new FormData();
-
 formData.append("file",file);
 formData.append("upload_preset","usakira_upload");
 
 const res=await fetch(
 "https://api.cloudinary.com/v1_1/dfhevulda/image/upload",
-{
-method:"POST",
-body:formData
-});
+{method:"POST",body:formData}
+);
 
 const data=await res.json();
-
 return data.secure_url;
 
 }
 
-async function postComment(){
+document.getElementById("postBtn").onclick=async()=>{
 
 const text=document.getElementById("commentInput").value.trim();
 const file=document.getElementById("imageInput").files[0];
@@ -173,34 +161,32 @@ if(file){
 imageURL=await uploadImage(file);
 }
 
-const commentData={
+push(commentsRef,{
 text:text,
 image:imageURL,
 time:Date.now(),
 edited:false
-};
-
-commentsRef.push(commentData);
+});
 
 document.getElementById("commentInput").value="";
 document.getElementById("imageInput").value="";
 
-}
+};
 
-function editComment(key,oldText){
+window.editComment=(key,oldText)=>{
 
 const newText=prompt("編集",oldText);
 
 if(newText!==null){
 
-commentsRef.child(key).update({
+update(ref(db,"comments/"+threadId+"/"+key),{
 text:newText,
 edited:true
 });
 
 }
 
-}
+};
 
 loadComments();
 
