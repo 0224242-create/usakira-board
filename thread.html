@@ -94,12 +94,11 @@ function loadComments(){
 commentsRef.on("value",snap=>{
 
 const data=snap.val();
-
 let html="";
 
 if(data){
 
-const list=Object.entries(data).reverse();
+const list=Object.entries(data).sort((a,b)=>b[1].time-a[1].time);
 
 list.forEach(([key,c])=>{
 
@@ -159,8 +158,13 @@ return data.secure_url;
 
 async function postComment(){
 
-const text=document.getElementById("commentInput").value;
+const text=document.getElementById("commentInput").value.trim();
 const file=document.getElementById("imageInput").files[0];
+
+if(!text && !file){
+alert("コメントか画像を入れてください");
+return;
+}
 
 let imageURL="";
 
@@ -171,7 +175,8 @@ imageURL=await uploadImage(file);
 const commentData={
 text:text,
 image:imageURL,
-time:Date.now()
+time:Date.now(),
+edited:false
 };
 
 commentsRef.push(commentData);
