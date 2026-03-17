@@ -13,7 +13,6 @@ text-shadow:0 0 8px #dcd6ff;
 text-align:center;
 }
 
-
 body{
 font-family:"Hiragino Kaku Gothic ProN",sans-serif;
 background:linear-gradient(180deg,#ffffff,#f2edff);
@@ -86,14 +85,17 @@ border:none;
 color:white;
 font-size:0.75rem
 }
-
 </style>
 </head>
 <body>
+
 <h3>プロフィール</h3>
 
 <input id="nameInput" placeholder="名前">
 <input id="iconInput" placeholder="アイコンURL">
+<input type="file" id="iconFile" accept="image/*">
+<span id="iconFileName"></span>
+
 <button id="saveProfileBtn">保存</button>
 
 <hr>
@@ -141,17 +143,85 @@ const iconInput=document.getElementById("iconInput");
 nameInput.value=localStorage.getItem("usakira_name")||defaultName;
 iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
 
-document.getElementById("saveProfileBtn").onclick=()=>{
+/* ファイル名表示 */
+document.getElementById("iconFile").onchange=e=>{
+const file=e.target.files[0];
+document.getElementById("iconFileName").textContent=file?file.name:"";
+};
+
+/* 画像圧縮 */
+function compressImage(file){
+return new Promise(resolve=>{
+const img=new Image();
+const canvas=document.createElement("canvas");
+const ctx=canvas.getContext("2d");
+
+img.onload=()=>{
+let w=img.width;
+let h=img.height;
+const max=500;
+
+if(w>h){
+if(w>max){ h*=max/w; w=max; }
+}else{
+if(h>max){ w*=max/h; h=max; }
+}
+
+canvas.width=w;
+canvas.height=h;
+ctx.drawImage(img,0,0,w,h);
+
+canvas.toBlob(blob=>{
+resolve(blob);
+},"image/jpeg",0.7);
+};
+
+img.src=URL.createObjectURL(file);
+});
+}
+
+/* 画像アップロード */
+async function uploadImage(file){
+const compressed=await compressImage(file);
+
+const formData=new FormData();
+formData.append("file",compressed);
+formData.append("upload_preset","usakira_upload");
+
+const res=await fetch(
+"https://api.cloudinary.com/v1_1/dfhevulda/image/upload",
+{method:"POST",body:formData}
+);
+
+const data=await res.json();
+return data.secure_url;
+}
+
+/* 保存 */
+document.getElementById("saveProfileBtn").onclick=async()=>{
+
+const file=document.getElementById("iconFile").files[0];
+
+let iconURL=iconInput.value;
+
+if(file){
+iconURL=await uploadImage(file);
+}
+
 localStorage.setItem("usakira_name",nameInput.value);
-localStorage.setItem("usakira_icon",iconInput.value);
+localStorage.setItem("usakira_icon",iconURL);
+
 alert("保存したよ 🐰");
 };
 
+/* スレ作成 */
 document.getElementById("createThreadBtn").onclick=async()=>{
 
 const title=document.getElementById("threadTitle").value.trim();
 
 if(!title) return alert("タイトルを書いてね");
+
+const now=Date.now();
 
 const newRef=await push(ref(db,"threads"),{
 
@@ -163,12 +233,11 @@ ownerId:userId,
 ownerName:nameInput.value||defaultName,
 ownerIcon:iconInput.value||defaultIcon,
 
-time:Date.now()
-
+time:now,
+lastTime:now   // ←追加
 });
 
 location.href="thread.html?id="+newRef.key;
-
 };
 
 const threadsBox=document.getElementById("threadsBox");
@@ -186,7 +255,7 @@ return;
 
 Object.entries(data)
 
-.sort((a,b)=>b[1].time-a[1].time)
+.sort((a,b)=>(b[1].lastTime||b[1].time)-(a[1].lastTime||a[1].time)) // ←変更
 
 .forEach(([id,t])=>{
 
@@ -242,7 +311,6 @@ delBtn.onclick=async()=>{
 if(confirm("このスレを削除する？（投稿も全部消える）")){
 
 await remove(ref(db,"threads/"+id));
-
 await remove(ref(db,"posts/"+id));
 
 }
