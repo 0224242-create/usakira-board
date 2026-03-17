@@ -379,6 +379,10 @@ document.getElementById("postStatus").textContent="";
 
 };
 
+  update(ref(db,"threads/"+threadId),{
+  lastTime:Date.now()
+});
+
 /* ファイル名表示 */
 
 document.getElementById("imageInput").onchange=e=>{
