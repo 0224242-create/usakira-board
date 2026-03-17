@@ -157,6 +157,18 @@ max-height:90%;
 </head>
 
 <body>
+<button onclick="history.back()">← 戻る</button>
+
+<div id="threadInfo" style="
+background:white;
+border-radius:12px;
+padding:12px;
+margin:10px;
+box-shadow:0 2px 6px rgba(0,0,0,0.1);
+">
+  <h2 id="threadTitle"></h2>
+  <div id="threadBody" style="white-space:pre-wrap;color:#555;"></div>
+</div>
 
 <div id="comments"></div>
 
@@ -182,6 +194,7 @@ max-height:90%;
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getDatabase, ref, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
 apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -424,7 +437,21 @@ document.getElementById("modalImg").src=src;
 document.getElementById("imageModal").style.display="flex";
 };
 
+/*追加した*/  
+async function loadThreadInfo(){
+
+  const snap = await get(ref(db,"threads/"+threadId));
+  const t = snap.val();
+
+  if(!t) return;
+
+  document.getElementById("threadTitle").textContent = t.title || "";
+  document.getElementById("threadBody").textContent = t.body || "";
+
+}
+
 loadComments();
+loadThreadInfo();
 
 </script>
 
