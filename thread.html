@@ -233,8 +233,8 @@ const list=Object.entries(data).sort((a,b)=>b[1].time-a[1].time);
 
 list.forEach(([key,c])=>{
 
-let text=c.text?escapeHtml(c.text):"";
-text=linkify(text);
+const rawText = c.text || "";
+const text = linkify(escapeHtml(rawText));
 
 html+=`<div class="comment">
 
@@ -250,7 +250,7 @@ ${c.time?new Date(c.time).toLocaleString():""}
 </div>
 
 <div class="actions">
-<button onclick="editComment('${key}',\`${text}\`)">編集</button>
+<button onclick="editComment('${key}',\`${rawText}\`)">編集</button>
 <button onclick="deleteComment('${key}')">削除</button>
 </div>
 
