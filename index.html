@@ -11,11 +11,21 @@ h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
 .admin-control-panel { display: flex; align-items: center; gap: 8px; }
 .admin-btn { font-size: 11px; padding: 4px 8px; background: #ffebeb; border: 1px solid #ffccd2; color: #d63031; font-weight: bold; border-radius: 4px; cursor: pointer; }
 .admin-btn:hover { background: #ffdadb; }
+.logout-btn { font-size: 11px; padding: 4px 8px; background: #f1f2f6; border: 1px solid #ced6e0; color: #2f3542; font-weight: bold; border-radius: 4px; cursor: pointer; }
+.logout-btn:hover { background: #e4e7eb; }
 .user-profile-badge { background: #e3ffd9; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #bce6ad; }
 .user-profile-badge img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
 
 #mainContainer { max-width: 800px; margin: 0 auto; padding: 16px; }
+
+/* 👤 プロフィール設定ボックスの装飾 */
+#profileSettingBox { background: white; padding: 16px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 14px; border: 1px solid #e1dbff; }
+#profileSettingBox h3 { margin: 0 0 10px 0; font-size: 14px; color: #6c5ce7; }
+.profile-inputs { display: flex; gap: 10px; flex-wrap: wrap; }
+.profile-inputs input { flex: 1; min-width: 150px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+
 #createThreadBox { background: white; padding: 16px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
+#createThreadBox h3 { margin-top: 0; }
 #createThreadBox input, #createThreadBox textarea { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
 #createThreadBox textarea { height: 80px; resize: vertical; }
 #submitThreadBtn { padding: 8px 16px; background: #4a3cff; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
@@ -45,6 +55,7 @@ h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
   <h1>🐰 うさきら掲示板 🐰</h1>
   <div class="admin-control-panel">
     <button id="adminLoginBtn" class="admin-btn">👑 管理者ログイン</button>
+    <button id="logoutBtn" class="logout-btn" style="display: none;">🚪 ログアウト</button>
     <div id="userBadge" class="user-profile-badge" style="display: none;">
       <img id="myIcon" src="">
       <span id="myName"></span>
@@ -53,6 +64,14 @@ h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
 </div>
 
 <div id="mainContainer">
+  <div id="profileSettingBox">
+    <h3>👤 あなたのプロフィール設定（いつでも変更できるぺこ）</h3>
+    <div class="profile-inputs">
+      <input id="customNameInput" type="text" placeholder="名前（未入力時は 名もなき兎）">
+      <input id="customIconInput" type="text" placeholder="アイコン画像URL（未入力時はデフォルト画像）">
+    </div>
+  </div>
+
   <div id="createThreadBox">
     <h3>新しいスレッドを立てるぺこ</h3>
     <input id="threadTitleInput" type="text" placeholder="スレッドのタイトル（100文字以内）">
@@ -65,7 +84,7 @@ h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
 import { getDatabase, ref, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
@@ -92,8 +111,25 @@ let isGlobalAdmin = false;
 let stopAdminListener = null;
 let stopThreadsListener = null;
 
+// ローカルストレージからユーザー設定を取得
 let userName = localStorage.getItem("usakira_name") || defaultName;
 let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+
+// 入力欄に現在の値を初期セット
+document.getElementById("customNameInput").value = localStorage.getItem("usakira_name") || "";
+document.getElementById("customIconInput").value = localStorage.getItem("usakira_icon") || "";
+
+// 入力が変更されたら即座に保存して反映するイベント
+document.getElementById("customNameInput").oninput = (e) => {
+  const val = e.target.value.trim();
+  userName = val || defaultName;
+  localStorage.setItem("usakira_name", val);
+};
+document.getElementById("customIconInput").oninput = (e) => {
+  const val = e.target.value.trim();
+  userIcon = val || defaultIcon;
+  localStorage.setItem("usakira_icon", val);
+};
 
 document.getElementById("adminLoginBtn").onclick = () => {
   if (!auth.currentUser) return;
@@ -112,14 +148,28 @@ document.getElementById("adminLoginBtn").onclick = () => {
     });
 };
 
-// 🛡️ URLの安全性を超シンプルに判定（javascript: などを完全ブロック）
+// 🚪 ログアウトボタンの処理
+document.getElementById("logoutBtn").onclick = async () => {
+  if (!confirm("ログアウトするぺこ？\n(一般ユーザー状態に戻る、または現在の管理セッションを終了します)")) return;
+  try {
+    if (stopAdminListener) stopAdminListener();
+    if (stopThreadsListener) stopThreadsListener();
+    await signOut(auth);
+    currentUid = null;
+    isGlobalAdmin = false;
+    alert("ログアウトしたよ！新しいセッションを再構築します 🚪");
+  } catch (error) {
+    console.error("Logout Error:", error);
+    alert("ログアウト中にエラーが発生しました。");
+  }
+};
+
 function isSafeUrl(urlStr) {
   if (!urlStr) return true;
   if (urlStr.startsWith("javascript:") || urlStr.startsWith("data:")) return false;
   return urlStr.startsWith("http://") || urlStr.startsWith("https://");
 }
 
-// 🛡️ どんなURLでも100%確実に、安全に自動リンク化する関数
 function renderTextWithLinks(targetElement, text) {
   targetElement.textContent = ""; 
   if (!text) return;
@@ -158,10 +208,14 @@ window.deleteThread = async (tId) => {
 
 onAuthStateChanged(auth, async user => {
   if (!user) {
+    document.getElementById("logoutBtn").style.display = "none";
+    document.getElementById("userBadge").style.display = "none";
+    document.getElementById("adminLoginBtn").style.display = "block";
     signInAnonymously(auth).catch(e => console.error("匿名ログイン失敗:", e));
     return;
   }
   currentUid = user.uid;
+  document.getElementById("logoutBtn").style.display = "block"; // ログアウトボタンを常時可視化
 
   if (stopAdminListener) stopAdminListener();
 
@@ -170,15 +224,19 @@ onAuthStateChanged(auth, async user => {
     const isGoogleLinked = user.providerData.some(p => p.providerId === "google.com");
 
     if (!isGoogleLinked) {
-      userName = localStorage.getItem("usakira_name") || defaultName;
-      userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+      // 一般（匿名）ユーザーの場合：設定されたカスタムプロフィールを適用
+      userName = document.getElementById("customNameInput").value.trim() || defaultName;
+      userIcon = document.getElementById("customIconInput").value.trim() || defaultIcon;
       document.getElementById("adminLoginBtn").style.display = "block";
       document.getElementById("userBadge").style.display = "none";
+      document.getElementById("profileSettingBox").style.display = "block"; // 設定欄を表示
     } else {
+      // Google（管理者）ユーザーの場合
       const googleProfile = user.providerData.find(p => p.providerId === "google.com");
       userName = googleProfile.displayName || "管理者";
       userIcon = googleProfile.photoURL || defaultIcon;
       document.getElementById("adminLoginBtn").style.display = "none";
+      document.getElementById("profileSettingBox").style.display = "none"; // 管理者は設定欄を隠す
       
       const nameEl = document.getElementById("myName");
       const iconEl = document.getElementById("myIcon");
@@ -204,6 +262,7 @@ function loadThreads() {
       return;
     }
 
+    // 🔥 最終投稿順（lastTimeの降順）で完全にソート（新しいコメントがついたスレが1番上にくる）
     const sortedThreads = Object.entries(data).sort((a, b) => (b[1].lastTime || 0) - (a[1].lastTime || 0));
 
     sortedThreads.forEach(([key, t]) => {
@@ -239,7 +298,7 @@ function loadThreads() {
       footer.classList.add("thread-footer");
       
       const lastUpdateSpan = document.createElement("span");
-      lastUpdateSpan.textContent = t.lastTime ? `最終更新: ${new Date(t.lastTime).toLocaleString()}` : "";
+      lastUpdateSpan.textContent = t.lastTime ? `最新の投稿: ${new Date(t.lastTime).toLocaleString()}` : "";
       footer.appendChild(lastUpdateSpan);
 
       if (isGlobalAdmin) {
