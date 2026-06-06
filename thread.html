@@ -5,40 +5,47 @@
 <title>スレッド詳細</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-body{ margin:0; font-family:sans-serif; background:linear-gradient(#ffffff,#e8dcff); }
-#threadHeaderArea { background: white; padding: 16px; border-bottom: 2px solid #dcd6ff; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+/* 🌙 ダークモードの全体ベース設定 */
+body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a1625); color: #e0d9f0; min-height: 100vh; }
+#threadHeaderArea { background: #1c142c; padding: 16px; border-bottom: 2px solid #3d2d5a; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
 .header-main { flex: 1; min-width: 250px; }
-#threadHeaderArea h1 { margin: 0 0 8px 0; font-size: 1.6rem; color: #4a3cff; }
-#threadHeaderArea .thread-body { font-size: 14px; color: #444; white-space: pre-wrap; background: #f9f7ff; padding: 10px; border-radius: 8px; }
-#threadHeaderArea .thread-body a { color: #4a3cff; text-decoration: underline; }
+#threadHeaderArea h1 { margin: 0 0 8px 0; font-size: 1.6rem; color: #9d88ff; text-shadow: 0 0 10px rgba(157, 136, 255, 0.3); }
+#threadHeaderArea .thread-body { font-size: 14px; color: #c3b8e0; white-space: pre-wrap; background: #251b3a; padding: 10px; border-radius: 8px; border: 1px solid #3d2d5a; }
+#threadHeaderArea .thread-body a { color: #9d88ff; text-decoration: underline; }
 
 .admin-control-panel { display: flex; align-items: center; gap: 8px; }
-.admin-btn { font-size: 11px; padding: 4px 8px; background: #ffebeb; border: 1px solid #ffccd2; color: #d63031; font-weight: bold; border-radius: 4px; cursor: pointer; }
-.admin-btn:hover { background: #ffdadb; }
-.user-profile-badge { background: #e3ffd9; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #bce6ad; }
+.admin-btn { font-size: 11px; padding: 4px 8px; background: #3a1c28; border: 1px solid #632337; color: #ff6b81; font-weight: bold; border-radius: 4px; cursor: pointer; }
+.admin-btn:hover { background: #4d2233; }
+.user-profile-badge { background: #1c3322; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #2d5a39; color: #a2f0b5; }
 .user-profile-badge img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
 
-#comments{ padding:16px; padding-bottom:110px; }
-.comment{ background:white; border-radius:12px; padding:14px; margin-bottom:14px; box-shadow:0 3px 6px rgba(0,0,0,0.12); border: 1px solid #e1dbff; }
+#comments{ padding:16px; padding-bottom:120px; }
+.comment{ background: #1c142c; border-radius:12px; padding:14px; margin-bottom:14px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border: 1px solid #32254f; }
 .header{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
-.icon{ width:36px; height:36px; border-radius:50%; object-fit:cover; }
-.name{ font-weight:bold; font-size:15px; }
-.time{ font-size:12px; color:#777; margin-left:4px; }
+.icon{ width:36px; height:36px; border-radius:50%; object-fit:cover; border: 1px solid #4a3f66; }
+.name{ font-weight:bold; font-size:15px; color: #ffffff; }
+.time{ font-size:12px; color:#7d7299; margin-left:4px; }
 .actions{ margin-left:auto; display:flex; gap:5px; }
-.actions button { font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
-.btn-delete { background: #f1f2f6; color: #333; }
-.btn-admin-delete { background: #d63031; color: white; border: 1px solid #c23616 !important; font-weight: bold; }
-.text{ font-size:15px; line-height:1.4; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; }
-.comment-text-container a{ color:#4a3cff; text-decoration: underline; word-break:break-all; }
+.actions button { font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid #4a3f66; }
+.btn-delete { background: #2d2640; color: #c3b8e0; }
+.btn-delete:hover { background: #3d3457; }
+.btn-admin-delete { background: #892224; color: white; border: 1px solid #b33939 !important; font-weight: bold; }
+.btn-admin-delete:hover { background: #b33939; }
+.text{ font-size:15px; line-height:1.4; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; color: #e0d9f0; }
+.comment-text-container a{ color:#9d88ff; text-decoration: underline; word-break:break-all; }
 
-.comment-img{ max-width:220px; border-radius:8px; margin-top:6px; cursor:pointer; display:block; }
-#commentBox{ position:fixed; bottom:0; left:0; width:100%; background:white; padding:6px; box-shadow:0 -2px 5px rgba(0,0,0,0.1); display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
-#commentInput{ flex:1; padding:7px; font-size:14px; min-width:150px; }
-#imageInput{ font-size:12px; }
-#fileName{ font-size:12px; color:#555; }
-#postBtn{ padding:7px 10px; font-size:13px; }
-#postBtn:disabled { background: #ccc; color: #666; cursor: not-allowed; }
-#postStatus{ font-size:12px; color:green; }
+.comment-img{ max-width:220px; border-radius:8px; margin-top:6px; cursor:pointer; display:block; border: 1px solid #3d2d5a; }
+
+/* 📥 下部固定コメントフォーム（ダーク） */
+#commentBox{ position:fixed; bottom:0; left:0; width:100%; background:#1c142c; padding:10px 6px; box-shadow:0 -4px 20px rgba(0,0,0,0.4); display:flex; align-items:center; gap:5px; flex-wrap:wrap; border-top: 1px solid #3d2d5a; box-sizing: border-box; }
+#commentInput{ flex:1; padding:7px; font-size:14px; min-width:150px; background: #251b3a; border: 1px solid #4a3f66; color: #fff; border-radius: 6px; }
+#commentInput::placeholder { color: #7d7299; }
+#imageInput{ font-size:12px; color: #c3b8e0; }
+#fileName{ font-size:12px; color:#a29bfe; }
+#postBtn{ padding:7px 14px; font-size:13px; background: #6c5ce7; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+#postBtn:hover { background: #5b4cc4; }
+#postBtn:disabled { background: #3d3754; color: #777; cursor: not-allowed; }
+#postStatus{ font-size:12px; color:#a2f0b5; }
 </style>
 </head>
 <body>
@@ -68,8 +75,8 @@ body{ margin:0; font-family:sans-serif; background:linear-gradient(#ffffff,#e8dc
 <span id="postStatus"></span>
 </div>
 
-<div id="imageModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:9999;" onclick="this.style.display='none'">
-<img id="modalImg" style="max-width:90%; max-height:90%;">
+<div id="imageModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:none; align-items:center; justify-content:center; z-index:9999;" onclick="this.style.display='none'">
+<img id="modalImg" style="max-width:90%; max-height:90%; border: 2px solid #4a3f66; border-radius: 8px;">
 </div>
 
 <script type="module">
@@ -135,14 +142,12 @@ document.getElementById("adminLoginBtn").onclick = () => {
     });
 };
 
-// 🛡️ URLの安全性を超シンプルに判定（javascript: などを完全ブロック）
 function isSafeUrl(urlStr) {
   if (!urlStr) return true;
   if (urlStr.startsWith("javascript:") || urlStr.startsWith("data:")) return false;
   return urlStr.startsWith("http://") || urlStr.startsWith("https://");
 }
 
-// 🛡️ どんなURLでも100%確実に、安全に自動リンク化する関数
 function renderTextWithLinks(targetElement, text) {
   targetElement.textContent = ""; 
   if (!text) return;
