@@ -2,40 +2,57 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>スレッド</title>
+<title>スレッド詳細</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 body{ margin:0; font-family:sans-serif; background:linear-gradient(#ffffff,#e8dcff); }
-#threadHeaderArea { background: white; padding: 16px; border-bottom: 2px solid #dcd6ff; margin-bottom: 10px; }
+#threadHeaderArea { background: white; padding: 16px; border-bottom: 2px solid #dcd6ff; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+.header-main { flex: 1; min-width: 250px; }
 #threadHeaderArea h1 { margin: 0 0 8px 0; font-size: 1.6rem; color: #4a3cff; }
 #threadHeaderArea .thread-body { font-size: 14px; color: #444; white-space: pre-wrap; background: #f9f7ff; padding: 10px; border-radius: 8px; }
+.admin-control-panel { display: flex; align-items: center; gap: 8px; }
+.admin-btn { font-size: 11px; padding: 4px 8px; background: #ffebeb; border: 1px solid #ffccd2; color: #d63031; font-weight: bold; border-radius: 4px; cursor: pointer; }
+.admin-btn:hover { background: #ffdadb; }
+.user-profile-badge { background: #e3ffd9; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #bce6ad; }
+.user-profile-badge img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.user-profile-badge .uid-alert { color: #d63031; font-weight: bold; user-select: all; }
 #comments{ padding:16px; padding-bottom:110px; }
-.comment{ background:white; border-radius:12px; padding:14px; margin-bottom:14px; box-shadow:0 3px 6px rgba(0,0,0,0.12); }
+.comment{ background:white; border-radius:12px; padding:14px; margin-bottom:14px; box-shadow:0 3px 6px rgba(0,0,0,0.12); border: 1px solid #e1dbff; }
 .header{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
 .icon{ width:36px; height:36px; border-radius:50%; object-fit:cover; }
 .name{ font-weight:bold; font-size:15px; }
 .time{ font-size:12px; color:#777; margin-left:4px; }
 .actions{ margin-left:auto; display:flex; gap:5px; }
-.actions button{ font-size:12px; padding:3px 6px; }
+.actions button { font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
+.btn-delete { background: #f1f2f6; color: #333; }
+.btn-admin-delete { background: #d63031; color: white; border: 1px solid #c23616 !important; font-weight: bold; }
 .text{ font-size:15px; line-height:1.4; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; }
-.comment img{ max-width:220px; border-radius:8px; margin-top:6px; cursor:pointer; }
-.edit{ font-size:12px; color:gray; margin-top:3px; }
+.comment-img{ max-width:220px; border-radius:8px; margin-top:6px; cursor:pointer; display:block; }
 #commentBox{ position:fixed; bottom:0; left:0; width:100%; background:white; padding:6px; box-shadow:0 -2px 5px rgba(0,0,0,0.1); display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
 #commentInput{ flex:1; padding:7px; font-size:14px; min-width:150px; }
 #imageInput{ font-size:12px; }
 #fileName{ font-size:12px; color:#555; }
 #postBtn{ padding:7px 10px; font-size:13px; }
+#postBtn:disabled { background: #ccc; color: #666; cursor: not-allowed; }
 #postStatus{ font-size:12px; color:green; }
-a{ color:#5a4cff; word-break:break-all; }
-#imageModal{ position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; }
-#imageModal img{ max-width:90%; max-height:90%; }
+.comment-text-container a{ color:#5a4cff; word-break:break-all; }
 </style>
 </head>
 <body>
 
 <div id="threadHeaderArea">
-<h1 id="mainThreadTitle">読み込み中…</h1>
-<div id="mainThreadBody" class="thread-body" style="display:none;"></div>
+  <div class="header-main">
+    <h1 id="mainThreadTitle">読み込み中…</h1>
+    <div id="mainThreadBody" class="thread-body" style="display:none;"></div>
+  </div>
+  
+  <div class="admin-control-panel">
+    <button id="adminLoginBtn" class="admin-btn">👑 管理者ログイン</button>
+    <div id="userBadge" class="user-profile-badge" style="display: none;">
+      <img id="myIcon" src="">
+      <span id="myName"></span>
+    </div>
+  </div>
 </div>
 
 <div id="comments"></div>
@@ -48,13 +65,13 @@ a{ color:#5a4cff; word-break:break-all; }
 <span id="postStatus"></span>
 </div>
 
-<div id="imageModal" onclick="this.style.display='none'">
-<img id="modalImg">
+<div id="imageModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:9999;" onclick="this.style.display='none'">
+<img id="modalImg" style="max-width:90%; max-height:90%;">
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
 import { getDatabase, ref, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
@@ -70,42 +87,79 @@ const firebaseConfig={
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
 const db=getDatabase(app);
+const googleProvider = new GoogleAuthProvider();
 
 const params=new URLSearchParams(location.search);
 const threadId=params.get("id");
+const idRegex = /^[A-Za-z0-9_-]{10,128}$/;
+
+if (!threadId || !idRegex.test(threadId)) {
+  alert("不正なスレッドIDです。トップページに戻ります。");
+  location.href = "index.html";
+}
 
 const commentsRef=ref(db,"posts/"+threadId);
 
 const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
 
-const userName=localStorage.getItem("usakira_name")||defaultName;
-const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
-
 let currentUid = null;
+let currentThreadOwnerId = null;
+let isGlobalAdmin = false;
 
-signInAnonymously(auth).catch(error => { console.error(error); });
+let stopAdminListener = null;
+let stopThreadListener = null;
+let stopCommentsListener = null;
 
-// 🛡️ チャッピーの指摘：文末の閉じカッコなどを少しだけ考慮したURL正規表現に微改善
-function linkify(text){
-  const urlRegex=/https?:\/\/[^\s)]+/g;
-  return text.replace(urlRegex,url=>{ return `<a href="${url}" target="_blank">${url}</a>`; });
+let userName = localStorage.getItem("usakira_name") || defaultName;
+let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+
+document.getElementById("adminLoginBtn").onclick = () => {
+  if (!auth.currentUser) return;
+  
+  linkWithPopup(auth.currentUser, googleProvider)
+    .then(() => { alert("管理者アカウントとの統合に成功したよ！ 🐰✨"); })
+    .catch(error => {
+      if (error.code === "auth/credential-already-in-use" || error.code === "auth/account-exists-with-different-credential") {
+        const credential = GoogleAuthProvider.credentialFromError(error);
+        if (credential) {
+          alert("このGoogleアカウントは既に登録されています。既存の管理者セッションへ切り替えます 👑");
+          signInWithCredential(auth, credential).catch(e => alert("サインイン失敗: " + e.message));
+        }
+      } else {
+        alert("ログインエラー: " + error.code);
+      }
+    });
+};
+
+function renderTextWithLinks(targetElement, text) {
+  targetElement.textContent = ""; 
+  const urlRegex = /(https?:\/\/[^\s)]+)/g;
+  const parts = text.split(urlRegex);
+
+  parts.forEach(part => {
+    if (part.match(urlRegex) && isSafeUrl(part)) {
+      const anchor = document.createElement("a");
+      anchor.href = part;
+      anchor.textContent = part;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      targetElement.appendChild(anchor);
+    } else {
+      targetElement.appendChild(document.createTextNode(part));
+    }
+  });
 }
 
-function escapeHtml(str){
-  if(!str)return "";
-  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
-
-// 🛡️ チャッピー監修：悪質なURLスキームを弾く安全検証関数
 function isSafeUrl(urlStr) {
   if (!urlStr) return true;
+  if (!urlStr.includes("://") && !urlStr.startsWith("//") && !urlStr.startsWith("javascript:") && !urlStr.startsWith("data:")) return true;
+
   try {
     const u = new URL(urlStr);
-    return ["http:", "https:"].includes(u.protocol);
-  } catch {
-    return !urlStr.startsWith("javascript:") && !urlStr.startsWith("data:");
-  }
+    if (!["http:", "https:"].includes(u.protocol)) return false;
+    return u.hostname === "res.cloudinary.com" || u.hostname === "googleusercontent.com" || u.hostname.endsWith(".googleusercontent.com");
+  } catch { return false; }
 }
 
 window.openImage = (src) => {
@@ -125,13 +179,43 @@ window.deleteComment = async (commentId) => {
 };
 
 onAuthStateChanged(auth, async user => {
-  if (!user) return;
+  if (!user) {
+    signInAnonymously(auth).catch(e => console.error("匿名ログイン失敗:", e));
+    return;
+  }
   currentUid = user.uid;
 
-  /* スレッド情報のロード */
-  onValue(ref(db, "threads/" + threadId), snap => {
+  if (stopAdminListener) stopAdminListener();
+
+  stopAdminListener = onValue(ref(db, "admins/" + currentUid), adminSnap => {
+    isGlobalAdmin = adminSnap.val() === true;
+    const isGoogleLinked = user.providerData.some(p => p.providerId === "google.com");
+
+    if (!isGoogleLinked) {
+      userName = localStorage.getItem("usakira_name") || defaultName;
+      userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+      document.getElementById("adminLoginBtn").style.display = "block";
+      document.getElementById("userBadge").style.display = "none";
+    } else {
+      const googleProfile = user.providerData.find(p => p.providerId === "google.com");
+      userName = googleProfile.displayName || "管理者";
+      userIcon = googleProfile.photoURL || defaultIcon;
+      document.getElementById("adminLoginBtn").style.display = "none";
+      
+      const nameEl = document.getElementById("myName");
+      const iconEl = document.getElementById("myIcon");
+      nameEl.textContent = isGlobalAdmin ? userName + " (管理人公認) 👑" : "統合完了UID: " + currentUid;
+      iconEl.src = isSafeUrl(userIcon) ? userIcon : defaultIcon;
+      document.getElementById("userBadge").style.display = "flex";
+    }
+  });
+
+  if (stopThreadListener) stopThreadListener();
+  
+  stopThreadListener = onValue(ref(db, "threads/" + threadId), snap => {
     const t = snap.val();
     if(t) {
+      currentThreadOwnerId = t.ownerId;
       document.getElementById("mainThreadTitle").textContent = t.title;
       if(t.body && t.body.trim() !== "") {
         document.getElementById("mainThreadBody").textContent = t.body;
@@ -148,56 +232,109 @@ onAuthStateChanged(auth, async user => {
 });
 
 function loadComments(){
-  onValue(commentsRef,snap=>{
-    const data=snap.val();
-    let html="";
-    if(data){
-      const list=Object.entries(data).sort((a,b)=>b[1].time-a[1].time);
+  if (stopCommentsListener) stopCommentsListener();
 
-      list.forEach(([key,c]) => {
-        const text = linkify(escapeHtml(c.text || ""));
-        let actionButtons = "";
-        
-        if(c.userId === currentUid) {
-          actionButtons = `
-            <div class="actions">
-              <button onclick="deleteComment('${key}')">削除</button>
-            </div>
-          `;
+  stopCommentsListener = onValue(commentsRef, snap => {
+    const data = snap.val();
+    const commentsContainer = document.getElementById("comments");
+    commentsContainer.textContent = ""; 
+
+    if (data) {
+      const list = Object.entries(data).sort((a,b) => b[1].time - a[1].time);
+
+      list.forEach(([key, c]) => {
+        const commentDiv = document.createElement("div");
+        commentDiv.classList.add("comment");
+
+        const headerDiv = document.createElement("div");
+        headerDiv.classList.add("header");
+
+        const iconImg = document.createElement("img");
+        iconImg.classList.add("icon");
+        const safeIcon = (isSafeUrl(c.icon) && (c.icon || "").length <= 1000) ? (c.icon || defaultIcon) : defaultIcon;
+        iconImg.src = safeIcon;
+        iconImg.onerror = () => { iconImg.src = defaultIcon; };
+
+        const nameDiv = document.createElement("div");
+        nameDiv.classList.add("name");
+        nameDiv.textContent = c.name || "名もなき兎";
+
+        const timeSpan = document.createElement("span");
+        timeSpan.classList.add("time");
+        timeSpan.textContent = c.time ? " " + new Date(c.time).toLocaleString() : "";
+        nameDiv.appendChild(timeSpan);
+
+        headerDiv.appendChild(iconImg);
+        headerDiv.appendChild(nameDiv);
+
+        if (isGlobalAdmin) {
+          const actionsDiv = document.createElement("div");
+          actionsDiv.classList.add("actions");
+          const btn = document.createElement("button");
+          btn.classList.add("btn-admin-delete");
+          btn.textContent = "👑 管理削除";
+          btn.onclick = () => window.deleteComment(key);
+          actionsDiv.appendChild(btn);
+          headerDiv.appendChild(actionsDiv);
+        } else if (c.userId === currentUid || currentThreadOwnerId === currentUid) {
+          const actionsDiv = document.createElement("div");
+          actionsDiv.classList.add("actions");
+          const btn = document.createElement("button");
+          btn.classList.add("btn-delete");
+          btn.textContent = "🗑 削除";
+          btn.onclick = () => window.deleteComment(key);
+          actionsDiv.appendChild(btn);
+          headerDiv.appendChild(actionsDiv);
         }
 
-        // 🛡️ XSS防止のため、アイコンURLと画像URLの安全性をチェック
-        const safeIcon = (isSafeUrl(c.icon) && (c.icon || "").length <= 1000) ? (c.icon || defaultIcon) : defaultIcon;
-        const showImage = (c.image && isSafeUrl(c.image) && c.image.length <= 1000);
+        const textDiv = document.createElement("div");
+        textDiv.classList.add("text", "comment-text-container");
+        renderTextWithLinks(textDiv, c.text || "");
 
-        html+=`<div class="comment">
-          <div class="header">
-            <img class="icon" src="${safeIcon}" onerror="this.src='${defaultIcon}'">
-            <div class="name">
-              ${escapeHtml(c.name)||defaultName}
-              <span class="time">${c.time?new Date(c.time).toLocaleString():""}</span>
-            </div>
-            ${actionButtons}
-          </div>
-          <div class="text">${text}</div>
-          ${showImage?`<img src="${c.image}" onclick="openImage('${c.image}')">`:""}
-        </div>`;
+        commentDiv.appendChild(headerDiv);
+        commentDiv.appendChild(textDiv);
+
+        if (c.image && isSafeUrl(c.image) && c.image.length <= 1000) {
+          const commentImg = document.createElement("img");
+          commentImg.classList.add("comment-img");
+          commentImg.src = c.image;
+          commentImg.onclick = () => window.openImage(c.image);
+          commentDiv.appendChild(commentImg);
+        }
+
+        commentsContainer.appendChild(commentDiv);
       });
     }
-    document.getElementById("comments").innerHTML=html;
   });
 }
 
 function compressImage(file){
-  return new Promise(resolve=>{
-    const img=new Image(); const canvas=document.createElement("canvas"); const ctx=canvas.getContext("2d");
+  return new Promise((resolve, reject) => {
+    const img=new Image(); 
+    const canvas=document.createElement("canvas"); 
+    const ctx=canvas.getContext("2d");
+    const objectUrl = URL.createObjectURL(file);
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("画像の読み込みに失敗しました。"));
+    };
+
     img.onload=()=>{
       let w=img.width; let h=img.height; const max=1000;
       if(w>h){ if(w>max){ h*=max/w; w=max; } }else{ if(h>max){ w*=max/h; h=max; } }
       canvas.width=w; canvas.height=h; ctx.drawImage(img,0,0,w,h);
-      canvas.toBlob(blob=>{ resolve(blob); },"image/jpeg",0.7);
+      
+      canvas.toBlob(blob=>{ 
+        URL.revokeObjectURL(objectUrl);
+        if (!blob) {
+          reject(new Error("画像の圧縮処理に失敗しました。"));
+          return;
+        }
+        resolve(blob); 
+      },"image/jpeg",0.7);
     };
-    img.src=URL.createObjectURL(file);
+    img.src=objectUrl;
   });
 }
 
@@ -206,52 +343,60 @@ async function uploadImage(file){
   const formData=new FormData();
   formData.append("file",compressed);
   formData.append("upload_preset","usakira_upload");
+  
   const res=await fetch("https://api.cloudinary.com/v1_1/dfhevulda/image/upload",{method:"POST",body:formData});
+  if(!res.ok) throw new Error(`Upload Failed: Status ${res.status}`);
+  
   const data=await res.json();
+  if(!data.secure_url) throw new Error("Missing secure_url");
   return data.secure_url;
 }
 
 document.getElementById("postBtn").onclick=async()=>{
   if(!currentUid) return alert("ログイン処理中です");
+  
+  const postBtn = document.getElementById("postBtn");
   const text=document.getElementById("commentInput").value.trim();
   const file=document.getElementById("imageInput").files[0];
   
   if(!text && !file){ alert("コメントか画像を入れてください"); return; }
   if(text.length > 1000){ alert("コメントは1000文字以内にしてね"); return; }
+  if(file && file.size > 5 * 1024 * 1024) return alert("画像ファイルは5MB以下にしてね 🐰❌");
 
-  // 🛡️ Cloudinary防衛線：フロントでの5MB制限
-  if(file && file.size > 5 * 1024 * 1024){
-    alert("画像ファイルは5MB以下にしてね 🐰❌");
-    return;
+  postBtn.disabled = true;
+  document.getElementById("postStatus").textContent="投稿処理中...";
+
+  try {
+    let imageURL="";
+    if(file) imageURL=await uploadImage(file); 
+
+    if (imageURL && (imageURL.length > 1000 || !isSafeUrl(imageURL))) {
+      throw new Error("Malicious or invalid image URL detected.");
+    }
+
+    await push(commentsRef,{
+      text:text,
+      image:imageURL,
+      time:Date.now(),
+      name:userName.substring(0, 50),
+      icon:userIcon,
+      userId:currentUid
+    });
+
+    await update(ref(db, "threads/" + threadId), { lastTime: Date.now() });
+
+    document.getElementById("commentInput").value="";
+    document.getElementById("imageInput").value="";
+    document.getElementById("fileName").textContent="";
+    document.getElementById("postStatus").textContent="投稿しました！";
+    setTimeout(()=>{ document.getElementById("postStatus").textContent=""; },2000);
+
+  } catch (error) {
+    console.error("Post Error:", error);
+    alert(error.message || "投稿に失敗しました。");
+  } finally {
+    postBtn.disabled = false;
   }
-
-  let imageURL="";
-  if(file){ imageURL=await uploadImage(file); }
-
-  // 🛡️ ルール側の拡張（1000文字）と安全検証（isSafeUrl）に完全に合わせた投稿処理
-  if (imageURL && (imageURL.length > 1000 || !isSafeUrl(imageURL))) {
-    return alert("画像のアップロードURLに異常が検出されました");
-  }
-  if (userIcon && (userIcon.length > 1000 || !isSafeUrl(userIcon))) {
-    return alert("プロフィールのアイコンURLに異常があります。再設定してください。");
-  }
-
-  await push(commentsRef,{
-    text:text,
-    image:imageURL,
-    time:Date.now(),
-    name:userName.substring(0, 50),
-    icon:userIcon,
-    userId:currentUid
-  });
-
-  update(ref(db, "threads/" + threadId), { lastTime: Date.now() });
-
-  document.getElementById("commentInput").value="";
-  document.getElementById("imageInput").value="";
-  document.getElementById("fileName").textContent="";
-  document.getElementById("postStatus").textContent="投稿しました！";
-  setTimeout(()=>{ document.getElementById("postStatus").textContent=""; },2000);
 };
 
 document.getElementById("imageInput").onchange=e=>{
