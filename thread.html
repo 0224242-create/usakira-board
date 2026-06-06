@@ -10,7 +10,6 @@ body{ margin:0; font-family:sans-serif; background:linear-gradient(#ffffff,#e8dc
 .header-main { flex: 1; min-width: 250px; }
 #threadHeaderArea h1 { margin: 0 0 8px 0; font-size: 1.6rem; color: #4a3cff; }
 #threadHeaderArea .thread-body { font-size: 14px; color: #444; white-space: pre-wrap; background: #f9f7ff; padding: 10px; border-radius: 8px; }
-/* 🔗 スレ本文内の自動リンクの装飾 */
 #threadHeaderArea .thread-body a { color: #4a3cff; text-decoration: underline; }
 
 .admin-control-panel { display: flex; align-items: center; gap: 8px; }
@@ -30,7 +29,6 @@ body{ margin:0; font-family:sans-serif; background:linear-gradient(#ffffff,#e8dc
 .btn-delete { background: #f1f2f6; color: #333; }
 .btn-admin-delete { background: #d63031; color: white; border: 1px solid #c23616 !important; font-weight: bold; }
 .text{ font-size:15px; line-height:1.4; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; }
-/* 🔗 コメント内の自動リンクの装飾 */
 .comment-text-container a{ color:#4a3cff; text-decoration: underline; word-break:break-all; }
 
 .comment-img{ max-width:220px; border-radius:8px; margin-top:6px; cursor:pointer; display:block; }
@@ -137,37 +135,33 @@ document.getElementById("adminLoginBtn").onclick = () => {
     });
 };
 
+// 🛡️ URLの安全性を超シンプルに判定（javascript: などを完全ブロック）
 function isSafeUrl(urlStr) {
   if (!urlStr) return true;
-  if (!urlStr.includes("://") && !urlStr.startsWith("//") && !urlStr.startsWith("javascript:") && !urlStr.startsWith("data:")) return true;
-
-  try {
-    const u = new URL(urlStr);
-    if (!["http:", "https:"].includes(u.protocol)) return false;
-function isSafeUrl(urlStr) {
-  if (!urlStr) return true;
-  // javascript: や data: などの危険な形式の実行を絶対にブロックする
   if (urlStr.startsWith("javascript:") || urlStr.startsWith("data:")) return false;
   return urlStr.startsWith("http://") || urlStr.startsWith("https://");
-}  } catch { return false; }
 }
 
-// 🛡️ XSSを完全に防ぎつつURLを安全に自動リンク化するDOM関数
+// 🛡️ どんなURLでも100%確実に、安全に自動リンク化する関数
 function renderTextWithLinks(targetElement, text) {
   targetElement.textContent = ""; 
   if (!text) return;
 
-  const urlRegex = /(https?:\/\/[^\s)]+)/g;
+  const urlRegex = /(https?:\/\/[^\s<]+)/g;
   const parts = text.split(urlRegex);
 
   parts.forEach(part => {
-    if (part.match(urlRegex) && isSafeUrl(part)) {
-      const anchor = document.createElement("a");
-      anchor.href = part;
-      anchor.textContent = part;
-      anchor.target = "_blank";
-      anchor.rel = "noopener noreferrer";
-      targetElement.appendChild(anchor);
+    if (part.startsWith("http://") || part.startsWith("https://")) {
+      if (isSafeUrl(part)) {
+        const anchor = document.createElement("a");
+        anchor.href = part;
+        anchor.textContent = part;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        targetElement.appendChild(anchor);
+      } else {
+        targetElement.appendChild(document.createTextNode(part));
+      }
     } else {
       targetElement.appendChild(document.createTextNode(part));
     }
@@ -230,7 +224,6 @@ onAuthStateChanged(auth, async user => {
       currentThreadOwnerId = t.ownerId;
       document.getElementById("mainThreadTitle").textContent = t.title;
       if(t.body && t.body.trim() !== "") {
-        // ✨ スレッド詳細画面の「スレ本文」のURLも自動的にリンク化
         renderTextWithLinks(document.getElementById("mainThreadBody"), t.body);
         document.getElementById("mainThreadBody").style.display = "block";
       } else {
@@ -302,7 +295,6 @@ function loadComments(){
 
         const textDiv = document.createElement("div");
         textDiv.classList.add("text", "comment-text-container");
-        // ✨ コメント本文内のURLを自動的にリンク化して表示
         renderTextWithLinks(textDiv, c.text || "");
 
         commentDiv.appendChild(headerDiv);
@@ -397,7 +389,6 @@ document.getElementById("postBtn").onclick=async()=>{
       userId:currentUid
     });
 
-    // 🛡️ 例外ルールが適用されたため、一般ユーザーでも安全にlastTimeの更新が通過します！
     await update(ref(db, "threads/" + threadId), { lastTime: Date.now() });
 
     document.getElementById("commentInput").value="";
