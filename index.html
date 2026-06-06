@@ -5,47 +5,54 @@
 <title>うさきら掲示板 - スレッド一覧</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-body{ margin:0; font-family:sans-serif; background:linear-gradient(#ffffff,#e8dcff); min-height: 100vh; }
-#headerArea { background: white; padding: 16px; border-bottom: 2px solid #dcd6ff; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
+/* 🌙 ダークモードの全体ベース設定 */
+body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a1625); color: #e0d9f0; min-height: 100vh; }
+#headerArea { background: #1c142c; padding: 16px; border-bottom: 2px solid #3d2d5a; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+h1 { margin: 0; font-size: 1.5rem; color: #9d88ff; text-shadow: 0 0 10px rgba(157, 136, 255, 0.3); }
 .admin-control-panel { display: flex; align-items: center; gap: 8px; }
-.admin-btn { font-size: 11px; padding: 4px 8px; background: #ffebeb; border: 1px solid #ffccd2; color: #d63031; font-weight: bold; border-radius: 4px; cursor: pointer; }
-.admin-btn:hover { background: #ffdadb; }
-.logout-btn { font-size: 11px; padding: 4px 8px; background: #f1f2f6; border: 1px solid #ced6e0; color: #2f3542; font-weight: bold; border-radius: 4px; cursor: pointer; }
-.logout-btn:hover { background: #e4e7eb; }
-.user-profile-badge { background: #e3ffd9; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #bce6ad; }
+.admin-btn { font-size: 11px; padding: 4px 8px; background: #3a1c28; border: 1px solid #632337; color: #ff6b81; font-weight: bold; border-radius: 4px; cursor: pointer; }
+.admin-btn:hover { background: #4d2233; }
+.logout-btn { font-size: 11px; padding: 4px 8px; background: #2d2640; border: 1px solid #4a3f66; color: #c3b8e0; font-weight: bold; border-radius: 4px; cursor: pointer; }
+.logout-btn:hover { background: #3d3457; }
+.user-profile-badge { background: #1c3322; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #2d5a39; color: #a2f0b5; }
 .user-profile-badge img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
 
 #mainContainer { max-width: 800px; margin: 0 auto; padding: 16px; }
 
-/* 👤 プロフィール設定ボックスの装飾 */
-#profileSettingBox { background: white; padding: 16px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 14px; border: 1px solid #e1dbff; }
-#profileSettingBox h3 { margin: 0 0 10px 0; font-size: 14px; color: #6c5ce7; }
+/* 👤 プロフィール設定ボックス（ダーク） */
+#profileSettingBox { background: #1c142c; padding: 16px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 14px; border: 1px solid #3d2d5a; }
+#profileSettingBox h3 { margin: 0 0 10px 0; font-size: 14px; color: #b39eff; }
 .profile-inputs { display: flex; gap: 10px; flex-wrap: wrap; }
-.profile-inputs input { flex: 1; min-width: 150px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+.profile-inputs input { flex: 1; min-width: 150px; padding: 6px 10px; background: #251b3a; border: 1px solid #4a3f66; border-radius: 6px; font-size: 13px; color: #fff; }
+.profile-inputs input::placeholder { color: #7d7299; }
 
-#createThreadBox { background: white; padding: 16px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
-#createThreadBox h3 { margin-top: 0; }
-#createThreadBox input, #createThreadBox textarea { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+/* ✍️ スレ作成ボックス（ダーク） */
+#createThreadBox { background: #1c142c; padding: 16px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); margin-bottom: 20px; border: 1px solid #3d2d5a; }
+#createThreadBox h3 { margin-top: 0; color: #e0d9f0; }
+#createThreadBox input, #createThreadBox textarea { width: 100%; padding: 8px; margin-bottom: 10px; background: #251b3a; border: 1px solid #4a3f66; border-radius: 6px; box-sizing: border-box; font-size: 14px; color: #fff; }
+#createThreadBox input::placeholder, #createThreadBox textarea::placeholder { color: #7d7299; }
 #createThreadBox textarea { height: 80px; resize: vertical; }
-#submitThreadBtn { padding: 8px 16px; background: #4a3cff; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
-#submitThreadBtn:disabled { background: #ccc; cursor: not-allowed; }
+#submitThreadBtn { padding: 8px 16px; background: #6c5ce7; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(108, 92, 231, 0.4); }
+#submitThreadBtn:hover { background: #5b4cc4; }
+#submitThreadBtn:disabled { background: #3d3754; color: #777; cursor: not-allowed; box-shadow: none; }
 
-#threadList { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); min-height: 100px; }
-.thread-card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 3px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px; position: relative; border: 1px solid #e1dbff; }
-.thread-header { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #666; }
-.thread-header img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
-.thread-title-link { font-size: 1.2rem; font-weight: bold; color: #333; text-decoration: none; word-break: break-all; }
-.thread-title-link:hover { color: #4a3cff; text-decoration: underline; }
-.thread-body-preview { font-size: 14px; color: #555; white-space: pre-wrap; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.thread-body-preview a { color: #4a3cff; text-decoration: underline; }
-.thread-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #999; margin-top: 4px; }
+/* 🗂️ スレ一覧・カード（ダーク） */
+#threadList { background: transparent; min-height: 100px; }
+.thread-card { background: #1c142c; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 8px; position: relative; border: 1px solid #32254f; }
+.thread-card:hover { border-color: #4a3a75; }
+.thread-header { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #a29bfe; }
+.thread-header img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; border: 1px solid #4a3f66; }
+.thread-title-link { font-size: 1.2rem; font-weight: bold; color: #ffffff; text-decoration: none; word-break: break-all; }
+.thread-title-link:hover { color: #b39eff; text-decoration: underline; }
+.thread-body-preview { font-size: 14px; color: #c3b8e0; white-space: pre-wrap; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.thread-body-preview a { color: #9d88ff; text-decoration: underline; }
+.thread-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #7d7299; margin-top: 4px; }
 
 .thread-actions { display: flex; gap: 6px; }
-.thread-actions button { font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
-.btn-thread-delete { background: #f1f2f6; color: #333; }
-.btn-thread-delete:hover { background: #dfe4ea; }
-.btn-thread-admin-delete { background: #d63031; color: white; border: 1px solid #c23616 !important; font-weight: bold; }
+.thread-actions button { font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid #4a3f66; }
+.btn-thread-delete { background: #2d2640; color: #c3b8e0; }
+.btn-thread-delete:hover { background: #3d3457; }
+.btn-thread-admin-delete { background: #892224; color: white; border: 1px solid #b33939 !important; font-weight: bold; }
 .btn-thread-admin-delete:hover { background: #b33939; }
 </style>
 </head>
@@ -111,15 +118,12 @@ let isGlobalAdmin = false;
 let stopAdminListener = null;
 let stopThreadsListener = null;
 
-// ローカルストレージからユーザー設定を取得
 let userName = localStorage.getItem("usakira_name") || defaultName;
 let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
 
-// 入力欄に現在の値を初期セット
 document.getElementById("customNameInput").value = localStorage.getItem("usakira_name") || "";
 document.getElementById("customIconInput").value = localStorage.getItem("usakira_icon") || "";
 
-// 入力が変更されたら即座に保存して反映するイベント
 document.getElementById("customNameInput").oninput = (e) => {
   const val = e.target.value.trim();
   userName = val || defaultName;
@@ -148,7 +152,6 @@ document.getElementById("adminLoginBtn").onclick = () => {
     });
 };
 
-// 🚪 ログアウトボタンの処理
 document.getElementById("logoutBtn").onclick = async () => {
   if (!confirm("ログアウトするぺこ？\n(一般ユーザー状態に戻る、または現在の管理セッションを終了します)")) return;
   try {
@@ -215,7 +218,7 @@ onAuthStateChanged(auth, async user => {
     return;
   }
   currentUid = user.uid;
-  document.getElementById("logoutBtn").style.display = "block"; // ログアウトボタンを常時可視化
+  document.getElementById("logoutBtn").style.display = "block";
 
   if (stopAdminListener) stopAdminListener();
 
@@ -224,19 +227,17 @@ onAuthStateChanged(auth, async user => {
     const isGoogleLinked = user.providerData.some(p => p.providerId === "google.com");
 
     if (!isGoogleLinked) {
-      // 一般（匿名）ユーザーの場合：設定されたカスタムプロフィールを適用
       userName = document.getElementById("customNameInput").value.trim() || defaultName;
       userIcon = document.getElementById("customIconInput").value.trim() || defaultIcon;
       document.getElementById("adminLoginBtn").style.display = "block";
       document.getElementById("userBadge").style.display = "none";
-      document.getElementById("profileSettingBox").style.display = "block"; // 設定欄を表示
+      document.getElementById("profileSettingBox").style.display = "block";
     } else {
-      // Google（管理者）ユーザーの場合
       const googleProfile = user.providerData.find(p => p.providerId === "google.com");
       userName = googleProfile.displayName || "管理者";
       userIcon = googleProfile.photoURL || defaultIcon;
       document.getElementById("adminLoginBtn").style.display = "none";
-      document.getElementById("profileSettingBox").style.display = "none"; // 管理者は設定欄を隠す
+      document.getElementById("profileSettingBox").style.display = "none";
       
       const nameEl = document.getElementById("myName");
       const iconEl = document.getElementById("myIcon");
@@ -262,7 +263,6 @@ function loadThreads() {
       return;
     }
 
-    // 🔥 最終投稿順（lastTimeの降順）で完全にソート（新しいコメントがついたスレが1番上にくる）
     const sortedThreads = Object.entries(data).sort((a, b) => (b[1].lastTime || 0) - (a[1].lastTime || 0));
 
     sortedThreads.forEach(([key, t]) => {
