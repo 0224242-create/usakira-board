@@ -31,7 +31,6 @@ input,textarea{ padding:6px; margin:4px 0; width:100%; box-sizing:border-box; bo
 <h2>スレッド作成</h2>
 <input id="threadTitle" placeholder="タイトル（100文字以内）">
 <textarea id="threadBody" placeholder="本文（5000文字以内・任意）"></textarea>
-<input id="threadPass" placeholder="鍵スレのパスワード（任意）">
 <button id="createThreadBtn">スレッドを作る</button>
 
 <hr>
@@ -42,9 +41,8 @@ input,textarea{ padding:6px; margin:4px 0; width:100%; box-sizing:border-box; bo
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, update, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-// あなたのFirebaseプロジェクト用に完全に最適化したConfigです
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   authDomain: "keijiban-7c651.firebaseapp.com",
@@ -67,17 +65,22 @@ let threadsCachedData = {};
 
 signInAnonymously(auth).catch(error => { console.error("ログインエラー:", error); });
 
-async function sha256(text) {
-  const msgBuffer = new TextEncoder().encode(text);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 const nameInput=document.getElementById("nameInput");
 const iconInput=document.getElementById("iconInput");
 nameInput.value=localStorage.getItem("usakira_name")||defaultName;
 iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
+
+// 🛡️ チャッピー監修：悪質なURLスキームを弾く安全検証関数
+function isSafeUrl(urlStr) {
+  if (!urlStr) return true; // 空は許可（defaultIconが使われるため）
+  try {
+    const u = new URL(urlStr);
+    return ["http:", "https:"].includes(u.protocol);
+  } catch {
+    // 相対パス（例: usagi.png.jpeg）などの場合は、壊れたURLでなければセーフとする
+    return !urlStr.startsWith("javascript:") && !urlStr.startsWith("data:");
+  }
+}
 
 document.getElementById("iconFile").onchange=e=>{
   const file=e.target.files[0];
@@ -109,10 +112,20 @@ async function uploadImage(file){
 
 document.getElementById("saveProfileBtn").onclick=async()=>{
   const file=document.getElementById("iconFile").files[0];
-  let iconURL=iconInput.value;
-  if(file){ iconURL=await uploadImage(file); }
-  localStorage.setItem("usakira_name",nameInput.value);
-  localStorage.setItem("usakira_icon",iconURL);
+  let iconURL=iconInput.value.trim();
+  
+  if(file){ 
+    iconURL=await uploadImage(file); 
+  }
+
+  // 🛡️ 悪質なURLの保存を水際でブロック
+  if (!isSafeUrl(iconURL) || iconURL.length > 1000) {
+    alert("無効なアイコンURLです 🐰❌");
+    return;
+  }
+
+  localStorage.setItem("usakira_name", nameInput.value);
+  localStorage.setItem("usakira_icon", iconURL);
   alert("保存したよ 🐰");
 };
 
@@ -120,51 +133,31 @@ document.getElementById("createThreadBtn").onclick=async()=>{
   if(!currentUid) return alert("ログイン処理中です");
   const title=document.getElementById("threadTitle").value.trim();
   const body=document.getElementById("threadBody").value;
+  const ownerIcon = iconInput.value.trim();
   
   if(!title) return alert("タイトルを書いてね");
   if(title.length > 100) return alert("タイトルは100文字以内にしてね");
   if(body.length > 5000) return alert("本文は5000文字以内にしてね");
+  if(ownerIcon.length > 1000 || !isSafeUrl(ownerIcon)) return alert("無効なアイコンURLです");
   
-  const rawPass = document.getElementById("threadPass").value;
-  const hashedPass = rawPass ? await sha256(rawPass) : null;
   const now=Date.now();
 
-  const newRef=await push(ref(db,"threads"),{
-    title:title,
-    body:body,
-    hasPass: !!hashedPass,
-    ownerId:currentUid,
-    ownerName:nameInput.value||defaultName,
-    ownerIcon:iconInput.value||defaultIcon,
-    time:now,
-    lastTime:now
+  // 🛡️ ルール側のvalidateを満たすため、型が確実に揃ったオブジェクトを送信
+  await push(ref(db,"threads"),{
+    title: title,
+    body: body,
+    ownerId: currentUid,
+    ownerName: (nameInput.value || defaultName).substring(0, 50),
+    ownerIcon: ownerIcon || defaultIcon,
+    time: now,
+    lastTime: now
   });
 
-  if(hashedPass) {
-    await update(ref(db, `threadPasswords/${newRef.key}`), { hash: hashedPass });
-    await update(ref(db, `posts/${newRef.key}/_authCheck`), { key: hashedPass });
-  }
-
-  location.href="thread.html?id="+newRef.key;
+  document.getElementById("threadTitle").value = "";
+  document.getElementById("threadBody").value = "";
 };
 
-window.openThread = async (id, hasPass) => {
-  if (hasPass) {
-    const pw = prompt("このスレは鍵付きだよ 🔒 パスワードを入力してね");
-    if (!pw) return;
-    const hashedInput = await sha256(pw);
-    try {
-      const authSnap = await get(ref(db, `posts/${id}/_authCheck/key`));
-      if (!authSnap.exists() || authSnap.val() !== hashedInput) {
-        alert("パスワードが違うよ 🐰");
-        return;
-      }
-      sessionStorage.setItem("room_auth_" + id, hashedInput);
-    } catch (e) {
-      alert("アクセス権限がありません 🐰");
-      return;
-    }
-  }
+window.openThread = (id) => {
   location.href = "thread.html?id=" + id;
 };
 
@@ -179,17 +172,15 @@ window.editThreadTitle = async (id, oldTitle) => {
   }
 };
 
-// 🧹 チャッピー提案：一括同時削除（マルチロケーションアップデート） ＆ フロントUXガード
 window.deleteThread = async (id) => {
   const thread = threadsCachedData[id];
   if(!thread || thread.ownerId !== currentUid) return alert("削除権限がありません 🐰");
 
-  if(confirm("このスレを削除する？（投稿もパスワードも一撃で全消去されます）")){
+  if(confirm("このスレを削除する？（投稿も一撃で全消去されます）")){
     try {
       const updates = {};
       updates[`threads/${id}`] = null;
       updates[`posts/${id}`] = null;
-      updates[`threadPasswords/${id}`] = null;
 
       await update(ref(db), updates);
       alert("すべて綺麗に削除したよ 🐰🧹");
@@ -219,8 +210,11 @@ onAuthStateChanged(auth, user => {
         Object.entries(data)
         .sort((a,b)=>(b[1].lastTime||b[1].time)-(a[1].lastTime||a[1].time))
         .forEach(([id,t])=>{
-          let commentCount = postsData[id] ? Object.keys(postsData[id]).length : 0;
-          if(postsData[id] && postsData[id]._authCheck) commentCount--; 
+          // 🛡️ チャッピーの指摘：メタデータ等に影響されないよう、userIdを持つ投稿データのみを正確にカウント
+          let commentCount = 0;
+          if (postsData[id]) {
+            commentCount = Object.values(postsData[id]).filter(p => p && p.userId).length;
+          }
 
           const div=document.createElement("div");
           div.className="thread-item";
@@ -238,10 +232,10 @@ onAuthStateChanged(auth, user => {
 
           div.innerHTML = `
             <div class="thread-main">
-              <a onclick="openThread('${id}', ${!!t.hasPass})">
-                ${t.hasPass ? "🔒 " : ""}${escapedTitle}
+              <a onclick="openThread('${id}')">
+                ${escapedTitle}
               </a>
-              <span class="comment-count">(${commentCount < 0 ? 0 : commentCount})</span>
+              <span class="comment-count">(${commentCount})</span>
             </div>
             ${actionButtons}
           `;
