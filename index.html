@@ -5,75 +5,16 @@
 <h1 class="title">🐰うさ★キラ掲示板✨️</h1>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
-.title{
-font-size:2.4rem;
-font-weight:bold;
-color:white;
--webkit-text-stroke:2px #9b8cff;
-text-shadow:0 0 8px #dcd6ff;
-text-align:center;
-}
-
-body{
-font-family:"Hiragino Kaku Gothic ProN",sans-serif;
-background:linear-gradient(180deg,#ffffff,#f2edff);
-padding:20px;
-color:#222
-}
-
-button{
-padding:6px 10px;
-margin:4px;
-border-radius:6px;
-cursor:pointer
-}
-
-input,textarea{
-padding:6px;
-margin:4px 0;
-width:100%;
-box-sizing:border-box;
-border-radius:6px;
-border:1px solid #ccc
-}
-
-/* スレッド一覧をシンプルな見出しスタイルに変更 */
-.thread-item {
-padding:12px 8px;
-border-bottom:1px solid #dcd6ff;
-display:flex;
-align-items:center;
-justify-content:between;
-gap:10px;
-}
-
-.thread-main {
-flex:1;
-font-size:1.1rem;
-}
-
-.thread-main a {
-color:#4a3cff;
-text-decoration:none;
-font-weight:bold;
-cursor:pointer;
-}
-
-.thread-main a:hover {
-text-decoration:underline;
-}
-
-.comment-count {
-font-size:0.85rem;
-color:#777;
-margin-left:8px;
-}
-
-.thread-actions button {
-font-size:0.75rem;
-padding:3px 6px;
-margin:0 2px;
-}
+.title{ font-size:2.4rem; font-weight:bold; color:white; -webkit-text-stroke:2px #9b8cff; text-shadow:0 0 8px #dcd6ff; text-align:center; }
+body{ font-family:"Hiragino Kaku Gothic ProN",sans-serif; background:linear-gradient(180deg,#ffffff,#f2edff); padding:20px; color:#222 }
+button{ padding:6px 10px; margin:4px; border-radius:6px; cursor:pointer }
+input,textarea{ padding:6px; margin:4px 0; width:100%; box-sizing:border-box; border-radius:6px; border:1px solid #ccc }
+.thread-item { padding:12px 8px; border-bottom:1px solid #dcd6ff; display:flex; align-items:center; justify-content:between; gap:10px; }
+.thread-main { flex:1; font-size:1.1rem; }
+.thread-main a { color:#4a3cff; text-decoration:none; font-weight:bold; cursor:pointer; }
+.thread-main a:hover { text-decoration:underline; }
+.comment-count { font-size:0.85rem; color:#777; margin-left:8px; }
+.thread-actions button { font-size:0.75rem; padding:3px 6px; margin:0 2px; }
 </style>
 </head>
 <body>
@@ -88,169 +29,227 @@ margin:0 2px;
 <hr>
 
 <h2>スレッド作成</h2>
-<input id="threadTitle" placeholder="タイトル">
-<textarea id="threadBody" placeholder="本文（任意）"></textarea>
+<input id="threadTitle" placeholder="タイトル（100文字以内）">
+<textarea id="threadBody" placeholder="本文（5000文字以内・任意）"></textarea>
 <input id="threadPass" placeholder="鍵スレのパスワード（任意）">
 <button id="createThreadBtn">スレッドを作る</button>
 
 <hr>
 
 <h2>スレッド一覧</h2>
-<div id="threadsBox">読み込み中…</div>
+<div id="threadsBox">ログイン中…</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+import { getDatabase, ref, onValue, push, update, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
+// あなたのFirebaseプロジェクト用に完全に最適化したConfigです
 const firebaseConfig={
-apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
+  apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+  authDomain: "keijiban-7c651.firebaseapp.com",
+  projectId: "keijiban-7c651",
+  storageBucket: "keijiban-7c651.appspot.com",
+  messagingSenderId: "587652395561",
+  appId: "1:587652395561:web:ddf858fdf84df2438491c3",
+  databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
 
 const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
 const db=getDatabase(app);
 
 const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
 
-let userId=localStorage.getItem("usakira_userId");
-if(!userId){
-userId="user_"+Math.random().toString(36).slice(2);
-localStorage.setItem("usakira_userId",userId);
+let currentUid = null;
+let threadsCachedData = {}; 
+
+signInAnonymously(auth).catch(error => { console.error("ログインエラー:", error); });
+
+async function sha256(text) {
+  const msgBuffer = new TextEncoder().encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 const nameInput=document.getElementById("nameInput");
 const iconInput=document.getElementById("iconInput");
-
 nameInput.value=localStorage.getItem("usakira_name")||defaultName;
 iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
 
 document.getElementById("iconFile").onchange=e=>{
-const file=e.target.files[0];
-document.getElementById("iconFileName").textContent=file?file.name:"";
+  const file=e.target.files[0];
+  document.getElementById("iconFileName").textContent=file?file.name:"";
 };
 
 function compressImage(file){
-return new Promise(resolve=>{
-const img=new Image();
-const canvas=document.createElement("canvas");
-const ctx=canvas.getContext("2d");
-img.onload=()=>{
-let w=img.width; let h=img.height; const max=500;
-if(w>h){ if(w>max){ h*=max/w; w=max; } }else{ if(h>max){ w*=max/h; h=max; } }
-canvas.width=w; canvas.height=h;
-ctx.drawImage(img,0,0,w,h);
-canvas.toBlob(blob=>{ resolve(blob); },"image/jpeg",0.7);
-};
-img.src=URL.createObjectURL(file);
-});
+  return new Promise(resolve=>{
+    const img=new Image(); const canvas=document.createElement("canvas"); const ctx=canvas.getContext("2d");
+    img.onload=()=>{
+      let w=img.width; let h=img.height; const max=500;
+      if(w>h){ if(w>max){ h*=max/w; w=max; } }else{ if(h>max){ w*=max/h; h=max; } }
+      canvas.width=w; canvas.height=h; ctx.drawImage(img,0,0,w,h);
+      canvas.toBlob(blob=>{ resolve(blob); },"image/jpeg",0.7);
+    };
+    img.src=URL.createObjectURL(file);
+  });
 }
 
 async function uploadImage(file){
-const compressed=await compressImage(file);
-const formData=new FormData();
-formData.append("file",compressed);
-formData.append("upload_preset","usakira_upload");
-const res=await fetch("https://api.cloudinary.com/v1_1/dfhevulda/image/upload",{method:"POST",body:formData});
-const data=await res.json();
-return data.secure_url;
+  const compressed=await compressImage(file);
+  const formData=new FormData();
+  formData.append("file",compressed);
+  formData.append("upload_preset","usakira_upload");
+  const res=await fetch("https://api.cloudinary.com/v1_1/dfhevulda/image/upload",{method:"POST",body:formData});
+  const data=await res.json();
+  return data.secure_url;
 }
 
 document.getElementById("saveProfileBtn").onclick=async()=>{
-const file=document.getElementById("iconFile").files[0];
-let iconURL=iconInput.value;
-if(file){ iconURL=await uploadImage(file); }
-localStorage.setItem("usakira_name",nameInput.value);
-localStorage.setItem("usakira_icon",iconURL);
-alert("保存したよ 🐰");
+  const file=document.getElementById("iconFile").files[0];
+  let iconURL=iconInput.value;
+  if(file){ iconURL=await uploadImage(file); }
+  localStorage.setItem("usakira_name",nameInput.value);
+  localStorage.setItem("usakira_icon",iconURL);
+  alert("保存したよ 🐰");
 };
 
 document.getElementById("createThreadBtn").onclick=async()=>{
-const title=document.getElementById("threadTitle").value.trim();
-if(!title) return alert("タイトルを書いてね");
-const now=Date.now();
-const newRef=await push(ref(db,"threads"),{
-title:title,
-body:document.getElementById("threadBody").value,
-pass:document.getElementById("threadPass").value||null,
-ownerId:userId,
-ownerName:nameInput.value||defaultName,
-ownerIcon:iconInput.value||defaultIcon,
-time:now,
-lastTime:now
-});
-location.href="thread.html?id="+newRef.key;
+  if(!currentUid) return alert("ログイン処理中です");
+  const title=document.getElementById("threadTitle").value.trim();
+  const body=document.getElementById("threadBody").value;
+  
+  if(!title) return alert("タイトルを書いてね");
+  if(title.length > 100) return alert("タイトルは100文字以内にしてね");
+  if(body.length > 5000) return alert("本文は5000文字以内にしてね");
+  
+  const rawPass = document.getElementById("threadPass").value;
+  const hashedPass = rawPass ? await sha256(rawPass) : null;
+  const now=Date.now();
+
+  const newRef=await push(ref(db,"threads"),{
+    title:title,
+    body:body,
+    hasPass: !!hashedPass,
+    ownerId:currentUid,
+    ownerName:nameInput.value||defaultName,
+    ownerIcon:iconInput.value||defaultIcon,
+    time:now,
+    lastTime:now
+  });
+
+  if(hashedPass) {
+    await update(ref(db, `threadPasswords/${newRef.key}`), { hash: hashedPass });
+    await update(ref(db, `posts/${newRef.key}/_authCheck`), { key: hashedPass });
+  }
+
+  location.href="thread.html?id="+newRef.key;
 };
 
-// グローバル関数を定義（Moduleスコープ外から呼べるようにする）
-window.openThread = (id, hasPass, correctPass) => {
-if(hasPass){
-const pw=prompt("このスレは鍵付きだよ 🔒");
-if(pw!==correctPass){ alert("パスワードが違うよ"); return; }
-}
-location.href="thread.html?id="+id;
+window.openThread = async (id, hasPass) => {
+  if (hasPass) {
+    const pw = prompt("このスレは鍵付きだよ 🔒 パスワードを入力してね");
+    if (!pw) return;
+    const hashedInput = await sha256(pw);
+    try {
+      const authSnap = await get(ref(db, `posts/${id}/_authCheck/key`));
+      if (!authSnap.exists() || authSnap.val() !== hashedInput) {
+        alert("パスワードが違うよ 🐰");
+        return;
+      }
+      sessionStorage.setItem("room_auth_" + id, hashedInput);
+    } catch (e) {
+      alert("アクセス権限がありません 🐰");
+      return;
+    }
+  }
+  location.href = "thread.html?id=" + id;
 };
 
 window.editThreadTitle = async (id, oldTitle) => {
-const newTitle = prompt("スレッドのタイトルを編集", oldTitle);
-if(newTitle && newTitle.trim() !== ""){
-await update(ref(db, "threads/" + id), { title: newTitle.trim() });
-}
+  const thread = threadsCachedData[id];
+  if(!thread || thread.ownerId !== currentUid) return alert("編集権限がありません 🐰");
+
+  const newTitle = prompt("スレッドのタイトルを編集", oldTitle);
+  if(newTitle && newTitle.trim() !== ""){
+    if(newTitle.trim().length > 100) return alert("100文字以内にしてね");
+    await update(ref(db, "threads/" + id), { title: newTitle.trim() });
+  }
 };
 
+// 🧹 チャッピー提案：一括同時削除（マルチロケーションアップデート） ＆ フロントUXガード
 window.deleteThread = async (id) => {
-if(confirm("このスレを削除する？（投稿も全部消える）")){
-await remove(ref(db,"threads/"+id));
-await remove(ref(db,"posts/"+id));
-}
+  const thread = threadsCachedData[id];
+  if(!thread || thread.ownerId !== currentUid) return alert("削除権限がありません 🐰");
+
+  if(confirm("このスレを削除する？（投稿もパスワードも一撃で全消去されます）")){
+    try {
+      const updates = {};
+      updates[`threads/${id}`] = null;
+      updates[`posts/${id}`] = null;
+      updates[`threadPasswords/${id}`] = null;
+
+      await update(ref(db), updates);
+      alert("すべて綺麗に削除したよ 🐰🧹");
+    } catch (error) {
+      console.error(error);
+      alert("削除に失敗しました。");
+    }
+  }
 };
 
 const threadsBox=document.getElementById("threadsBox");
 
-// 全体の投稿（posts）データを監視してコメント数をリアルタイム計算する
-onValue(ref(db,"posts"), postsSnap => {
-const postsData = postsSnap.val() || {};
+onAuthStateChanged(auth, user => {
+  if (user) {
+    currentUid = user.uid;
+    
+    onValue(ref(db,"posts"), postsSnap => {
+      const postsData = postsSnap.val() || {};
 
-onValue(ref(db,"threads"),snap=>{
-threadsBox.innerHTML="";
-const data=snap.val();
-if(!data){ threadsBox.innerHTML="<p>まだスレがないよ 🐰</p>"; return; }
+      onValue(ref(db,"threads"),snap=>{
+        threadsBox.innerHTML="";
+        const data=snap.val() || {};
+        threadsCachedData = data; 
+        
+        if(Object.keys(data).length === 0){ threadsBox.innerHTML="<p>まだスレがないよ 🐰</p>"; return; }
 
-Object.entries(data)
-.sort((a,b)=>(b[1].lastTime||b[1].time)-(a[1].lastTime||a[1].time))
-.forEach(([id,t])=>{
-// このスレッドのコメント数をカウント
-const commentCount = postsData[id] ? Object.keys(postsData[id]).length : 0;
+        Object.entries(data)
+        .sort((a,b)=>(b[1].lastTime||b[1].time)-(a[1].lastTime||a[1].time))
+        .forEach(([id,t])=>{
+          let commentCount = postsData[id] ? Object.keys(postsData[id]).length : 0;
+          if(postsData[id] && postsData[id]._authCheck) commentCount--; 
 
-const div=document.createElement("div");
-div.className="thread-item";
+          const div=document.createElement("div");
+          div.className="thread-item";
+          const escapedTitle = t.title.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
-// セキュリティ対策（HTMLエスケープ）
-const escapedTitle = t.title.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+          let actionButtons = "";
+          if(t.ownerId === currentUid) {
+            actionButtons = `
+              <div class="thread-actions">
+                <button onclick="editThreadTitle('${id}', '${escapedTitle.replace(/'/g, "\\'")}')">編集</button>
+                <button onclick="deleteThread('${id}')">削除</button>
+              </div>
+            `;
+          }
 
-let actionButtons = "";
-// 自分が作ったスレッドなら「編集」「削除」ボタンを表示
-if(t.ownerId === userId) {
-actionButtons = `
-<div class="thread-actions">
-<button onclick="editThreadTitle('${id}', '${escapedTitle.replace(/'/g, "\\'")}')">編集</button>
-<button onclick="deleteThread('${id}')">削除</button>
-</div>
-`;
-}
-
-div.innerHTML = `
-<div class="thread-main">
-<a onclick="openThread('${id}', ${!!t.pass}, '${t.pass || ''}')">
-${t.pass ? "🔒 " : ""}${escapedTitle}
-</a>
-<span class="comment-count">(${commentCount})</span>
-</div>
-${actionButtons}
-`;
-threadsBox.appendChild(div);
-});
-});
+          div.innerHTML = `
+            <div class="thread-main">
+              <a onclick="openThread('${id}', ${!!t.hasPass})">
+                ${t.hasPass ? "🔒 " : ""}${escapedTitle}
+              </a>
+              <span class="comment-count">(${commentCount < 0 ? 0 : commentCount})</span>
+            </div>
+            ${actionButtons}
+          `;
+          threadsBox.appendChild(div);
+        });
+      });
+    });
+  }
 });
 </script>
 </body>
