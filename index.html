@@ -70,14 +70,12 @@ const iconInput=document.getElementById("iconInput");
 nameInput.value=localStorage.getItem("usakira_name")||defaultName;
 iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
 
-// 🛡️ チャッピー監修：悪質なURLスキームを弾く安全検証関数
 function isSafeUrl(urlStr) {
-  if (!urlStr) return true; // 空は許可（defaultIconが使われるため）
+  if (!urlStr) return true;
   try {
     const u = new URL(urlStr);
     return ["http:", "https:"].includes(u.protocol);
   } catch {
-    // 相対パス（例: usagi.png.jpeg）などの場合は、壊れたURLでなければセーフとする
     return !urlStr.startsWith("javascript:") && !urlStr.startsWith("data:");
   }
 }
@@ -118,7 +116,6 @@ document.getElementById("saveProfileBtn").onclick=async()=>{
     iconURL=await uploadImage(file); 
   }
 
-  // 🛡️ 悪質なURLの保存を水際でブロック
   if (!isSafeUrl(iconURL) || iconURL.length > 1000) {
     alert("無効なアイコンURLです 🐰❌");
     return;
@@ -142,7 +139,6 @@ document.getElementById("createThreadBtn").onclick=async()=>{
   
   const now=Date.now();
 
-  // 🛡️ ルール側のvalidateを満たすため、型が確実に揃ったオブジェクトを送信
   await push(ref(db,"threads"),{
     title: title,
     body: body,
@@ -172,21 +168,25 @@ window.editThreadTitle = async (id, oldTitle) => {
   }
 };
 
+// 🧹 チャッピー監修：スレ削除ボタンを押したときの処理
 window.deleteThread = async (id) => {
   const thread = threadsCachedData[id];
+  // 自分が立てたスレッド（ownerIdが一致）かチェック
   if(!thread || thread.ownerId !== currentUid) return alert("削除権限がありません 🐰");
 
-  if(confirm("このスレを削除する？（投稿も一撃で全消去されます）")){
+  if(confirm("このスレッドを削除するぺこ？（中のコメントもすべて道連れで消去されます）")){
     try {
+      // 🛡️ マルチロケーション更新（アトミックアップデート）
+      // threads側とposts側を「まったく同じ瞬間」にnull（削除）にすることで、ルールに弾かれずに全消去します
       const updates = {};
       updates[`threads/${id}`] = null;
       updates[`posts/${id}`] = null;
 
       await update(ref(db), updates);
-      alert("すべて綺麗に削除したよ 🐰🧹");
+      alert("スレッドとコメントをすべて綺麗に削除したよ 🐰🧹✨");
     } catch (error) {
       console.error(error);
-      alert("削除に失敗しました。");
+      alert("削除に失敗しました。権限エラーの可能性があります。");
     }
   }
 };
@@ -210,7 +210,6 @@ onAuthStateChanged(auth, user => {
         Object.entries(data)
         .sort((a,b)=>(b[1].lastTime||b[1].time)-(a[1].lastTime||a[1].time))
         .forEach(([id,t])=>{
-          // 🛡️ チャッピーの指摘：メタデータ等に影響されないよう、userIdを持つ投稿データのみを正確にカウント
           let commentCount = 0;
           if (postsData[id]) {
             commentCount = Object.values(postsData[id]).filter(p => p && p.userId).length;
@@ -221,6 +220,7 @@ onAuthStateChanged(auth, user => {
           const escapedTitle = t.title.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
           let actionButtons = "";
+          // 🛡️ 自分が立てたスレッドにだけ「編集」と「削除」ボタンを出現させる
           if(t.ownerId === currentUid) {
             actionButtons = `
               <div class="thread-actions">
