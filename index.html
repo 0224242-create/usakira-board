@@ -2,46 +2,72 @@
 <html>
 <head>
 <meta charset="utf-8">
-<h1 class="title">🐰うさ★キラ掲示板✨️</h1>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>うさきら掲示板 - スレッド一覧</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-.title{ font-size:2.4rem; font-weight:bold; color:white; -webkit-text-stroke:2px #9b8cff; text-shadow:0 0 8px #dcd6ff; text-align:center; }
-body{ font-family:"Hiragino Kaku Gothic ProN",sans-serif; background:linear-gradient(180deg,#ffffff,#f2edff); padding:20px; color:#222 }
-button{ padding:6px 10px; margin:4px; border-radius:6px; cursor:pointer }
-input,textarea{ padding:6px; margin:4px 0; width:100%; box-sizing:border-box; border-radius:6px; border:1px solid #ccc }
-.thread-item { padding:12px 8px; border-bottom:1px solid #dcd6ff; display:flex; align-items:center; justify-content:between; gap:10px; }
-.thread-main { flex:1; font-size:1.1rem; }
-.thread-main a { color:#4a3cff; text-decoration:none; font-weight:bold; cursor:pointer; }
-.thread-main a:hover { text-decoration:underline; }
-.comment-count { font-size:0.85rem; color:#777; margin-left:8px; }
-.thread-actions button { font-size:0.75rem; padding:3px 6px; margin:0 2px; }
+body{ margin:0; font-family:sans-serif; background:linear-gradient(#ffffff,#e8dcff); min-height: 100vh; }
+#headerArea { background: white; padding: 16px; border-bottom: 2px solid #dcd6ff; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
+.admin-control-panel { display: flex; align-items: center; gap: 8px; }
+.admin-btn { font-size: 11px; padding: 4px 8px; background: #ffebeb; border: 1px solid #ffccd2; color: #d63031; font-weight: bold; border-radius: 4px; cursor: pointer; }
+.admin-btn:hover { background: #ffdadb; }
+.user-profile-badge { background: #e3ffd9; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #bce6ad; }
+.user-profile-badge img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+
+/* メインレイアウト */
+#mainContainer { max-width: 800px; margin: 0 auto; padding: 16px; }
+#createThreadBox { background: white; padding: 16px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
+#createThreadBox input, #createThreadBox textarea { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+#createThreadBox textarea { height: 80px; resize: vertical; }
+#submitThreadBtn { padding: 8px 16px; background: #4a3cff; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+#submitThreadBtn:disabled { background: #ccc; cursor: not-allowed; }
+
+/* スレッド一覧 */
+.thread-card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 3px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px; position: relative; }
+.thread-header { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #666; }
+.thread-header img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+.thread-title-link { font-size: 1.2rem; font-weight: bold; color: #333; text-decoration: none; word-break: break-all; }
+.thread-title-link:hover { color: #4a3cff; text-decoration: underline; }
+.thread-body-preview { font-size: 14px; color: #555; white-space: pre-wrap; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.thread-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #999; margin-top: 4px; }
+
+/* 🛠️ 削除ボタンのスタイリング */
+.thread-actions { display: flex; gap: 6px; }
+.thread-actions button { font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
+.btn-thread-delete { background: #f1f2f6; color: #333; }
+.btn-thread-delete:hover { background: #dfe4ea; }
+.btn-thread-admin-delete { background: #d63031; color: white; border: 1px solid #c23616 !important; font-weight: bold; }
+.btn-thread-admin-delete:hover { background: #b33939; }
 </style>
 </head>
 <body>
 
-<h3>プロフィール</h3>
-<input id="nameInput" placeholder="名前">
-<input id="iconInput" placeholder="アイコンURL">
-<input type="file" id="iconFile" accept="image/*">
-<span id="iconFileName"></span>
-<button id="saveProfileBtn">保存</button>
+<div id="headerArea">
+  <h1>🐰 うさきら掲示板 🐰</h1>
+  <div class="admin-control-panel">
+    <button id="adminLoginBtn" class="admin-btn">👑 管理者ログイン</button>
+    <div id="userBadge" class="user-profile-badge" style="display: none;">
+      <img id="myIcon" src="">
+      <span id="myName"></span>
+    </div>
+  </div>
+</div>
 
-<hr>
+<div id="mainContainer">
+  <div id="createThreadBox">
+    <h3>新しいスレッドを立てるぺこ</h3>
+    <input id="threadTitleInput" type="text" placeholder="スレッドのタイトル（100px・100文字以内）">
+    <textarea id="threadBodyInput" placeholder="スレッドの本文（任意・5000文字以内）"></textarea>
+    <button id="submitThreadBtn">スレッドを作成</button>
+  </div>
 
-<h2>スレッド作成</h2>
-<input id="threadTitle" placeholder="タイトル（100文字以内）">
-<textarea id="threadBody" placeholder="本文（5000文字以内・任意）"></textarea>
-<button id="createThreadBtn">スレッドを作る</button>
-
-<hr>
-
-<h2>スレッド一覧</h2>
-<div id="threadsBox">ログイン中…</div>
+  <div id="threadList">読み込み中…</div>
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+import { getDatabase, ref, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -56,195 +82,215 @@ const firebaseConfig={
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
 const db=getDatabase(app);
+const googleProvider = new GoogleAuthProvider();
 
 const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
 
 let currentUid = null;
-let threadsCachedData = {}; 
+let isGlobalAdmin = false;
 
-signInAnonymously(auth).catch(error => { console.error("ログインエラー:", error); });
+let stopAdminListener = null;
+let stopThreadsListener = null;
 
-const nameInput=document.getElementById("nameInput");
-const iconInput=document.getElementById("iconInput");
-nameInput.value=localStorage.getItem("usakira_name")||defaultName;
-iconInput.value=localStorage.getItem("usakira_icon")||defaultIcon;
+let userName = localStorage.getItem("usakira_name") || defaultName;
+let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+
+document.getElementById("adminLoginBtn").onclick = () => {
+  if (!auth.currentUser) return;
+  linkWithPopup(auth.currentUser, googleProvider)
+    .then(() => { alert("管理者アカウントとの統合に成功したよ！ 🐰✨"); })
+    .catch(error => {
+      if (error.code === "auth/credential-already-in-use" || error.code === "auth/account-exists-with-different-credential") {
+        const credential = GoogleAuthProvider.credentialFromError(error);
+        if (credential) {
+          alert("このGoogleアカウントは既に登録されています。匿名セッションを破棄し、既存の管理者権限セッションへ切り替えます 👑");
+          signInWithCredential(auth, credential).catch(e => alert("サインイン失敗: " + e.message));
+        }
+      } else {
+        alert("ログインエラー: " + error.code);
+      }
+    });
+};
 
 function isSafeUrl(urlStr) {
   if (!urlStr) return true;
+  if (!urlStr.includes("://") && !urlStr.startsWith("//") && !urlStr.startsWith("javascript:") && !urlStr.startsWith("data:")) return true;
   try {
     const u = new URL(urlStr);
-    return ["http:", "https:"].includes(u.protocol);
-  } catch {
-    return !urlStr.startsWith("javascript:") && !urlStr.startsWith("data:");
-  }
+    return ["http:", "https:"].includes(u.protocol) && (u.hostname === "res.cloudinary.com" || u.hostname === "googleusercontent.com" || u.hostname.endsWith(".googleusercontent.com"));
+  } catch { return false; }
 }
 
-document.getElementById("iconFile").onchange=e=>{
-  const file=e.target.files[0];
-  document.getElementById("iconFileName").textContent=file?file.name:"";
+// 🛡️ スレッド削除用のコアロジック（グローバル関数化）
+window.deleteThread = async (tId) => {
+  if (!confirm("このスレッドを本当に削除するぺこ？\n※スレッドを削除しても、内部のコメントのデータ（孤児コメント）が残る可能性があるため、実運用時は注意してください。")) return;
+  try {
+    // threadsノードから該当のスレッドデータを削除
+    await remove(ref(db, `threads/${tId}`));
+    alert("スレッドを削除したよ 🐰🧹");
+  } catch (error) {
+    console.error("Delete Thread Error:", error);
+    alert("スレッドの削除に失敗しました。権限がありません。");
+  }
 };
 
-function compressImage(file){
-  return new Promise(resolve=>{
-    const img=new Image(); const canvas=document.createElement("canvas"); const ctx=canvas.getContext("2d");
-    img.onload=()=>{
-      let w=img.width; let h=img.height; const max=500;
-      if(w>h){ if(w>max){ h*=max/w; w=max; } }else{ if(h>max){ w*=max/h; h=max; } }
-      canvas.width=w; canvas.height=h; ctx.drawImage(img,0,0,w,h);
-      canvas.toBlob(blob=>{ resolve(blob); },"image/jpeg",0.7);
-    };
-    img.src=URL.createObjectURL(file);
-  });
-}
-
-async function uploadImage(file){
-  const compressed=await compressImage(file);
-  const formData=new FormData();
-  formData.append("file",compressed);
-  formData.append("upload_preset","usakira_upload");
-  const res=await fetch("https://api.cloudinary.com/v1_1/dfhevulda/image/upload",{method:"POST",body:formData});
-  const data=await res.json();
-  return data.secure_url;
-}
-
-document.getElementById("saveProfileBtn").onclick=async()=>{
-  const file=document.getElementById("iconFile").files[0];
-  let iconURL=iconInput.value.trim();
-  
-  if(file){ 
-    iconURL=await uploadImage(file); 
-  }
-
-  if (!isSafeUrl(iconURL) || iconURL.length > 1000) {
-    alert("無効なアイコンURLです 🐰❌");
+onAuthStateChanged(auth, async user => {
+  if (!user) {
+    signInAnonymously(auth).catch(e => console.error("匿名ログイン失敗:", e));
     return;
   }
+  currentUid = user.uid;
 
-  localStorage.setItem("usakira_name", nameInput.value);
-  localStorage.setItem("usakira_icon", iconURL);
-  alert("保存したよ 🐰");
-};
+  if (stopAdminListener) stopAdminListener();
 
-document.getElementById("createThreadBtn").onclick=async()=>{
-  if(!currentUid) return alert("ログイン処理中です");
-  const title=document.getElementById("threadTitle").value.trim();
-  const body=document.getElementById("threadBody").value;
-  const ownerIcon = iconInput.value.trim();
-  
-  if(!title) return alert("タイトルを書いてね");
-  if(title.length > 100) return alert("タイトルは100文字以内にしてね");
-  if(body.length > 5000) return alert("本文は5000文字以内にしてね");
-  if(ownerIcon.length > 1000 || !isSafeUrl(ownerIcon)) return alert("無効なアイコンURLです");
-  
-  const now=Date.now();
+  stopAdminListener = onValue(ref(db, "admins/" + currentUid), adminSnap => {
+    isGlobalAdmin = adminSnap.val() === true;
+    const isGoogleLinked = user.providerData.some(p => p.providerId === "google.com");
 
-  await push(ref(db,"threads"),{
-    title: title,
-    body: body,
-    ownerId: currentUid,
-    ownerName: (nameInput.value || defaultName).substring(0, 50),
-    ownerIcon: ownerIcon || defaultIcon,
-    time: now,
-    lastTime: now
-  });
-
-  document.getElementById("threadTitle").value = "";
-  document.getElementById("threadBody").value = "";
-};
-
-window.openThread = (id) => {
-  location.href = "thread.html?id=" + id;
-};
-
-window.editThreadTitle = async (id, oldTitle) => {
-  const thread = threadsCachedData[id];
-  if(!thread || thread.ownerId !== currentUid) return alert("編集権限がありません 🐰");
-
-  const newTitle = prompt("スレッドのタイトルを編集", oldTitle);
-  if(newTitle && newTitle.trim() !== ""){
-    if(newTitle.trim().length > 100) return alert("100文字以内にしてね");
-    await update(ref(db, "threads/" + id), { title: newTitle.trim() });
-  }
-};
-
-// 🧹 チャッピー監修：スレ削除ボタンを押したときの処理
-window.deleteThread = async (id) => {
-  const thread = threadsCachedData[id];
-  // 自分が立てたスレッド（ownerIdが一致）かチェック
-  if(!thread || thread.ownerId !== currentUid) return alert("削除権限がありません 🐰");
-
-  if(confirm("このスレッドを削除するぺこ？（中のコメントもすべて道連れで消去されます）")){
-    try {
-      // 🛡️ マルチロケーション更新（アトミックアップデート）
-      // threads側とposts側を「まったく同じ瞬間」にnull（削除）にすることで、ルールに弾かれずに全消去します
-      const updates = {};
-      updates[`threads/${id}`] = null;
-      updates[`posts/${id}`] = null;
-
-      await update(ref(db), updates);
-      alert("スレッドとコメントをすべて綺麗に削除したよ 🐰🧹✨");
-    } catch (error) {
-      console.error(error);
-      alert("削除に失敗しました。権限エラーの可能性があります。");
+    if (!isGoogleLinked) {
+      userName = localStorage.getItem("usakira_name") || defaultName;
+      userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+      document.getElementById("adminLoginBtn").style.display = "block";
+      document.getElementById("userBadge").style.display = "none";
+    } else {
+      const googleProfile = user.providerData.find(p => p.providerId === "google.com");
+      userName = googleProfile.displayName || "管理者";
+      userIcon = googleProfile.photoURL || defaultIcon;
+      document.getElementById("adminLoginBtn").style.display = "none";
+      
+      const nameEl = document.getElementById("myName");
+      const iconEl = document.getElementById("myIcon");
+      nameEl.textContent = isGlobalAdmin ? userName + " (管理人公認) 👑" : "統合完了UID: " + currentUid;
+      iconEl.src = isSafeUrl(userIcon) ? userIcon : defaultIcon;
+      document.getElementById("userBadge").style.display = "flex";
     }
+    
+    // 🛡️ 認証状態やアドミン状態が変わったら、スレ一覧の削除ボタンの権限表示を正しく同期するために再描画を走らせる
+    loadThreads();
+  });
+});
+
+// 🛡️ 100%安全なDOMベースのスレッド一覧レンダリング
+function loadThreads() {
+  if (stopThreadsListener) stopThreadsListener();
+
+  // タイムスタンプ（lastTime）の降順で最新のスレッドから並べる
+  stopThreadsListener = onValue(ref(db, "threads"), snap => {
+    const data = snap.val();
+    const listContainer = document.getElementById("threadList");
+    listContainer.textContent = "";
+
+    if (!data) {
+      listContainer.textContent = "スレッドがまだありません。最初のスレを立ててみようぺこ！";
+      return;
+    }
+
+    const sortedThreads = Object.entries(data).sort((a, b) => (b[1].lastTime || 0) - (a[1].lastTime || 0));
+
+    sortedThreads.forEach(([key, t]) => {
+      const card = document.createElement("div");
+      card.classList.add("thread-card");
+
+      // ヘッダー（作成者情報）
+      const header = document.createElement("div");
+      header.classList.add("thread-header");
+      const iconImg = document.createElement("img");
+      iconImg.src = isSafeUrl(t.ownerIcon) ? (t.ownerIcon || defaultIcon) : defaultIcon;
+      iconImg.onerror = () => { iconImg.src = defaultIcon; };
+      const metaSpan = document.createElement("span");
+      metaSpan.textContent = `${t.ownerName || defaultName} が作成 ・ ${t.time ? new Date(t.time).toLocaleString() : ""}`;
+      header.appendChild(iconImg);
+      header.appendChild(metaSpan);
+
+      // タイトル（リンク）
+      const titleLink = document.createElement("a");
+      titleLink.classList.add("thread-title-link");
+      titleLink.href = `thread.html?id=${key}`;
+      titleLink.textContent = t.title || "無題のスレッド";
+
+      card.appendChild(header);
+      card.appendChild(titleLink);
+
+      // 本文プレビュー（もしあれば）
+      if (t.body && t.body.trim() !== "") {
+        const preview = document.createElement("div");
+        preview.classList.add("thread-body-preview");
+        preview.textContent = t.body;
+        card.appendChild(preview);
+      }
+
+      // フッター領域
+      const footer = document.createElement("div");
+      footer.classList.add("thread-footer");
+      
+      const lastUpdateSpan = document.createElement("span");
+      lastUpdateSpan.textContent = t.lastTime ? `最終更新: ${new Date(t.lastTime).toLocaleString()}` : "";
+      footer.appendChild(lastUpdateSpan);
+
+      // 🛡️ 削除ボタンの動的配備（スレ主本人か、グローバル管理者のみ表示）
+      if (isGlobalAdmin) {
+        const actions = document.createElement("div");
+        actions.classList.add("thread-actions");
+        const btn = document.createElement("button");
+        btn.classList.add("btn-thread-admin-delete");
+        btn.textContent = "👑 管理削除";
+        btn.onclick = () => window.deleteThread(key);
+        actions.appendChild(btn);
+        footer.appendChild(actions);
+      } else if (t.ownerId === currentUid) {
+        const actions = document.createElement("div");
+        actions.classList.add("thread-actions");
+        const btn = document.createElement("button");
+        btn.classList.add("btn-thread-delete");
+        btn.textContent = "🗑 スレ削除";
+        btn.onclick = () => window.deleteThread(key);
+        actions.appendChild(btn);
+        footer.appendChild(actions);
+      }
+
+      card.appendChild(footer);
+      listContainer.appendChild(card);
+    });
+  });
+}
+
+// スレッド作成処理（連打・アトミック例外対策済み）
+document.getElementById("submitThreadBtn").onclick = async () => {
+  if (!currentUid) return alert("ログイン処理中です");
+
+  const btn = document.getElementById("submitThreadBtn");
+  const title = document.getElementById("threadTitleInput").value.trim();
+  const body = document.getElementById("threadBodyInput").value.trim();
+
+  if (!title) return alert("タイトルを入力してくださいぺこ！");
+  if (title.length > 100) return alert("タイトルは100文字以内にしてね");
+  if (body.length > 5000) return alert("本文は5000文字以内にしてね");
+
+  btn.disabled = true;
+
+  try {
+    const timestamp = Date.now();
+    await push(ref(db, "threads"), {
+      title: title,
+      body: body,
+      ownerId: currentUid,
+      ownerName: userName.substring(0, 50),
+      ownerIcon: userIcon,
+      time: timestamp,
+      lastTime: timestamp
+    });
+
+    document.getElementById("threadTitleInput").value = "";
+    document.getElementById("threadBodyInput").value = "";
+    alert("スレッドを立てたよ！ 🚀");
+  } catch (error) {
+    console.error("Create Thread Error:", error);
+    alert("スレッドの作成に失敗しました。");
+  } finally {
+    btn.disabled = false;
   }
 };
-
-const threadsBox=document.getElementById("threadsBox");
-
-onAuthStateChanged(auth, user => {
-  if (user) {
-    currentUid = user.uid;
-    
-    onValue(ref(db,"posts"), postsSnap => {
-      const postsData = postsSnap.val() || {};
-
-      onValue(ref(db,"threads"),snap=>{
-        threadsBox.innerHTML="";
-        const data=snap.val() || {};
-        threadsCachedData = data; 
-        
-        if(Object.keys(data).length === 0){ threadsBox.innerHTML="<p>まだスレがないよ 🐰</p>"; return; }
-
-        Object.entries(data)
-        .sort((a,b)=>(b[1].lastTime||b[1].time)-(a[1].lastTime||a[1].time))
-        .forEach(([id,t])=>{
-          let commentCount = 0;
-          if (postsData[id]) {
-            commentCount = Object.values(postsData[id]).filter(p => p && p.userId).length;
-          }
-
-          const div=document.createElement("div");
-          div.className="thread-item";
-          const escapedTitle = t.title.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-
-          let actionButtons = "";
-          // 🛡️ 自分が立てたスレッドにだけ「編集」と「削除」ボタンを出現させる
-          if(t.ownerId === currentUid) {
-            actionButtons = `
-              <div class="thread-actions">
-                <button onclick="editThreadTitle('${id}', '${escapedTitle.replace(/'/g, "\\'")}')">編集</button>
-                <button onclick="deleteThread('${id}')">削除</button>
-              </div>
-            `;
-          }
-
-          div.innerHTML = `
-            <div class="thread-main">
-              <a onclick="openThread('${id}')">
-                ${escapedTitle}
-              </a>
-              <span class="comment-count">(${commentCount})</span>
-            </div>
-            ${actionButtons}
-          `;
-          threadsBox.appendChild(div);
-        });
-      });
-    });
-  }
-});
 </script>
 </body>
 </html>
