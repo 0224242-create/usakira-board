@@ -10,12 +10,15 @@ body{ margin:0; font-family:sans-serif; background:linear-gradient(#ffffff,#e8dc
 .header-main { flex: 1; min-width: 250px; }
 #threadHeaderArea h1 { margin: 0 0 8px 0; font-size: 1.6rem; color: #4a3cff; }
 #threadHeaderArea .thread-body { font-size: 14px; color: #444; white-space: pre-wrap; background: #f9f7ff; padding: 10px; border-radius: 8px; }
+/* 🔗 スレ本文内の自動リンクの装飾 */
+#threadHeaderArea .thread-body a { color: #4a3cff; text-decoration: underline; }
+
 .admin-control-panel { display: flex; align-items: center; gap: 8px; }
 .admin-btn { font-size: 11px; padding: 4px 8px; background: #ffebeb; border: 1px solid #ffccd2; color: #d63031; font-weight: bold; border-radius: 4px; cursor: pointer; }
 .admin-btn:hover { background: #ffdadb; }
 .user-profile-badge { background: #e3ffd9; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #bce6ad; }
 .user-profile-badge img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
-.user-profile-badge .uid-alert { color: #d63031; font-weight: bold; user-select: all; }
+
 #comments{ padding:16px; padding-bottom:110px; }
 .comment{ background:white; border-radius:12px; padding:14px; margin-bottom:14px; box-shadow:0 3px 6px rgba(0,0,0,0.12); border: 1px solid #e1dbff; }
 .header{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
@@ -27,6 +30,9 @@ body{ margin:0; font-family:sans-serif; background:linear-gradient(#ffffff,#e8dc
 .btn-delete { background: #f1f2f6; color: #333; }
 .btn-admin-delete { background: #d63031; color: white; border: 1px solid #c23616 !important; font-weight: bold; }
 .text{ font-size:15px; line-height:1.4; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; }
+/* 🔗 コメント内の自動リンクの装飾 */
+.comment-text-container a{ color:#4a3cff; text-decoration: underline; word-break:break-all; }
+
 .comment-img{ max-width:220px; border-radius:8px; margin-top:6px; cursor:pointer; display:block; }
 #commentBox{ position:fixed; bottom:0; left:0; width:100%; background:white; padding:6px; box-shadow:0 -2px 5px rgba(0,0,0,0.1); display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
 #commentInput{ flex:1; padding:7px; font-size:14px; min-width:150px; }
@@ -35,7 +41,6 @@ body{ margin:0; font-family:sans-serif; background:linear-gradient(#ffffff,#e8dc
 #postBtn{ padding:7px 10px; font-size:13px; }
 #postBtn:disabled { background: #ccc; color: #666; cursor: not-allowed; }
 #postStatus{ font-size:12px; color:green; }
-.comment-text-container a{ color:#5a4cff; word-break:break-all; }
 </style>
 </head>
 <body>
@@ -132,8 +137,22 @@ document.getElementById("adminLoginBtn").onclick = () => {
     });
 };
 
+function isSafeUrl(urlStr) {
+  if (!urlStr) return true;
+  if (!urlStr.includes("://") && !urlStr.startsWith("//") && !urlStr.startsWith("javascript:") && !urlStr.startsWith("data:")) return true;
+
+  try {
+    const u = new URL(urlStr);
+    if (!["http:", "https:"].includes(u.protocol)) return false;
+    return u.hostname === "res.cloudinary.com" || u.hostname === "googleusercontent.com" || u.hostname.endsWith(".googleusercontent.com") || u.hostname === "0224242-create.github.io";
+  } catch { return false; }
+}
+
+// 🛡️ XSSを完全に防ぎつつURLを安全に自動リンク化するDOM関数
 function renderTextWithLinks(targetElement, text) {
   targetElement.textContent = ""; 
+  if (!text) return;
+
   const urlRegex = /(https?:\/\/[^\s)]+)/g;
   const parts = text.split(urlRegex);
 
@@ -149,17 +168,6 @@ function renderTextWithLinks(targetElement, text) {
       targetElement.appendChild(document.createTextNode(part));
     }
   });
-}
-
-function isSafeUrl(urlStr) {
-  if (!urlStr) return true;
-  if (!urlStr.includes("://") && !urlStr.startsWith("//") && !urlStr.startsWith("javascript:") && !urlStr.startsWith("data:")) return true;
-
-  try {
-    const u = new URL(urlStr);
-    if (!["http:", "https:"].includes(u.protocol)) return false;
-    return u.hostname === "res.cloudinary.com" || u.hostname === "googleusercontent.com" || u.hostname.endsWith(".googleusercontent.com");
-  } catch { return false; }
 }
 
 window.openImage = (src) => {
@@ -218,7 +226,8 @@ onAuthStateChanged(auth, async user => {
       currentThreadOwnerId = t.ownerId;
       document.getElementById("mainThreadTitle").textContent = t.title;
       if(t.body && t.body.trim() !== "") {
-        document.getElementById("mainThreadBody").textContent = t.body;
+        // ✨ スレッド詳細画面の「スレ本文」のURLも自動的にリンク化
+        renderTextWithLinks(document.getElementById("mainThreadBody"), t.body);
         document.getElementById("mainThreadBody").style.display = "block";
       } else {
         document.getElementById("mainThreadBody").style.display = "none";
@@ -289,6 +298,7 @@ function loadComments(){
 
         const textDiv = document.createElement("div");
         textDiv.classList.add("text", "comment-text-container");
+        // ✨ コメント本文内のURLを自動的にリンク化して表示
         renderTextWithLinks(textDiv, c.text || "");
 
         commentDiv.appendChild(headerDiv);
@@ -383,6 +393,7 @@ document.getElementById("postBtn").onclick=async()=>{
       userId:currentUid
     });
 
+    // 🛡️ 例外ルールが適用されたため、一般ユーザーでも安全にlastTimeの更新が通過します！
     await update(ref(db, "threads/" + threadId), { lastTime: Date.now() });
 
     document.getElementById("commentInput").value="";
