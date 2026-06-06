@@ -14,7 +14,6 @@ h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
 .user-profile-badge { background: #e3ffd9; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #bce6ad; }
 .user-profile-badge img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
 
-/* メインレイアウト */
 #mainContainer { max-width: 800px; margin: 0 auto; padding: 16px; }
 #createThreadBox { background: white; padding: 16px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
 #createThreadBox input, #createThreadBox textarea { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
@@ -22,8 +21,8 @@ h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
 #submitThreadBtn { padding: 8px 16px; background: #4a3cff; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
 #submitThreadBtn:disabled { background: #ccc; cursor: not-allowed; }
 
-/* スレッド一覧 */
-.thread-card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 3px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px; position: relative; }
+#threadList { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); min-height: 100px; }
+.thread-card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 3px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px; position: relative; border: 1px solid #e1dbff; }
 .thread-header { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #666; }
 .thread-header img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
 .thread-title-link { font-size: 1.2rem; font-weight: bold; color: #333; text-decoration: none; word-break: break-all; }
@@ -31,7 +30,6 @@ h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
 .thread-body-preview { font-size: 14px; color: #555; white-space: pre-wrap; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .thread-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #999; margin-top: 4px; }
 
-/* 🛠️ 削除ボタンのスタイリング */
 .thread-actions { display: flex; gap: 6px; }
 .thread-actions button { font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
 .btn-thread-delete { background: #f1f2f6; color: #333; }
@@ -56,7 +54,7 @@ h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
 <div id="mainContainer">
   <div id="createThreadBox">
     <h3>新しいスレッドを立てるぺこ</h3>
-    <input id="threadTitleInput" type="text" placeholder="スレッドのタイトル（100px・100文字以内）">
+    <input id="threadTitleInput" type="text" placeholder="スレッドのタイトル（100文字以内）">
     <textarea id="threadBodyInput" placeholder="スレッドの本文（任意・5000文字以内）"></textarea>
     <button id="submitThreadBtn">スレッドを作成</button>
   </div>
@@ -67,7 +65,7 @@ h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -104,7 +102,7 @@ document.getElementById("adminLoginBtn").onclick = () => {
       if (error.code === "auth/credential-already-in-use" || error.code === "auth/account-exists-with-different-credential") {
         const credential = GoogleAuthProvider.credentialFromError(error);
         if (credential) {
-          alert("このGoogleアカウントは既に登録されています。匿名セッションを破棄し、既存の管理者権限セッションへ切り替えます 👑");
+          alert("このGoogleアカウントは既に登録されています。既存の管理者セッションへ切り替えます 👑");
           signInWithCredential(auth, credential).catch(e => alert("サインイン失敗: " + e.message));
         }
       } else {
@@ -122,11 +120,9 @@ function isSafeUrl(urlStr) {
   } catch { return false; }
 }
 
-// 🛡️ スレッド削除用のコアロジック（グローバル関数化）
 window.deleteThread = async (tId) => {
-  if (!confirm("このスレッドを本当に削除するぺこ？\n※スレッドを削除しても、内部のコメントのデータ（孤児コメント）が残る可能性があるため、実運用時は注意してください。")) return;
+  if (!confirm("このスレッドを本当に削除するぺこ？\n※削除するとスレッド一覧から消去されます。")) return;
   try {
-    // threadsノードから該当のスレッドデータを削除
     await remove(ref(db, `threads/${tId}`));
     alert("スレッドを削除したよ 🐰🧹");
   } catch (error) {
@@ -166,16 +162,13 @@ onAuthStateChanged(auth, async user => {
       document.getElementById("userBadge").style.display = "flex";
     }
     
-    // 🛡️ 認証状態やアドミン状態が変わったら、スレ一覧の削除ボタンの権限表示を正しく同期するために再描画を走らせる
     loadThreads();
   });
 });
 
-// 🛡️ 100%安全なDOMベースのスレッド一覧レンダリング
 function loadThreads() {
   if (stopThreadsListener) stopThreadsListener();
 
-  // タイムスタンプ（lastTime）の降順で最新のスレッドから並べる
   stopThreadsListener = onValue(ref(db, "threads"), snap => {
     const data = snap.val();
     const listContainer = document.getElementById("threadList");
@@ -192,7 +185,6 @@ function loadThreads() {
       const card = document.createElement("div");
       card.classList.add("thread-card");
 
-      // ヘッダー（作成者情報）
       const header = document.createElement("div");
       header.classList.add("thread-header");
       const iconImg = document.createElement("img");
@@ -203,7 +195,6 @@ function loadThreads() {
       header.appendChild(iconImg);
       header.appendChild(metaSpan);
 
-      // タイトル（リンク）
       const titleLink = document.createElement("a");
       titleLink.classList.add("thread-title-link");
       titleLink.href = `thread.html?id=${key}`;
@@ -212,7 +203,6 @@ function loadThreads() {
       card.appendChild(header);
       card.appendChild(titleLink);
 
-      // 本文プレビュー（もしあれば）
       if (t.body && t.body.trim() !== "") {
         const preview = document.createElement("div");
         preview.classList.add("thread-body-preview");
@@ -220,7 +210,6 @@ function loadThreads() {
         card.appendChild(preview);
       }
 
-      // フッター領域
       const footer = document.createElement("div");
       footer.classList.add("thread-footer");
       
@@ -228,7 +217,6 @@ function loadThreads() {
       lastUpdateSpan.textContent = t.lastTime ? `最終更新: ${new Date(t.lastTime).toLocaleString()}` : "";
       footer.appendChild(lastUpdateSpan);
 
-      // 🛡️ 削除ボタンの動的配備（スレ主本人か、グローバル管理者のみ表示）
       if (isGlobalAdmin) {
         const actions = document.createElement("div");
         actions.classList.add("thread-actions");
@@ -255,7 +243,6 @@ function loadThreads() {
   });
 }
 
-// スレッド作成処理（連打・アトミック例外対策済み）
 document.getElementById("submitThreadBtn").onclick = async () => {
   if (!currentUid) return alert("ログイン処理中です");
 
