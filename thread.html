@@ -144,8 +144,12 @@ function isSafeUrl(urlStr) {
   try {
     const u = new URL(urlStr);
     if (!["http:", "https:"].includes(u.protocol)) return false;
-    return u.hostname === "res.cloudinary.com" || u.hostname === "googleusercontent.com" || u.hostname.endsWith(".googleusercontent.com") || u.hostname === "0224242-create.github.io";
-  } catch { return false; }
+function isSafeUrl(urlStr) {
+  if (!urlStr) return true;
+  // javascript: や data: などの危険な形式の実行を絶対にブロックする
+  if (urlStr.startsWith("javascript:") || urlStr.startsWith("data:")) return false;
+  return urlStr.startsWith("http://") || urlStr.startsWith("https://");
+}  } catch { return false; }
 }
 
 // 🛡️ XSSを完全に防ぎつつURLを安全に自動リンク化するDOM関数
