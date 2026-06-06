@@ -55,9 +55,8 @@ a{ color:#5a4cff; word-break:break-all; }
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, update, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-// あなたのFirebaseプロジェクト用に完全に最適化したConfigです
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   authDomain: "keijiban-7c651.firebaseapp.com",
@@ -87,8 +86,9 @@ let currentUid = null;
 
 signInAnonymously(auth).catch(error => { console.error(error); });
 
+// 🛡️ チャッピーの指摘：文末の閉じカッコなどを少しだけ考慮したURL正規表現に微改善
 function linkify(text){
-  const urlRegex=/https?:\/\/[^\s]+/g;
+  const urlRegex=/https?:\/\/[^\s)]+/g;
   return text.replace(urlRegex,url=>{ return `<a href="${url}" target="_blank">${url}</a>`; });
 }
 
@@ -97,9 +97,31 @@ function escapeHtml(str){
   return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
+// 🛡️ チャッピー監修：悪質なURLスキームを弾く安全検証関数
+function isSafeUrl(urlStr) {
+  if (!urlStr) return true;
+  try {
+    const u = new URL(urlStr);
+    return ["http:", "https:"].includes(u.protocol);
+  } catch {
+    return !urlStr.startsWith("javascript:") && !urlStr.startsWith("data:");
+  }
+}
+
 window.openImage = (src) => {
   document.getElementById("modalImg").src=src;
   document.getElementById("imageModal").style.display="flex";
+};
+
+window.deleteComment = async (commentId) => {
+  if (!confirm("このコメントを削除するぺこ？")) return;
+  try {
+    await remove(ref(db, `posts/${threadId}/${commentId}`));
+    alert("コメントを削除したよ 🐰🧹");
+  } catch (error) {
+    console.error(error);
+    alert("削除に失敗しました。権限がありません。");
+  }
 };
 
 onAuthStateChanged(auth, async user => {
@@ -107,28 +129,10 @@ onAuthStateChanged(auth, async user => {
   currentUid = user.uid;
 
   /* スレッド情報のロード */
-  onValue(ref(db, "threads/" + threadId), async snap => {
+  onValue(ref(db, "threads/" + threadId), snap => {
     const t = snap.val();
     if(t) {
-      if(t.hasPass) {
-        const savedPw = sessionStorage.getItem("room_auth_" + threadId);
-        try {
-          const authSnap = await get(ref(db, `posts/${threadId}/_authCheck/key`));
-          if ((!authSnap.exists() || authSnap.val() !== savedPw) && t.ownerId !== currentUid) {
-            alert("このスレッドを表示するには正しいパスワードが必要です。");
-            location.href = "index.html";
-            return;
-          }
-        } catch(e) {
-          if (t.ownerId !== currentUid) {
-            alert("アクセス権限がありません。");
-            location.href = "index.html";
-            return;
-          }
-        }
-      }
-
-      document.getElementById("mainThreadTitle").textContent = (t.hasPass ? "🔒 " : "") + t.title;
+      document.getElementById("mainThreadTitle").textContent = t.title;
       if(t.body && t.body.trim() !== "") {
         document.getElementById("mainThreadBody").textContent = t.body;
         document.getElementById("mainThreadBody").style.display = "block";
@@ -151,22 +155,24 @@ function loadComments(){
       const list=Object.entries(data).sort((a,b)=>b[1].time-a[1].time);
 
       list.forEach(([key,c]) => {
-        if(key === "_authCheck") return;
-        
         const text = linkify(escapeHtml(c.text || ""));
         let actionButtons = "";
         
         if(c.userId === currentUid) {
           actionButtons = `
             <div class="actions">
-              <span style="font-size:11px;color:gray;">（ルールにより編集・削除禁止）</span>
+              <button onclick="deleteComment('${key}')">削除</button>
             </div>
           `;
         }
 
+        // 🛡️ XSS防止のため、アイコンURLと画像URLの安全性をチェック
+        const safeIcon = (isSafeUrl(c.icon) && (c.icon || "").length <= 1000) ? (c.icon || defaultIcon) : defaultIcon;
+        const showImage = (c.image && isSafeUrl(c.image) && c.image.length <= 1000);
+
         html+=`<div class="comment">
           <div class="header">
-            <img class="icon" src="${c.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+            <img class="icon" src="${safeIcon}" onerror="this.src='${defaultIcon}'">
             <div class="name">
               ${escapeHtml(c.name)||defaultName}
               <span class="time">${c.time?new Date(c.time).toLocaleString():""}</span>
@@ -174,7 +180,7 @@ function loadComments(){
             ${actionButtons}
           </div>
           <div class="text">${text}</div>
-          ${c.image?`<img src="${c.image}" onclick="openImage('${c.image}')">`:""}
+          ${showImage?`<img src="${c.image}" onclick="openImage('${c.image}')">`:""}
         </div>`;
       });
     }
@@ -213,8 +219,22 @@ document.getElementById("postBtn").onclick=async()=>{
   if(!text && !file){ alert("コメントか画像を入れてください"); return; }
   if(text.length > 1000){ alert("コメントは1000文字以内にしてね"); return; }
 
+  // 🛡️ Cloudinary防衛線：フロントでの5MB制限
+  if(file && file.size > 5 * 1024 * 1024){
+    alert("画像ファイルは5MB以下にしてね 🐰❌");
+    return;
+  }
+
   let imageURL="";
   if(file){ imageURL=await uploadImage(file); }
+
+  // 🛡️ ルール側の拡張（1000文字）と安全検証（isSafeUrl）に完全に合わせた投稿処理
+  if (imageURL && (imageURL.length > 1000 || !isSafeUrl(imageURL))) {
+    return alert("画像のアップロードURLに異常が検出されました");
+  }
+  if (userIcon && (userIcon.length > 1000 || !isSafeUrl(userIcon))) {
+    return alert("プロフィールのアイコンURLに異常があります。再設定してください。");
+  }
 
   await push(commentsRef,{
     text:text,
