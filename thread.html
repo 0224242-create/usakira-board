@@ -4,16 +4,33 @@
 <meta charset="utf-8">
 <title>スレッド</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-
 <style>
-
 body{
 margin:0;
 font-family:sans-serif;
 background:linear-gradient(#ffffff,#e8dcff);
 }
 
-/* コメントエリア */
+/* スレッド最上部のタイトル・本文エリア */
+#threadHeaderArea {
+background: white;
+padding: 16px;
+border-bottom: 2px solid #dcd6ff;
+margin-bottom: 10px;
+}
+#threadHeaderArea h1 {
+margin: 0 0 8px 0;
+font-size: 1.6rem;
+color: #4a3cff;
+}
+#threadHeaderArea .thread-body {
+font-size: 14px;
+color: #444;
+white-space: pre-wrap;
+background: #f9f7ff;
+padding: 10px;
+border-radius: 8px;
+}
 
 #comments{
 padding:16px;
@@ -85,8 +102,6 @@ color:gray;
 margin-top:3px;
 }
 
-/* 投稿欄 */
-
 #commentBox{
 position:fixed;
 bottom:0;
@@ -108,82 +123,37 @@ font-size:14px;
 min-width:150px;
 }
 
-#imageInput{
-font-size:12px;
-}
+#imageInput{ font-size:12px; }
+#fileName{ font-size:12px; color:#555; }
+#postBtn{ padding:7px 10px; font-size:13px; }
+#postStatus{ font-size:12px; color:green; }
 
-#fileName{
-font-size:12px;
-color:#555;
-}
-
-#postBtn{
-padding:7px 10px;
-font-size:13px;
-}
-
-#postStatus{
-font-size:12px;
-color:green;
-}
-
-/* URL */
-
-a{
-color:#5a4cff;
-word-break:break-all;
-}
-
-/* 画像拡大 */
+a{ color:#5a4cff; word-break:break-all; }
 
 #imageModal{
 position:fixed;
-top:0;
-left:0;
-width:100%;
-height:100%;
+top:0; left:0; width:100%; height:100%;
 background:rgba(0,0,0,0.8);
-display:none;
-align-items:center;
-justify-content:center;
+display:none; align-items:center; justify-content:center;
 }
-
-#imageModal img{
-max-width:90%;
-max-height:90%;
-}
-
+#imageModal img{ max-width:90%; max-height:90%; }
 </style>
 </head>
-
 <body>
-<button onclick="history.back()">← 戻る</button>
 
-<div id="threadInfo" style="
-background:white;
-border-radius:12px;
-padding:12px;
-margin:10px;
-box-shadow:0 2px 6px rgba(0,0,0,0.1);
-">
-  <h2 id="threadTitle"></h2>
-  <div id="threadBody" style="white-space:pre-wrap;color:#555;"></div>
+<div id="threadHeaderArea">
+<h1 id="mainThreadTitle">読み込み中…</h1>
+<div id="mainThreadBody" class="thread-body" style="display:none;"></div>
 </div>
 
 <div id="comments"></div>
 
 <div id="commentBox">
-
 <input id="commentInput" placeholder="コメントを書くぺこ">
-
 <input type="file" id="imageInput" accept="image/*">
-
 <span id="fileName"></span>
-
 <button id="postBtn">投稿</button>
-
 <span id="postStatus"></span>
-
 </div>
 
 <div id="imageModal" onclick="this.style.display='none'">
@@ -191,10 +161,8 @@ box-shadow:0 2px 6px rgba(0,0,0,0.1);
 </div>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getDatabase, ref, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
-import { get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
 apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -215,245 +183,163 @@ const defaultIcon="usagi.png.jpeg";
 const userName=localStorage.getItem("usakira_name")||defaultName;
 const userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
-/* URLリンク */
+// 自分のIDを取得（なければ作成。index.htmlと同じロジック）
+let userId=localStorage.getItem("usakira_userId");
+if(!userId){
+userId="user_"+Math.random().toString(36).slice(2);
+localStorage.setItem("usakira_userId",userId);
+}
 
 function linkify(text){
 const urlRegex=/https?:\/\/[^\s]+/g;
-return text.replace(urlRegex,url=>{
-return `<a href="${url}" target="_blank">${url}</a>`;
-});
+return text.replace(urlRegex,url=>{ return `<a href="${url}" target="_blank">${url}</a>`; });
 }
 
+// ユーザー入力文字のエスケープ用
 function escapeHtml(str){
 if(!str)return "";
-return str.replace(/&/g,"&amp;")
-.replace(/</g,"&lt;")
-.replace(/>/g,"&gt;");
+return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-/* コメント表示 */
-
-function loadComments(){
-
-onValue(commentsRef,snap=>{
-
-const data=snap.val();
-let html="";
-
-if(data){
-
-const list=Object.entries(data).sort((a,b)=>b[1].time-a[1].time);
-
-list.forEach(([key,c])=>{
-
-const rawText = c.text || "";
-const text = linkify(escapeHtml(rawText));
-
-html+=`<div class="comment">
-
-<div class="header">
-
-<img class="icon" src="${c.icon||defaultIcon}">
-
-<div class="name">
-${c.name||defaultName}
-<span class="time">
-${c.time?new Date(c.time).toLocaleString():""}
-</span>
-</div>
-
-<div class="actions">
-<button onclick="editComment('${key}',\`${rawText}\`)">編集</button>
-<button onclick="deleteComment('${key}')">削除</button>
-</div>
-
-</div>
-
-<div class="text">${text}</div>
-
-${c.image?`<img src="${c.image}" onclick="openImage('${c.image}')">`:""}
-
-${c.edited?`<div class="edit">編集済み</div>`:""}
-
-</div>`;
-
-});
-
+/* --- グローバル関数の登録（loadCommentsより前に置くことでエラー回避） --- */
+window.editComment = async (key) => {
+// 安全にデータを再取得して編集ダイアログを出す
+onValue(ref(db, "posts/" + threadId + "/" + key), snap => {
+const c = snap.val();
+if(!c) return;
+const newText = prompt("編集", c.text);
+if(newText !== null){
+update(ref(db,"posts/"+threadId+"/"+key),{ text:newText, edited:true });
 }
-
-document.getElementById("comments").innerHTML=html;
-
-});
-
-}
-
-/* 画像圧縮 */
-
-function compressImage(file){
-
-return new Promise(resolve=>{
-
-const img=new Image();
-const canvas=document.createElement("canvas");
-const ctx=canvas.getContext("2d");
-
-img.onload=()=>{
-
-let w=img.width;
-let h=img.height;
-
-const max=1000;
-
-if(w>h){
-if(w>max){
-h*=max/w;
-w=max;
-}
-}else{
-if(h>max){
-w*=max/h;
-h=max;
-}
-}
-
-canvas.width=w;
-canvas.height=h;
-
-ctx.drawImage(img,0,0,w,h);
-
-canvas.toBlob(blob=>{
-resolve(blob);
-},"image/jpeg",0.7);
-
+}, { onlyOnce: true });
 };
 
-img.src=URL.createObjectURL(file);
+window.deleteComment = (key) => {
+if(confirm("削除する？")){ remove(ref(db,"posts/"+threadId+"/"+key)); }
+};
 
+window.openImage = (src) => {
+document.getElementById("modalImg").src=src;
+document.getElementById("imageModal").style.display="flex";
+};
+
+
+/* スレッド自体の情報（タイトル・本文）を上部にロード */
+onValue(ref(db, "threads/" + threadId), snap => {
+const t = snap.val();
+if(t) {
+document.getElementById("mainThreadTitle").textContent = (t.pass ? "🔒 " : "") + t.title;
+if(t.body && t.body.trim() !== "") {
+document.getElementById("mainThreadBody").textContent = t.body;
+document.getElementById("mainThreadBody").style.display = "block";
+} else {
+document.getElementById("mainThreadBody").style.display = "none";
+}
+} else {
+document.getElementById("mainThreadTitle").textContent = "スレッドが存在しないか削除されました。";
+}
 });
 
+/* コメント一覧表示 */
+function loadComments(){
+onValue(commentsRef,snap=>{
+const data=snap.val();
+let html="";
+if(data){
+const list=Object.entries(data).sort((a,b)=>b[1].time-a[1].time); // 古い順に表示
+
+list.forEach(([key,c])=>{
+const text = linkify(escapeHtml(c.text || ""));
+
+// 投稿者のuserIdが、現在の自分のuserIdと一致する場合のみ編集・削除ボタンのHTMLを作る
+let actionButtons = "";
+if(c.userId === userId) {
+actionButtons = `
+<div class="actions">
+<button onclick="editComment('${key}')">編集</button>
+<button onclick="deleteComment('${key}')">削除</button>
+</div>
+`;
 }
 
-/* 画像アップロード */
+html+=`<div class="comment">
+<div class="header">
+<img class="icon" src="${c.icon||defaultIcon}" onerror="this.src='${defaultIcon}'">
+<div class="name">
+${escapeHtml(c.name)||defaultName}
+<span class="time">${c.time?new Date(c.time).toLocaleString():""}</span>
+</div>
+${actionButtons}
+</div>
+<div class="text">${text}</div>
+${c.image?`<img src="${c.image}" onclick="openImage('${c.image}')">`:""}
+${c.edited?`<div class="edit">編集済み</div>`:""}
+</div>`;
+});
+}
+document.getElementById("comments").innerHTML=html;
+});
+}
+
+function compressImage(file){
+return new Promise(resolve=>{
+const img=new Image(); const canvas=document.createElement("canvas"); const ctx=canvas.getContext("2d");
+img.onload=()=>{
+let w=img.width; let h=img.height; const max=1000;
+if(w>h){ if(w>max){ h*=max/w; w=max; } }else{ if(h>max){ w*=max/h; h=max; } }
+canvas.width=w; canvas.height=h; ctx.drawImage(img,0,0,w,h);
+canvas.toBlob(blob=>{ resolve(blob); },"image/jpeg",0.7);
+};
+img.src=URL.createObjectURL(file);
+});
+}
 
 async function uploadImage(file){
-
 const compressed=await compressImage(file);
-
 const formData=new FormData();
 formData.append("file",compressed);
 formData.append("upload_preset","usakira_upload");
-
-const res=await fetch(
-"https://api.cloudinary.com/v1_1/dfhevulda/image/upload",
-{method:"POST",body:formData}
-);
-
+const res=await fetch("https://api.cloudinary.com/v1_1/dfhevulda/image/upload",{method:"POST",body:formData});
 const data=await res.json();
 return data.secure_url;
-
 }
 
-/* 投稿 */
-
+/* 投稿処理 */
 document.getElementById("postBtn").onclick=async()=>{
-
 const text=document.getElementById("commentInput").value.trim();
 const file=document.getElementById("imageInput").files[0];
-
-if(!text && !file){
-alert("コメントか画像を入れてください");
-return;
-}
+if(!text && !file){ alert("コメントか画像を入れてください"); return; }
 
 let imageURL="";
+if(file){ imageURL=await uploadImage(file); }
 
-if(file){
-imageURL=await uploadImage(file);
-}
-
+// コメントデータに「userId」を含めて保存する
 await push(commentsRef,{
 text:text,
 image:imageURL,
 time:Date.now(),
 edited:false,
 name:userName,
-icon:userIcon
+icon:userIcon,
+userId:userId
 });
+
+// コメントが投稿されたら、一覧での並び替えのためにスレッド側の最終更新日時(lastTime)を更新する
+update(ref(db, "threads/" + threadId), { lastTime: Date.now() });
 
 document.getElementById("commentInput").value="";
 document.getElementById("imageInput").value="";
 document.getElementById("fileName").textContent="";
-
 document.getElementById("postStatus").textContent="投稿しました！";
-
-setTimeout(()=>{
-document.getElementById("postStatus").textContent="";
-},2000);
-
+setTimeout(()=>{ document.getElementById("postStatus").textContent=""; },2000);
 };
-
-  update(ref(db,"threads/"+threadId),{
-  lastTime:Date.now()
-});
-
-/* ファイル名表示 */
 
 document.getElementById("imageInput").onchange=e=>{
 const file=e.target.files[0];
 document.getElementById("fileName").textContent=file?file.name:"";
 };
 
-/* 編集 */
-
-window.editComment=(key,oldText)=>{
-
-const newText=prompt("編集",oldText);
-
-if(newText!==null){
-
-update(ref(db,"posts/"+threadId+"/"+key),{
-text:newText,
-edited:true
-});
-
-}
-
-};
-
-/* 削除 */
-
-window.deleteComment=(key)=>{
-
-if(confirm("削除する？")){
-remove(ref(db,"posts/"+threadId+"/"+key));
-}
-
-};
-
-/* 画像拡大 */
-
-window.openImage=(src)=>{
-document.getElementById("modalImg").src=src;
-document.getElementById("imageModal").style.display="flex";
-};
-
-/*追加した*/  
-async function loadThreadInfo(){
-
-  const snap = await get(ref(db,"threads/"+threadId));
-  const t = snap.val();
-
-  if(!t) return;
-
-  document.getElementById("threadTitle").textContent = t.title || "";
-  document.getElementById("threadBody").textContent = t.body || "";
-
-}
-
 loadComments();
-loadThreadInfo();
-
 </script>
-
 </body>
 </html>
