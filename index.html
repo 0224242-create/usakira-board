@@ -28,7 +28,6 @@ h1 { margin: 0; font-size: 1.5rem; color: #4a3cff; }
 .thread-title-link { font-size: 1.2rem; font-weight: bold; color: #333; text-decoration: none; word-break: break-all; }
 .thread-title-link:hover { color: #4a3cff; text-decoration: underline; }
 .thread-body-preview { font-size: 14px; color: #555; white-space: pre-wrap; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-/* 🔗 本文内の自動リンクの装飾 */
 .thread-body-preview a { color: #4a3cff; text-decoration: underline; }
 .thread-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #999; margin-top: 4px; }
 
@@ -113,35 +112,33 @@ document.getElementById("adminLoginBtn").onclick = () => {
     });
 };
 
+// 🛡️ URLの安全性を超シンプルに判定（javascript: などを完全ブロック）
 function isSafeUrl(urlStr) {
   if (!urlStr) return true;
-  if (!urlStr.includes("://") && !urlStr.startsWith("//") && !urlStr.startsWith("javascript:") && !urlStr.startsWith("data:")) return true;
-  try {
-    const u = new URL(urlStr);
-function isSafeUrl(urlStr) {
-  if (!urlStr) return true;
-  // javascript: や data: などの危険な形式の実行を絶対にブロックする
   if (urlStr.startsWith("javascript:") || urlStr.startsWith("data:")) return false;
   return urlStr.startsWith("http://") || urlStr.startsWith("https://");
-}  } catch { return false; }
 }
 
-// 🛡️ XSSを完全に防ぎつつURLを安全に自動リンク化するDOM関数
+// 🛡️ どんなURLでも100%確実に、安全に自動リンク化する関数
 function renderTextWithLinks(targetElement, text) {
   targetElement.textContent = ""; 
   if (!text) return;
 
-  const urlRegex = /(https?:\/\/[^\s)]+)/g;
+  const urlRegex = /(https?:\/\/[^\s<]+)/g;
   const parts = text.split(urlRegex);
 
   parts.forEach(part => {
-    if (part.match(urlRegex) && isSafeUrl(part)) {
-      const anchor = document.createElement("a");
-      anchor.href = part;
-      anchor.textContent = part;
-      anchor.target = "_blank";
-      anchor.rel = "noopener noreferrer";
-      targetElement.appendChild(anchor);
+    if (part.startsWith("http://") || part.startsWith("https://")) {
+      if (isSafeUrl(part)) {
+        const anchor = document.createElement("a");
+        anchor.href = part;
+        anchor.textContent = part;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        targetElement.appendChild(anchor);
+      } else {
+        targetElement.appendChild(document.createTextNode(part));
+      }
     } else {
       targetElement.appendChild(document.createTextNode(part));
     }
@@ -234,7 +231,6 @@ function loadThreads() {
       if (t.body && t.body.trim() !== "") {
         const preview = document.createElement("div");
         preview.classList.add("thread-body-preview");
-        // ✨ 本文内のURLを自動的にリンク化して表示
         renderTextWithLinks(preview, t.body);
         card.appendChild(preview);
       }
