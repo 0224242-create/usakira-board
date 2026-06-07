@@ -2,80 +2,88 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>うさきら掲示板 - スレッド詳細</title>
+<title>スレッド詳細</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
+/* 🌙 ダークモードの全体ベース設定 */
 body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a1625); color: #e0d9f0; min-height: 100vh; }
-#headerArea { background: #1c142c; padding: 16px; border-bottom: 2px solid #3d2d5a; display: flex; justify-content: space-between; align-items: center; }
-h1 { margin: 0; font-size: 1.5rem; color: #9d88ff; text-shadow: 0 0 10px rgba(157, 136, 255, 0.3); }
-.back-btn { font-size: 13px; padding: 6px 12px; background: #251b3a; border: 1px solid #4a3f66; color: #b39eff; font-weight: bold; border-radius: 6px; text-decoration: none; }
-.back-btn:hover { background: #32254f; }
+#threadHeaderArea { background: #1c142c; padding: 16px; border-bottom: 2px solid #3d2d5a; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+.header-main { flex: 1; min-width: 250px; }
+#threadHeaderArea h1 { margin: 0 0 8px 0; font-size: 1.6rem; color: #9d88ff; text-shadow: 0 0 10px rgba(157, 136, 255, 0.3); }
+#threadHeaderArea .thread-body { font-size: 14px; color: #c3b8e0; white-space: pre-wrap; background: #251b3a; padding: 10px; border-radius: 8px; border: 1px solid #3d2d5a; }
+#threadHeaderArea .thread-body a { color: #9d88ff; text-decoration: underline; }
 
-#mainContainer { max-width: 800px; margin: 0 auto; padding: 16px; }
+.admin-control-panel { display: flex; align-items: center; gap: 8px; }
+.admin-btn { font-size: 11px; padding: 4px 8px; background: #3a1c28; border: 1px solid #632337; color: #ff6b81; font-weight: bold; border-radius: 4px; cursor: pointer; }
+.admin-btn:hover { background: #4d2233; }
+.user-profile-badge { background: #1c3322; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #2d5a39; color: #a2f0b5; }
+.user-profile-badge img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
 
-/* 📌 親スレッドの表示枠 */
-#parentThreadBox { background: #1c142c; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #3d2d5a; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
-.thread-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #a29bfe; margin-bottom: 10px; }
-.thread-meta img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid #4a3f66; }
-.thread-main-title { font-size: 1.6rem; color: #ffffff; margin: 0 0 12px 0; font-weight: bold; word-break: break-all; }
-.thread-main-body { font-size: 15px; color: #c3b8e0; white-space: pre-wrap; word-break: break-all; line-height: 1.6; border-top: 1px solid #251b3a; padding-top: 12px; }
-.thread-main-body a { color: #9d88ff; text-decoration: underline; }
+#comments{ padding:16px; padding-bottom:120px; }
+.comment{ background: #1c142c; border-radius:12px; padding:14px; margin-bottom:14px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border: 1px solid #32254f; }
+.header{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.icon{ width:36px; height:36px; border-radius:50%; object-fit:cover; border: 1px solid #4a3f66; }
+.name{ font-weight:bold; font-size:15px; color: #ffffff; }
+.time{ font-size:12px; color:#7d7299; margin-left:4px; }
+.actions{ margin-left:auto; display:flex; gap:5px; }
+.actions button { font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid #4a3f66; }
+.btn-delete { background: #2d2640; color: #c3b8e0; }
+.btn-delete:hover { background: #3d3457; }
+.btn-admin-delete { background: #892224; color: white; border: 1px solid #b33939 !important; font-weight: bold; }
+.btn-admin-delete:hover { background: #b33939; }
+.text{ font-size:15px; line-height:1.4; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; color: #e0d9f0; }
+.comment-text-container a{ color:#9d88ff; text-decoration: underline; word-break:break-all; }
 
-/* 💬 コメント一覧エリア */
-#commentsBox { margin-bottom: 24px; }
-.comment-card { background: #171024; border-radius: 8px; padding: 14px; margin-bottom: 10px; border: 1px solid #2a1f42; position: relative; }
-.comment-header { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #7d7299; margin-bottom: 6px; }
-.comment-header img { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
-.comment-number { font-weight: bold; color: #9d88ff; margin-right: 4px; }
-.comment-text { font-size: 14px; color: #e0d9f0; white-space: pre-wrap; word-break: break-all; }
-.comment-text a { color: #9d88ff; text-decoration: underline; }
+.comment-img{ max-width:220px; border-radius:8px; margin-top:6px; cursor:pointer; display:block; border: 1px solid #3d2d5a; }
 
-/* 🗑 コメント削除ボタン */
-.btn-comment-delete { position: absolute; right: 10px; top: 12px; font-size: 10px; padding: 3px 6px; background: #2d2640; border: 1px solid #4a3f66; color: #c3b8e0; border-radius: 4px; cursor: pointer; }
-.btn-comment-delete:hover { background: #3d3457; }
-.btn-comment-admin-delete { position: absolute; right: 10px; top: 12px; font-size: 10px; padding: 3px 6px; background: #892224; border: 1px solid #b33939; color: white; font-weight: bold; border-radius: 4px; cursor: pointer; }
-.btn-comment-admin-delete:hover { background: #b33939; }
-
-/* 📝 コメント投稿フォーム */
-#replyFormBox { background: #1c142c; padding: 16px; border-radius: 12px; border: 1px solid #3d2d5a; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
-#replyFormBox h3 { margin-top: 0; font-size: 15px; color: #e0d9f0; }
-#replyTextArea { width: 100%; height: 90px; padding: 10px; background: #251b3a; border: 1px solid #4a3f66; border-radius: 6px; box-sizing: border-box; font-size: 14px; color: #fff; resize: vertical; margin-bottom: 10px; }
-#replyTextArea::placeholder { color: #7d7299; }
-#submitReplyBtn { padding: 8px 18px; background: #6c5ce7; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(108, 92, 231, 0.4); }
-#submitReplyBtn:hover { background: #5b4cc4; }
-#submitReplyBtn:disabled { background: #3d3754; color: #777; cursor: not-allowed; box-shadow: none; }
+/* 📥 下部固定コメントフォーム（ダーク） */
+#commentBox{ position:fixed; bottom:0; left:0; width:100%; background:#1c142c; padding:10px 6px; box-shadow:0 -4px 20px rgba(0,0,0,0.4); display:flex; align-items:center; gap:5px; flex-wrap:wrap; border-top: 1px solid #3d2d5a; box-sizing: border-box; }
+#commentInput{ flex:1; padding:7px; font-size:14px; min-width:150px; background: #251b3a; border: 1px solid #4a3f66; color: #fff; border-radius: 6px; }
+#commentInput::placeholder { color: #7d7299; }
+#imageInput{ font-size:12px; color: #c3b8e0; }
+#fileName{ font-size:12px; color:#a29bfe; }
+#postBtn{ padding:7px 14px; font-size:13px; background: #6c5ce7; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+#postBtn:hover { background: #5b4cc4; }
+#postBtn:disabled { background: #3d3754; color: #777; cursor: not-allowed; }
+#postStatus{ font-size:12px; color:#a2f0b5; }
 </style>
 </head>
 <body>
 
-<div id="headerArea">
-  <h1>🐰 うさきら掲示板 ✨️</h1>
-  <a href="index.html" class="back-btn">← 一覧に戻る</a>
+<div id="threadHeaderArea">
+  <div class="header-main">
+    <h1 id="mainThreadTitle">読み込み中…</h1>
+    <div id="mainThreadBody" class="thread-body" style="display:none;"></div>
+  </div>
+  
+  <div class="admin-control-panel">
+    <button id="adminLoginBtn" class="admin-btn">👑 管理者ログイン</button>
+    <div id="userBadge" class="user-profile-badge" style="display: none;">
+      <img id="myIcon" src="">
+      <span id="myName"></span>
+    </div>
+  </div>
 </div>
 
-<div id="mainContainer">
-  <div id="parentThreadBox">
-    <div id="threadMeta" class="thread-meta">読み込み中...</div>
-    <h2 id="threadTitle" class="thread-main-title"></h2>
-    <div id="threadBody" class="thread-main-body"></div>
-  </div>
+<div id="comments"></div>
 
-  <h3>💬 コメント一覧</h3>
-  <div id="commentsBox">コメントを読み込み中…</div>
+<div id="commentBox">
+<input id="commentInput" placeholder="コメントを書くぺこ（1000文字以内）">
+<input type="file" id="imageInput" accept="image/*">
+<span id="fileName"></span>
+<button id="postBtn">投稿</button>
+<span id="postStatus"></span>
+</div>
 
-  <div id="replyFormBox">
-    <h3>このスレッドにコメントする</h3>
-    <textarea id="replyTextArea" placeholder="コメントを入力してください（1000文字以内）"></textarea>
-    <button id="submitReplyBtn">コメントを送信</button>
-  </div>
+<div id="imageModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:none; align-items:center; justify-content:center; z-index:9999;" onclick="this.style.display='none'">
+<img id="modalImg" style="max-width:90%; max-height:90%; border: 2px solid #4a3f66; border-radius: 8px;">
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, remove, get, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+import { getDatabase, ref, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-// 🛠️ index.html と同一の Firebase 接続設定
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   authDomain: "keijiban-7c651.firebaseapp.com",
@@ -89,30 +97,50 @@ const firebaseConfig={
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
 const db=getDatabase(app);
+const googleProvider = new GoogleAuthProvider();
+
+const params=new URLSearchParams(location.search);
+const threadId=params.get("id");
+const idRegex = /^[A-Za-z0-9_-]{10,128}$/;
+
+if (!threadId || !idRegex.test(threadId)) {
+  alert("不正なスレッドIDです。トップページに戻ります。");
+  location.href = "index.html";
+}
+
+const commentsRef=ref(db,"posts/"+threadId);
 
 const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
 
-// URLパラメータからスレッドIDを取得
-const urlParams = new URLSearchParams(window.location.search);
-const threadId = urlParams.get("id");
-
-if (!threadId) {
-  alert("スレッドIDが指定されていません。一覧に戻ります。");
-  window.location.href = "index.html";
-}
-
 let currentUid = null;
+let currentThreadOwnerId = null;
 let isGlobalAdmin = false;
-let threadOwnerId = null; 
 
 let stopAdminListener = null;
 let stopThreadListener = null;
 let stopCommentsListener = null;
 
-// ローカルストレージからプロフィールを同期（なければデフォルト）
 let userName = localStorage.getItem("usakira_name") || defaultName;
 let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+
+document.getElementById("adminLoginBtn").onclick = () => {
+  if (!auth.currentUser) return;
+  
+  linkWithPopup(auth.currentUser, googleProvider)
+    .then(() => { alert("管理者アカウントとの統合に成功したよ！ 🐰✨"); })
+    .catch(error => {
+      if (error.code === "auth/credential-already-in-use" || error.code === "auth/account-exists-with-different-credential") {
+        const credential = GoogleAuthProvider.credentialFromError(error);
+        if (credential) {
+          alert("このGoogleアカウントは既に登録されています。既存の管理者セッションへ切り替えます 👑");
+          signInWithCredential(auth, credential).catch(e => alert("サインイン失敗: " + e.message));
+        }
+      } else {
+        alert("ログインエラー: " + error.code);
+      }
+    });
+};
 
 function isSafeUrl(urlStr) {
   if (!urlStr) return true;
@@ -123,8 +151,10 @@ function isSafeUrl(urlStr) {
 function renderTextWithLinks(targetElement, text) {
   targetElement.textContent = ""; 
   if (!text) return;
+
   const urlRegex = /(https?:\/\/[^\s<]+)/g;
   const parts = text.split(urlRegex);
+
   parts.forEach(part => {
     if (part.startsWith("http://") || part.startsWith("https://")) {
       if (isSafeUrl(part)) {
@@ -143,37 +173,23 @@ function renderTextWithLinks(targetElement, text) {
   });
 }
 
-// 🚀 コメント数を再計算して、軽量カウンターノードを更新する共通関数
-async function refreshCommentCount() {
-  try {
-    const postsSnap = await get(ref(db, `posts/${threadId}`));
-    const currentCount = postsSnap.val() ? Object.keys(postsSnap.val()).length : 0;
-    
-    // カウンターをマルチパッチでクリーンに同期
-    await update(ref(db), {
-      [`thread-comment-counts/${threadId}`]: currentCount
-    });
-  } catch (error) {
-    console.error("Counter Sync Error:", error);
-  }
-}
+window.openImage = (src) => {
+  document.getElementById("modalImg").src=src;
+  document.getElementById("imageModal").style.display="flex";
+};
 
-// コメント削除処理
-window.deleteComment = async (cId) => {
-  if (!confirm("このコメントを本当に削除するぺこ？")) return;
+window.deleteComment = async (commentId) => {
+  if (!confirm("このコメントを削除するぺこ？")) return;
   try {
-    await remove(ref(db, `posts/${threadId}/${cId}`));
-    // 🚀 削除が完了したら即座にカウンターを減算・同期
-    await refreshCommentCount();
+    await remove(ref(db, `posts/${threadId}/${commentId}`));
     alert("コメントを削除したよ 🐰🧹");
   } catch (error) {
     console.error(error);
-    alert("削除に失敗しました。");
+    alert("削除に失敗しました。権限がありません。");
   }
 };
 
-// 認証状態の追跡
-onAuthStateChanged(auth, user => {
+onAuthStateChanged(auth, async user => {
   if (!user) {
     signInAnonymously(auth).catch(e => console.error("匿名ログイン失敗:", e));
     return;
@@ -181,154 +197,222 @@ onAuthStateChanged(auth, user => {
   currentUid = user.uid;
 
   if (stopAdminListener) stopAdminListener();
-  
-  // 管理者権限をリアルタイムチェック
+
   stopAdminListener = onValue(ref(db, "admins/" + currentUid), adminSnap => {
     isGlobalAdmin = adminSnap.val() === true;
-    
-    // Google認証連携済みなら、名前とアイコンをGoogleのものに固定
-    const googleProfile = user.providerData.find(p => p.providerId === "google.com");
-    if (googleProfile) {
-      userName = googleProfile.displayName || "管理者";
-      userIcon = googleProfile.photoURL || defaultIcon;
-    } else {
+    const isGoogleLinked = user.providerData.some(p => p.providerId === "google.com");
+
+    if (!isGoogleLinked) {
       userName = localStorage.getItem("usakira_name") || defaultName;
       userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+      document.getElementById("adminLoginBtn").style.display = "block";
+      document.getElementById("userBadge").style.display = "none";
+    } else {
+      const googleProfile = user.providerData.find(p => p.providerId === "google.com");
+      userName = googleProfile.displayName || "管理者";
+      userIcon = googleProfile.photoURL || defaultIcon;
+      document.getElementById("adminLoginBtn").style.display = "none";
+      
+      const nameEl = document.getElementById("myName");
+      const iconEl = document.getElementById("myIcon");
+      nameEl.textContent = isGlobalAdmin ? userName + " (管理人公認) 👑" : "統合完了UID: " + currentUid;
+      iconEl.src = isSafeUrl(userIcon) ? userIcon : defaultIcon;
+      document.getElementById("userBadge").style.display = "flex";
     }
-    
-    startSyncThread();
   });
+
+  if (stopThreadListener) stopThreadListener();
+  
+  stopThreadListener = onValue(ref(db, "threads/" + threadId), snap => {
+    const t = snap.val();
+    if(t) {
+      currentThreadOwnerId = t.ownerId;
+      document.getElementById("mainThreadTitle").textContent = t.title;
+      if(t.body && t.body.trim() !== "") {
+        renderTextWithLinks(document.getElementById("mainThreadBody"), t.body);
+        document.getElementById("mainThreadBody").style.display = "block";
+      } else {
+        document.getElementById("mainThreadBody").style.display = "none";
+      }
+    } else {
+      document.getElementById("mainThreadTitle").textContent = "スレッドが存在しないか削除されました。";
+    }
+  });
+
+  loadComments();
 });
 
-function startSyncThread() {
-  if (stopThreadListener) stopThreadListener();
+function loadComments(){
   if (stopCommentsListener) stopCommentsListener();
 
-  // 1. 親スレッドデータの読み込み
-  stopThreadListener = onValue(ref(db, `threads/${threadId}`), snap => {
-    const t = snap.val();
-    if (!t) {
-      document.getElementById("threadMeta").textContent = "❌ スレッドが見つかりません";
-      document.getElementById("threadTitle").textContent = "削除されたか、存在しないスレッドです";
-      document.getElementById("threadBody").textContent = "";
-      document.getElementById("submitReplyBtn").disabled = true;
-      return;
-    }
-
-    threadOwnerId = t.ownerId; // スレ主のUIDを保持
-
-    const metaBox = document.getElementById("threadMeta");
-    metaBox.textContent = "";
-    const iconImg = document.createElement("img");
-    iconImg.src = isSafeUrl(t.ownerIcon) ? (t.ownerIcon || defaultIcon) : defaultIcon;
-    iconImg.onerror = () => { iconImg.src = defaultIcon; };
-    const metaSpan = document.createElement("span");
-    metaSpan.textContent = `${t.ownerName || defaultName} が作成 ・ ${t.time ? new Date(t.time).toLocaleString() : ""}`;
-    
-    metaBox.appendChild(iconImg);
-    metaBox.appendChild(metaSpan);
-
-    document.getElementById("threadTitle").textContent = t.title || "無題のスレッド";
-    
-    const bodyBox = document.getElementById("threadBody");
-    renderTextWithLinks(bodyBox, t.body || "");
-  });
-
-  // 2. コメント一覧データの読み込み
-  stopCommentsListener = onValue(ref(db, `posts/${threadId}`), snap => {
-    const commentsBox = document.getElementById("commentsBox");
-    commentsBox.textContent = "";
-
+  stopCommentsListener = onValue(commentsRef, snap => {
     const data = snap.val();
-    if (!data) {
-      commentsBox.textContent = "コメントがまだありません。最初の足跡を残してみよう！";
-      return;
+    const commentsContainer = document.getElementById("comments");
+    commentsContainer.textContent = ""; 
+
+    if (data) {
+      const list = Object.entries(data).sort((a,b) => b[1].time - a[1].time);
+
+      list.forEach(([key, c]) => {
+        const commentDiv = document.createElement("div");
+        commentDiv.classList.add("comment");
+
+        const headerDiv = document.createElement("div");
+        headerDiv.classList.add("header");
+
+        const iconImg = document.createElement("img");
+        iconImg.classList.add("icon");
+        const safeIcon = (isSafeUrl(c.icon) && (c.icon || "").length <= 1000) ? (c.icon || defaultIcon) : defaultIcon;
+        iconImg.src = safeIcon;
+        iconImg.onerror = () => { iconImg.src = defaultIcon; };
+
+        const nameDiv = document.createElement("div");
+        nameDiv.classList.add("name");
+        nameDiv.textContent = c.name || "名もなき兎";
+
+        const timeSpan = document.createElement("span");
+        timeSpan.classList.add("time");
+        timeSpan.textContent = c.time ? " " + new Date(c.time).toLocaleString() : "";
+        nameDiv.appendChild(timeSpan);
+
+        headerDiv.appendChild(iconImg);
+        headerDiv.appendChild(nameDiv);
+
+        if (isGlobalAdmin) {
+          const actionsDiv = document.createElement("div");
+          actionsDiv.classList.add("actions");
+          const btn = document.createElement("button");
+          btn.classList.add("btn-admin-delete");
+          btn.textContent = "👑 管理削除";
+          btn.onclick = () => window.deleteComment(key);
+          actionsDiv.appendChild(btn);
+          headerDiv.appendChild(actionsDiv);
+        } else if (c.userId === currentUid || currentThreadOwnerId === currentUid) {
+          const actionsDiv = document.createElement("div");
+          actionsDiv.classList.add("actions");
+          const btn = document.createElement("button");
+          btn.classList.add("btn-delete");
+          btn.textContent = "🗑 削除";
+          btn.onclick = () => window.deleteComment(key);
+          actionsDiv.appendChild(btn);
+          headerDiv.appendChild(actionsDiv);
+        }
+
+        const textDiv = document.createElement("div");
+        textDiv.classList.add("text", "comment-text-container");
+        renderTextWithLinks(textDiv, c.text || "");
+
+        commentDiv.appendChild(headerDiv);
+        commentDiv.appendChild(textDiv);
+
+        if (c.image && isSafeUrl(c.image) && c.image.length <= 1000) {
+          const commentImg = document.createElement("img");
+          commentImg.classList.add("comment-img");
+          commentImg.src = c.image;
+          commentImg.onclick = () => window.openImage(c.image);
+          commentDiv.appendChild(commentImg);
+        }
+
+        commentsContainer.appendChild(commentDiv);
+      });
     }
-
-    let index = 1;
-    Object.entries(data).forEach(([cKey, c]) => {
-      const card = document.createElement("div");
-      card.classList.add("comment-card");
-
-      const header = document.createElement("div");
-      header.classList.add("comment-header");
-
-      const numSpan = document.createElement("span");
-      numSpan.classList.add("comment-number");
-      numSpan.textContent = `${index}`;
-
-      const iconImg = document.createElement("img");
-      iconImg.src = isSafeUrl(c.userIcon) ? (c.userIcon || defaultIcon) : defaultIcon;
-      iconImg.onerror = () => { iconImg.src = defaultIcon; };
-
-      const metaSpan = document.createElement("span");
-      metaSpan.textContent = `${c.userName || defaultName} ・ ${c.time ? new Date(c.time).toLocaleString() : ""}`;
-
-      header.appendChild(numSpan);
-      header.appendChild(iconImg);
-      header.appendChild(metaSpan);
-      card.appendChild(header);
-
-      const textDiv = document.createElement("div");
-      textDiv.classList.add("comment-text");
-      renderTextWithLinks(textDiv, c.text || "");
-      card.appendChild(textDiv);
-
-      // 権限判定（管理人、またはコメント投稿者本人、またはスレッド作成主なら削除可）
-      const canDelete = isGlobalAdmin || (c.userId === currentUid) || (currentUid === threadOwnerId);
-      if (canDelete) {
-        const delBtn = document.createElement("button");
-        delBtn.textContent = isGlobalAdmin ? "👑 管理削除" : "🗑 削除";
-        delBtn.className = isGlobalAdmin ? "btn-comment-admin-delete" : "btn-comment-delete";
-        delBtn.onclick = () => window.deleteComment(cKey);
-        card.appendChild(delBtn);
-      }
-
-      commentsBox.appendChild(card);
-      index++;
-    });
   });
 }
 
-// コメント投稿処理
-document.getElementById("submitReplyBtn").onclick = async () => {
-  if (!currentUid) return alert("ログイン処理中です");
+function compressImage(file){
+  return new Promise((resolve, reject) => {
+    const img=new Image(); 
+    const canvas=document.createElement("canvas"); 
+    const ctx=canvas.getContext("2d");
+    const objectUrl = URL.createObjectURL(file);
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("画像の読み込みに失敗しました。"));
+    };
 
-  const btn = document.getElementById("submitReplyBtn");
-  const text = document.getElementById("replyTextArea").value.trim();
+    img.onload=()=>{
+      let w=img.width; let h=img.height; const max=1000;
+      if(w>h){ if(w>max){ h*=max/w; w=max; } }else{ if(h>max){ w*=max/h; h=max; } }
+      canvas.width=w; canvas.height=h; ctx.drawImage(img,0,0,w,h);
+      
+      canvas.toBlob(blob=>{ 
+        URL.revokeObjectURL(objectUrl);
+        if (!blob) {
+          reject(new Error("画像の圧縮処理に失敗しました。"));
+          return;
+        }
+        resolve(blob); 
+      },"image/jpeg",0.7);
+    };
+    img.src=objectUrl;
+  });
+}
 
-  if (!text) return alert("コメント内容を入力してください！");
-  if (text.length > 1000) return alert("コメントは1000文字以内にしてね");
+async function uploadImage(file){
+  const compressed=await compressImage(file);
+  const formData=new FormData();
+  formData.append("file",compressed);
+  formData.append("upload_preset","usakira_upload");
+  
+  const res=await fetch("https://api.cloudinary.com/v1_1/dfhevulda/image/upload",{method:"POST",body:formData});
+  if(!res.ok) throw new Error(`Upload Failed: Status ${res.status}`);
+  
+  const data=await res.json();
+  if(!data.secure_url) throw new Error("Missing secure_url");
+  return data.secure_url;
+}
 
-  btn.disabled = true;
+document.getElementById("postBtn").onclick=async()=>{
+  if(!currentUid) return alert("ログイン処理中です");
+  
+  const postBtn = document.getElementById("postBtn");
+  const text=document.getElementById("commentInput").value.trim();
+  const file=document.getElementById("imageInput").files[0];
+  
+  if(!text && !file){ alert("コメントか画像を入れてください"); return; }
+  if(text.length > 1000){ alert("コメントは1000文字以内にしてね"); return; }
+  if(file && file.size > 5 * 1024 * 1024) return alert("画像ファイルは5MB以下にしてね 🐰❌");
+
+  postBtn.disabled = true;
+  document.getElementById("postStatus").textContent="投稿処理中...";
 
   try {
-    const timestamp = Date.now();
-    
-    // 1. コメントデータを posts ノードへプッシュ
-    await push(ref(db, `posts/${threadId}`), {
-      text: text,
-      userId: currentUid,
-      userName: userName.substring(0, 50),
-      userIcon: userIcon,
-      time: timestamp
+    let imageURL="";
+    if(file) imageURL=await uploadImage(file); 
+
+    if (imageURL && (imageURL.length > 1000 || !isSafeUrl(imageURL))) {
+      throw new Error("Malicious or invalid image URL detected.");
+    }
+
+    await push(commentsRef,{
+      text:text,
+      image:imageURL,
+      time:Date.now(),
+      name:userName.substring(0, 50),
+      icon:userIcon,
+      userId:currentUid
     });
 
-    // 2. 親スレッドの最終更新時間(lastTime)を更新（スレ上げ処理）
-    await update(ref(db, `threads/${threadId}`), {
-      lastTime: timestamp
-    });
+    await update(ref(db, "threads/" + threadId), { lastTime: Date.now() });
 
-    // 3. 🚀 軽量カウンターノードの数値を最新化
-    await refreshCommentCount();
+    document.getElementById("commentInput").value="";
+    document.getElementById("imageInput").value="";
+    document.getElementById("fileName").textContent="";
+    document.getElementById("postStatus").textContent="投稿しました！";
+    setTimeout(()=>{ document.getElementById("postStatus").textContent=""; },2000);
 
-    document.getElementById("replyTextArea").value = "";
   } catch (error) {
-    console.error("Post Reply Error:", error);
-    alert("コメントの投稿に失敗しました。");
+    console.error("Post Error:", error);
+    alert(error.message || "投稿に失敗しました。");
   } finally {
-    btn.disabled = false;
+    postBtn.disabled = false;
   }
+};
+
+document.getElementById("imageInput").onchange=e=>{
+  const file=e.target.files[0];
+  document.getElementById("fileName").textContent=file?file.name:"";
 };
 </script>
 </body>
