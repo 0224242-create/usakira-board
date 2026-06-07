@@ -37,9 +37,6 @@
     <h3>コメントを投稿する</h3>
     <textarea id="commentInput" rows="4" placeholder="ログイン処理中ぺこ..." disabled></textarea>
     <br>
-    <input type="file" id="imageInput" accept="image/*">
-    <span id="fileName" style="font-size: 0.85em; color: #555;"></span>
-    <br>
     <button id="postBtn" disabled>コメントを送信</button>
     <span id="postStatus" style="font-size: 0.85em; color: #777; margin-left: 10px;"></span>
   </div>
@@ -78,26 +75,27 @@
   let isGlobalAdmin = false;
   let threadOwnerId = null;
 
-  // 🌸 自動匿名ログイン（二重保険ロック）
+  // 🚀 爆速・キャッシュ優先の認証監視（詳細画面側）
   onAuthStateChanged(auth, user => {
-    if (!user) {
+    if (user) {
+      currentUid = user.uid;
+      authReady = true;
+
+      // 開いた瞬間一秒も待たせず即アンロック！
+      const input = document.getElementById("commentInput");
+      const btn = document.getElementById("postBtn");
+      input.disabled = false;
+      input.placeholder = "コメントを書くぺこ（1000文字以内）";
+      btn.disabled = false;
+
+      // 管理者チェック
+      onValue(ref(db, `admins/${currentUid}`), snap => {
+        isGlobalAdmin = !!snap.val();
+      });
+    } else {
       authReady = false;
       signInAnonymously(auth).catch(e => console.error(e));
-      return;
     }
-    currentUid = user.uid;
-    authReady = true;
-
-    const input = document.getElementById("commentInput");
-    const btn = document.getElementById("postBtn");
-    input.disabled = false;
-    input.placeholder = "コメントを書くぺこ（1000文字以内）";
-    btn.disabled = false;
-
-    // 管理者チェック
-    onValue(ref(db, `admins/${currentUid}`), snap => {
-      isGlobalAdmin = !!snap.val();
-    });
   });
 
   // 📂 親スレッド情報の読み込み
@@ -112,7 +110,7 @@
     document.getElementById("threadBody").textContent = thread.body;
   });
 
-  // 📂 コメント一覧の取得 ＆ 💡 個数をJS側で安全にカウント
+  // 📂 コメント一覧の取得 ＆ 表示時に安全カウント
   onValue(ref(db, `posts/${threadId}`), snap => {
     const list = document.getElementById("commentsList");
     const countDisplay = document.getElementById("commentCountDisplay");
@@ -125,7 +123,7 @@
       return;
     }
 
-    // 🚀 安全にコメント数を表示時にカウント（競合ゼロ）
+    // クライアント側で安全に件数を算出（ズレ・チートの余地なし）
     const commentCount = Object.keys(data).length;
     countDisplay.textContent = `${commentCount}件のコメント`;
 
@@ -135,7 +133,6 @@
       const div = document.createElement("div");
       div.className = "comment-item";
 
-      // 削除ボタンの判定（書いた本人 or スレ主 or 管理者）
       const showDelete = isGlobalAdmin || (currentUid === comment.userId) || (currentUid === threadOwnerId);
       const deleteHtml = showDelete ? `<button class="delete-comment-btn" onclick="deleteComment('${key}')">削除</button>` : "";
       const imgHtml = comment.image ? `<img src="${escapeHtml(comment.image)}" class="comment-img">` : "";
@@ -159,6 +156,7 @@
     const btn = document.getElementById("postBtn");
     const text = document.getElementById("commentInput").value.trim();
     if (!text) { alert("コメントを入力してください"); return; }
+    if (text.length > 1000) { alert("コメントは1000文字以内にしてね"); return; }
 
     btn.disabled = true;
     document.getElementById("postStatus").textContent = "投稿中...";
@@ -169,15 +167,14 @@
       // 1. コメントを posts に追加
       await push(ref(db, `posts/${threadId}`), {
         text: text,
-        image: "", // 画像アップロードを省く場合は空
+        image: "", 
         time: nowTime,
         name: "名無しさん",
         icon: "🐰",
         userId: currentUid
       });
 
-      // 2. スレ上げ（lastTime）だけを更新
-      // ルール側で「lastTime」の部分更新が一般ユーザーにも例外認可されています！
+      // 2. スレ上げ（lastTimeフィールドだけを部分更新：ルールで一般人にも認可済）
       await update(ref(db, `threads/${threadId}`), {
         lastTime: nowTime
       });
