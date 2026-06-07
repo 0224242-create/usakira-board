@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>うさきら掲示板 - トップ</title>
+  <title>🐰 うさキラ掲示板 ✨️</title>
   <style>
     body { font-family: sans-serif; background: #f9f9f9; padding: 20px; }
     .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -21,7 +21,7 @@
 <body>
 
 <div class="container">
-  <h1>🐰 うさきら掲示板 🌸</h1>
+  <h1>🐰 うさキラ掲示板 ✨️</h1>
 
   <div style="background: #fff0f2; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
     <h3>新しくスレッドを立てるぺこ</h3>
@@ -34,7 +34,7 @@
       <textarea id="threadBodyInput" rows="3" placeholder="ここに本文を書くぺこ..."></textarea>
     </div>
     <button id="submitThreadBtn" disabled>スレッドを作成</button>
-    <span id="authStatus" style="font-size: 0.85em; color: #777; margin-left: 10px;"></span>
+    <span id="authStatus" style="font-size: 0.85em; color: #777; margin-left: 10px;">接続中...</span>
   </div>
 
   <h2>スレッド一覧</h2>
@@ -43,7 +43,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-  import { getDatabase, ref, push, onValue, remove, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+  import { getDatabase, ref, push, onValue, update, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
   import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
 
   // 🛠️ あなたの Firebase 設定に書き換えてください
@@ -65,28 +65,30 @@
   let authReady = false;
   let isGlobalAdmin = false;
 
-  // 🌸 自動匿名ログインの監視（二重保険ロック付き）
+  // 🚀 爆速・キャッシュ優先の認証監視
   onAuthStateChanged(auth, user => {
-    if (!user) {
+    if (user) {
+      // キャッシュがあれば一瞬でここを通る！
+      currentUid = user.uid;
+      authReady = true;
+
+      // UIロックを即解除
+      const titleInput = document.getElementById("threadTitleInput");
+      const submitBtn = document.getElementById("submitThreadBtn");
+      titleInput.disabled = false;
+      titleInput.placeholder = "スレッドのタイトル（100文字以内）";
+      submitBtn.disabled = false;
+      document.getElementById("authStatus").textContent = "🐰 準備完了（爆速モード）";
+
+      // 管理者チェックの開始
+      onValue(ref(db, `admins/${currentUid}`), snap => {
+        isGlobalAdmin = !!snap.val();
+      });
+    } else {
+      // 完全な初回アクセス時だけサーバーへ通信
       authReady = false;
       signInAnonymously(auth).catch(e => console.error("匿名ログイン失敗:", e));
-      return;
     }
-    currentUid = user.uid;
-    authReady = true;
-
-    // ロック解除
-    const titleInput = document.getElementById("threadTitleInput");
-    const submitBtn = document.getElementById("submitThreadBtn");
-    titleInput.disabled = false;
-    titleInput.placeholder = "スレッドのタイトル（100文字以内）";
-    submitBtn.disabled = false;
-    document.getElementById("authStatus").textContent = "🐰 準備完了（匿名ログイン中）";
-
-    // 管理者チェックの開始
-    onValue(ref(db, `admins/${currentUid}`), snap => {
-      isGlobalAdmin = !!snap.val();
-    });
   });
 
   // 📝 スレッド作成処理
@@ -97,7 +99,7 @@
     const body = document.getElementById("threadBodyInput").value.trim();
 
     if (!title || !body) { alert("タイトルと本文を入力してください"); return; }
-    if (title.length > 1000) { alert("タイトルが長すぎます"); return; }
+    if (title.length > 100) { alert("タイトルは100文字以内にしてね"); return; }
 
     try {
       const now = Date.now();
@@ -120,7 +122,7 @@
     }
   };
 
-  // 📂 スレッド一覧の取得（lastTimeの降順でソートして表示）
+  // 📂 スレッド一覧の取得
   const threadsQuery = query(ref(db, "threads"), orderByChild("lastTime"));
   onValue(threadsQuery, (snapshot) => {
     const threadsList = document.getElementById("threadsList");
@@ -132,18 +134,16 @@
       return;
     }
 
-    // Firebaseのインデックス順（古い順）を配列にして逆順（最新順）にする
     const items = [];
     snapshot.forEach((childSnapshot) => {
       items.push({ id: childSnapshot.key, ...childSnapshot.val() });
     });
-    items.reverse();
+    items.reverse(); // 最新順にする
 
     items.forEach(thread => {
       const div = document.createElement("div");
       div.className = "thread-item";
 
-      // 👑 管理者、または「自分が立てたスレ」なら削除ボタンを出す
       const showDelete = isGlobalAdmin || (thread.ownerId === currentUid);
       const deleteHtml = showDelete ? `<button class="delete-btn" onclick="deleteThread('${thread.id}')">削除</button>` : "";
 
@@ -151,7 +151,7 @@
         <a href="thread.html?id=${thread.id}" class="thread-title">${escapeHtml(thread.title)}</a>
         <div class="meta">
           立てた人: ${thread.ownerIcon} ${escapeHtml(thread.ownerName)} | 
-          作成: ${new Date(thread.time).toLocaleString()}
+          更新: ${new Date(thread.lastTime).toLocaleString()}
         </div>
         ${deleteHtml}
       `;
@@ -161,15 +161,15 @@
 
   // 🧹 スレッド削除（一括マルチパッチ）
   window.deleteThread = async (tId) => {
-    if (!confirm("このスレッドとコメントをすべて削除するぺこ？")) return;
+    if (!confirm("このスレッドと中身のコメントをすべて削除するぺこ？")) return;
     try {
       const updates = {};
       updates[`threads/${tId}`] = null;
-      updates[`posts/${tId}`] = null; // コメントもまとめて削除
+      updates[`posts/${tId}`] = null; 
       await update(ref(db), updates);
       alert("スレッドを削除しました 🧹");
     } catch (e) {
-      alert("削除権限がありません。");
+      alert("削除権限がないか、エラーが発生しました。");
     }
   };
 
