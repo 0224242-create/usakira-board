@@ -7,12 +7,9 @@
     body { font-family: sans-serif; background: #f9f9f9; padding: 20px; }
     .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     h1 { color: #ff6b81; }
-    .auth-box { background: #eccc68; padding: 10px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; }
     .form-group { margin-bottom: 15px; }
     input, textarea { width: 100%; padding: 10px; box-sizing: border-box; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; }
     button { background: #ff6b81; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-    .login-btn { background: #1e90ff; margin-left: 10px; }
-    .logout-btn { background: #747d8c; margin-left: 10px; }
     .thread-item { padding: 15px; border-bottom: 1px solid #eee; position: relative; }
     .thread-title { font-size: 1.2em; font-weight: bold; color: #333; text-decoration: none; }
     .thread-title:hover { text-decoration: underline; }
@@ -26,13 +23,8 @@
 <div class="container">
   <h1>🐰 うさキラ掲示板 ✨️</h1>
 
-  <div class="auth-box">
-    <span id="authStatus">あなたは未ログインです（閲覧専用モード）</span>
-    <button id="loginBtn" class="login-btn">匿名ログインする</button>
-    <button id="logoutBtn" class="logout-btn" style="display:none;">ログアウト</button>
-  </div>
-
-  <div id="createThreadBox" style="background: #fff0f2; padding: 15px; border-radius: 6px; margin-bottom: 20px; display:none;">
+  <!-- 📢 ログイン不要！最初から全開放されているスレ作成エリア -->
+  <div style="background: #fff0f2; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
     <h3>新しくスレッドを立てるぺこ</h3>
     <div class="form-group">
       <label>スレッドタイトル</label>
@@ -43,6 +35,7 @@
       <textarea id="threadBodyInput" rows="3" placeholder="ここに本文を書くぺこ..."></textarea>
     </div>
     <button id="submitThreadBtn">スレッドを作成</button>
+    <span id="adminStatus" style="font-size: 0.8em; color: #aaa; margin-left: 10px;">一般モード</span>
   </div>
 
   <h2>スレッド一覧</h2>
@@ -51,9 +44,10 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-  import { getDatabase, ref, push, onValue, update, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
-  import { getAuth, onAuthStateChanged, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+  import { getDatabase, ref, push, onValue, query, orderByChild, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+  import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
 
+  // 🛠️ 【超重要】ここをご自身の Firebase 情報に「最後の一回」書き換えてください！
   const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
     authDomain: "YOUR_AUTH_DOMAIN",
@@ -71,46 +65,23 @@
   let currentUid = null;
   let isGlobalAdmin = false;
 
-  // 🌸 認証状態の監視（任意ログインなので、勝手にログインさせない）
+  // 👤 管理人の判定のためだけに、裏でひっそり匿名認証を走らせる（一般の人は無視でOK）
+  signInAnonymously(auth).catch(e => console.log("匿名ゲスト接続"));
   onAuthStateChanged(auth, user => {
-    const statusText = document.getElementById("authStatus");
-    const loginBtn = document.getElementById("loginBtn");
-    const logoutBtn = document.getElementById("logoutBtn");
-    const createBox = document.getElementById("createThreadBox");
-
     if (user) {
       currentUid = user.uid;
-      statusText.textContent = `🐰 ログイン中 (UID: ${currentUid.substring(0,6)}...)`;
-      loginBtn.style.display = "none";
-      logoutBtn.style.display = "inline-block";
-      createBox.style.display = "block"; // ログインしたらスレ作成欄を出す
-
+      // 管理者リストに自分がいるかチェック
       onValue(ref(db, `admins/${currentUid}`), snap => {
-        isGlobalAdmin = !!snap.val();
+        if (snap.val()) {
+          isGlobalAdmin = true;
+          document.getElementById("adminStatus").textContent = "👑 管理人モード";
+        }
       });
-    } else {
-      currentUid = null;
-      isGlobalAdmin = false;
-      statusText.textContent = "あなたは未ログインです（閲覧専用モード）";
-      loginBtn.style.display = "inline-block";
-      logoutBtn.style.display = "none";
-      createBox.style.display = "none"; // 未ログインなら作成欄を隠す
     }
   });
 
-  // 📝 ボタンを押したときだけログインする
-  document.getElementById("loginBtn").onclick = () => {
-    signInAnonymously(auth).catch(e => alert("ログイン失敗: " + e.message));
-  };
-
-  // 🚪 ログアウト処理
-  document.getElementById("logoutBtn").onclick = () => {
-    signOut(auth).catch(e => console.error(e));
-  };
-
-  // 📝 スレッド作成処理
+  // 📝 スレッド作成（ログインチェックを完全撤廃！）
   document.getElementById("submitThreadBtn").onclick = async () => {
-    if (!currentUid) return;
     const title = document.getElementById("threadTitleInput").value.trim();
     const body = document.getElementById("threadBodyInput").value.trim();
     if (!title || !body) { alert("入力してください"); return; }
@@ -122,7 +93,7 @@
       updates[`threads/${tId}`] = {
         title: title,
         body: body,
-        ownerId: currentUid,
+        ownerId: currentUid || "guest", // ログインしてなくてもguestとして作成可能
         ownerName: "名無しさん",
         ownerIcon: "🐰",
         time: now,
@@ -134,17 +105,17 @@
       document.getElementById("threadTitleInput").value = "";
       document.getElementById("threadBodyInput").value = "";
     } catch (e) {
-      alert("エラーが発生しました。");
+      alert("送信エラー：セキュリティルールまたは設定URLを確認してね");
     }
   };
 
-  // 📂 スレッド一覧の取得（開いた瞬間、ログインを待たずに即読み込まれる！）
+  // 📂 スレッド一覧の取得（ログイン関係なく、開いた瞬間0秒で爆走読み込み！）
   const threadsQuery = query(ref(db, "threads"), orderByChild("lastTime"));
   onValue(threadsQuery, (snapshot) => {
     const threadsList = document.getElementById("threadsList");
     threadsList.innerHTML = "";
     const data = snapshot.val();
-    if (!data) { threadsList.innerHTML = "<p>スレッドがありません。</p>"; return; }
+    if (!data) { threadsList.innerHTML = "<p>スレッドがまだありません。</p>"; return; }
 
     const items = [];
     snapshot.forEach((childSnapshot) => { items.push({ id: childSnapshot.key, ...childSnapshot.val() }); });
@@ -154,35 +125,36 @@
       const div = document.createElement("div");
       div.className = "thread-item";
 
+      // 👑 管理人、または自分が建てたスレなら削除ボタンを出す
       const showDelete = isGlobalAdmin || (currentUid && thread.ownerId === currentUid);
       const deleteHtml = showDelete ? `<button class="delete-btn" onclick="deleteThread('${thread.id}')">削除</button>` : "";
 
       const countSpanId = `count-${thread.id}`;
       onValue(ref(db, `thread-comment-counts/${thread.id}`), countSnap => {
-        if (document.getElementById(countSpanId)) {
-          document.getElementById(countSpanId).textContent = `${countSnap.val() || 0}コメ`;
-        }
+        const el = document.getElementById(countSpanId);
+        if (el) el.textContent = `${countSnap.val() || 0}コメ`;
       });
 
       div.innerHTML = `
         <a href="thread.html?id=${thread.id}" class="thread-title">${escapeHtml(thread.title)}</a>
         <span class="comment-badge" id="${countSpanId}">0コメ</span>
-        <div class="meta">立てた人: ${thread.ownerIcon} | 更新: ${new Date(thread.lastTime).toLocaleString()}</div>
+        <div class="meta">更新: ${new Date(thread.lastTime).toLocaleString()}</div>
         ${deleteHtml}
       `;
       threadsList.appendChild(div);
     });
   });
 
+  // 🧹 スレッド削除
   window.deleteThread = async (tId) => {
-    if (!confirm("削除するぺこ？")) return;
+    if (!confirm("このスレッドを削除するぺこ？")) return;
     try {
       const updates = {};
       updates[`threads/${tId}`] = null;
       updates[`posts/${tId}`] = null; 
       updates[`thread-comment-counts/${tId}`] = null;
       await update(ref(db), updates);
-    } catch (e) { alert("権限がありません。"); }
+    } catch (e) { alert("削除権限がありません。"); }
   };
 
   function escapeHtml(str) { return str ? str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; }
