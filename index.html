@@ -82,7 +82,6 @@ h1 { margin: 0; font-size: 1.5rem; color: #9d88ff; text-shadow: 0 0 10px rgba(15
 </div>
 
 <div id="mainContainer">
-  <!-- 🔍 検索フォーム -->
   <div id="searchBox">
     <input id="searchInput" type="text" placeholder="🔍 スレッドのタイトルでリアルタイム検索ぺこ...">
   </div>
@@ -130,12 +129,12 @@ const defaultIcon="usagi.png.jpeg";
 
 let currentUid = null;
 let isGlobalAdmin = false;
-let globalThreadsData = []; // 検索用に取得データを保持する配列
-let globalPostsData = {};   // 各スレのコメント数を保持するオブジェクト
+let globalThreadsData = []; 
+let globalCountsData = {};   // 🚀 コメント数だけを入れる軽量オブジェクトに変更
 
 let stopAdminListener = null;
 let stopThreadsListener = null;
-let stopPostsListener = null;
+let stopCountsListener = null;
 
 let userName = localStorage.getItem("usakira_name") || defaultName;
 let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
@@ -154,7 +153,6 @@ document.getElementById("customIconInput").oninput = (e) => {
   localStorage.setItem("usakira_icon", val);
 };
 
-// 🔍 検索入力イベント
 document.getElementById("searchInput").oninput = () => {
   renderThreadsList();
 };
@@ -181,7 +179,7 @@ document.getElementById("logoutBtn").onclick = async () => {
   try {
     if (stopAdminListener) stopAdminListener();
     if (stopThreadsListener) stopThreadsListener();
-    if (stopPostsListener) stopPostsListener();
+    if (stopCountsListener) stopCountsListener();
     await signOut(auth);
     currentUid = null;
     isGlobalAdmin = false;
@@ -225,7 +223,8 @@ window.deleteThread = async (tId) => {
   if (!confirm("このスレッドを本当に削除するぺこ？")) return;
   try {
     await remove(ref(db, `threads/${tId}`));
-    await remove(ref(db, `posts/${tId}`)); // コメント側も同時に綺麗にするぺこ
+    await remove(ref(db, `posts/${tId}`)); 
+    await remove(ref(db, `thread-comment-counts/${tId}`)); // 🚀 カウンターも削除
     alert("スレッドを削除したよ 🐰🧹");
   } catch (error) {
     console.error(error);
@@ -233,7 +232,6 @@ window.deleteThread = async (tId) => {
   }
 };
 
-// 📌 スレ固定切り替え関数（管理者限定）
 window.togglePinThread = async (tId, currentStatus) => {
   try {
     await update(ref(db, `threads/${tId}`), { pinned: !currentStatus });
@@ -285,18 +283,16 @@ onAuthStateChanged(auth, async user => {
   });
 });
 
-// データ同期の一括開始
 function startSync() {
   if (stopThreadsListener) stopThreadsListener();
-  if (stopPostsListener) stopPostsListener();
+  if (stopCountsListener) stopCountsListener();
 
-  // 📄 コメントカウンター用に posts 全体を軽く監視
-  stopPostsListener = onValue(ref(db, "posts"), snap => {
-    globalPostsData = snap.val() || {};
-    renderThreadsList(); // コメント数変動時に再描画
+  // 🚀 全データをダウンロードする "posts" の代わりに、数字だけの超軽量ノードを監視！
+  stopCountsListener = onValue(ref(db, "thread-comment-counts"), snap => {
+    globalCountsData = snap.val() || {};
+    renderThreadsList(); 
   });
 
-  // 📄 ページ分割対応：queryを使って最新の50件のみをサーバーから引いてくる
   const threadsQuery = query(ref(db, "threads"), orderByChild("lastTime"), limitToLast(50));
   
   stopThreadsListener = onValue(threadsQuery, snap => {
@@ -311,46 +307,42 @@ function startSync() {
   });
 }
 
-// スレッド一覧の描画処理（ソート・検索・ピン留め対応）
 function renderThreadsList() {
   const listContainer = document.getElementById("threadList");
   listContainer.textContent = "";
 
   if (globalThreadsData.length === 0) {
-    listContainer.textContent = "スレッドがまだありません。最初のスレを立ててみようぺこ！";
+    listContainer.textContent = "スレッドがまだありません。最初のスレを立ててみよう！";
     return;
   }
 
   const keyword = document.getElementById("searchInput").value.toLowerCase().trim();
 
-  // 🔥 1. ソート処理： pinned (真が上) -> lastTime (降順)
   const sorted = [...globalThreadsData].sort((a, b) => {
     const pinA = a[1].pinned ? 1 : 0;
     const pinB = b[1].pinned ? 1 : 0;
-    if (pinB !== pinA) return pinB - pinA; // ピン留めが最優先
-    return (b[1].lastTime || 0) - (a[1].lastTime || 0); // 次点で最終投稿順
+    if (pinB !== pinA) return pinB - pinA; 
+    return (b[1].lastTime || 0) - (a[1].lastTime || 0); 
   });
 
   let hasVisibleCard = false;
 
   sorted.forEach(([key, t]) => {
-    // 🔍 2. 検索キーワードによるリアルタイムフィルタリング
     if (keyword && !t.title.toLowerCase().includes(keyword)) {
       return; 
     }
     hasVisibleCard = true;
 
-    // 💬 コメント数の算出
-    const commentCount = globalPostsData[key] ? Object.keys(globalPostsData[key]).length : 0;
+    // 🚀 軽量オブジェクトからコメント数を取得（データがなければ0件）
+    const commentCount = globalCountsData[key] || 0;
 
     const card = document.createElement("div");
     card.classList.add("thread-card");
-    if (t.pinned) card.classList.add("pinned-style"); // ピン留め専用の枠線
+    if (t.pinned) card.classList.add("pinned-style"); 
 
     const header = document.createElement("div");
     header.classList.add("thread-header");
     
-    // ピン留めバッジ
     if (t.pinned) {
       const pinBadge = document.createElement("span");
       pinBadge.classList.add("pin-badge");
@@ -384,7 +376,6 @@ function renderThreadsList() {
     const footer = document.createElement("div");
     footer.classList.add("thread-footer");
     
-    // 💬 コメント数表示ドッキング
     const badgeSpan = document.createElement("span");
     badgeSpan.classList.add("comment-count-badge");
     badgeSpan.textContent = `💬 ${commentCount} 件`;
@@ -394,12 +385,10 @@ function renderThreadsList() {
     lastUpdateSpan.textContent = t.lastTime ? `最新の投稿: ${new Date(t.lastTime).toLocaleString()}` : "";
     footer.appendChild(lastUpdateSpan);
 
-    // アクションボタン領域
     const actions = document.createElement("div");
     actions.classList.add("thread-actions");
 
     if (isGlobalAdmin) {
-      // 管理者用のピン留めボタン
       const pinBtn = document.createElement("button");
       pinBtn.classList.add("btn-thread-pin");
       pinBtn.textContent = t.pinned ? "📍 解除" : "📌 固定";
@@ -426,7 +415,7 @@ function renderThreadsList() {
   });
 
   if (!hasVisibleCard) {
-    listContainer.textContent = "検索ワードに一致するスレッドが見つかりませんぺこ。";
+    listContainer.textContent = "検索ワードに一致するスレッドが見つかりません。";
   }
 }
 
@@ -437,7 +426,7 @@ document.getElementById("submitThreadBtn").onclick = async () => {
   const title = document.getElementById("threadTitleInput").value.trim();
   const body = document.getElementById("threadBodyInput").value.trim();
 
-  if (!title) return alert("タイトルを入力してくださいぺこ！");
+  if (!title) return alert("タイトルを入力してください！");
   if (title.length > 100) return alert("タイトルは100文字以内にしてね");
   if (body.length > 5000) return alert("本文は5000文字以内にしてね");
 
@@ -453,7 +442,7 @@ document.getElementById("submitThreadBtn").onclick = async () => {
       ownerIcon: userIcon,
       time: timestamp,
       lastTime: timestamp,
-      pinned: false // 初期値は未固定
+      pinned: false 
     });
 
     document.getElementById("threadTitleInput").value = "";
