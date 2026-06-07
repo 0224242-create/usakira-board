@@ -303,8 +303,7 @@ function loadComments(){
 
     if (data) {
        // 古い記述(b.time - a.time)の降順表示から、掲示板として自然な「1番から順に下へ並ぶ」昇順(a.time - b.time)に修正
-      const list = Object.entries(data).sort((a,b) => a[1].time - b[1].time);
-      let index = 1;
+const list = Object.entries(data).sort((a,b) => b[1].time - a[1].time);      let index = 1;
 
       list.forEach(([key, c]) => {
         const commentDiv = document.createElement("div");
