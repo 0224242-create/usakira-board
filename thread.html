@@ -82,7 +82,7 @@ body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, update, remove, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js"; // 🚀 get を追加
 
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -178,10 +178,19 @@ window.openImage = (src) => {
   document.getElementById("imageModal").style.display="flex";
 };
 
+// 🚀 コメント削除時にもカウンターを同期する修正
 window.deleteComment = async (commentId) => {
   if (!confirm("このコメントを削除するぺこ？")) return;
   try {
     await remove(ref(db, `posts/${threadId}/${commentId}`));
+    
+    // 現在の残りコメント数を数え直して軽量カウンターに反映
+    const snap = await get(commentsRef);
+    const currentCount = snap.val() ? Object.keys(snap.val()).length : 0;
+    await update(ref(db), {
+      [`thread-comment-counts/${threadId}`]: currentCount
+    });
+
     alert("コメントを削除したよ 🐰🧹");
   } catch (error) {
     console.error(error);
@@ -385,16 +394,26 @@ document.getElementById("postBtn").onclick=async()=>{
       throw new Error("Malicious or invalid image URL detected.");
     }
 
+    const nowTime = Date.now();
+
     await push(commentsRef,{
       text:text,
       image:imageURL,
-      time:Date.now(),
+      time:nowTime,
       name:userName.substring(0, 50),
       icon:userIcon,
       userId:currentUid
     });
 
-    await update(ref(db, "threads/" + threadId), { lastTime: Date.now() });
+    // 🚀 投稿に成功したら、現在のスレ内の全コメント数を最新データからカウントして同期
+    const snap = await get(commentsRef);
+    const currentCount = snap.val() ? Object.keys(snap.val()).length : 0;
+
+    // スレッドの浮上(lastTime更新)と同時に、数え上げた件数を軽量ノードへ書き込む
+    await update(ref(db), {
+      [`threads/${threadId}/lastTime`]: nowTime,
+      [`thread-comment-counts/${threadId}`]: currentCount
+    });
 
     document.getElementById("commentInput").value="";
     document.getElementById("imageInput").value="";
