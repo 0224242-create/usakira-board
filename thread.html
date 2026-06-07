@@ -15,7 +15,6 @@
     textarea { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; }
     button { background: #ff6b81; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px; }
     .delete-comment-btn { position: absolute; right: 10px; top: 15px; background: #ff4757; color: white; border: none; padding: 3px 8px; font-size: 0.8em; border-radius: 4px; cursor: pointer; }
-    .guest-alert { background: #ffeaa7; padding: 10px; border-radius: 4px; font-weight: bold; color: #d63031; }
   </style>
 </head>
 <body>
@@ -32,23 +31,21 @@
   <h3>コメント一覧</h3>
   <div id="commentsList">Loading...</div>
 
+  <!-- 📢 誰でも今すぐ書けるコメントフォーム -->
   <div class="form-group">
-    <div id="guestForm" class="guest-alert">💡 コメントを投稿するには、トップページでログインしてきてね！</div>
-    
-    <div id="userForm" style="display:none;">
-      <h3>コメントを投稿する</h3>
-      <textarea id="commentInput" rows="4" placeholder="コメントを書くぺこ..."></textarea>
-      <br>
-      <button id="postBtn">コメントを送信</button>
-    </div>
+    <h3>コメントを投稿する</h3>
+    <textarea id="commentInput" rows="4" placeholder="コメントを書くぺこ..."></textarea>
+    <br>
+    <button id="postBtn">コメントを送信</button>
   </div>
 </div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
   import { getDatabase, ref, push, onValue, remove, update, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
-  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+  import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
 
+  // 🛠️ 【超重要】ここをご自身の Firebase 情報に「最後の一回」書き換えてください！
   const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
     authDomain: "YOUR_AUTH_DOMAIN",
@@ -70,26 +67,16 @@
   let isGlobalAdmin = false;
   let threadOwnerId = null;
 
-  // 🌸 認証監視
+  // 管理人チェック
+  signInAnonymously(auth).catch(e => console.log("ゲスト閲覧"));
   onAuthStateChanged(auth, user => {
-    const guestForm = document.getElementById("guestForm");
-    const userForm = document.getElementById("userForm");
-
     if (user) {
       currentUid = user.uid;
-      guestForm.style.display = "none";
-      userForm.style.display = "block"; // ログイン済みならフォームを出す
-
       onValue(ref(db, `admins/${currentUid}`), snap => { isGlobalAdmin = !!snap.val(); });
-    } else {
-      currentUid = null;
-      isGlobalAdmin = false;
-      guestForm.style.display = "block";
-      userForm.style.display = "none"; // 未ログインなら案内を出す
     }
   });
 
-  // 📂 親スレッド情報
+  // 親スレ読み込み
   onValue(ref(db, `threads/${threadId}`), snap => {
     const thread = snap.val();
     if (!thread) { document.getElementById("threadTitle").textContent = "❌ スレッドがありません"; return; }
@@ -98,7 +85,7 @@
     document.getElementById("threadBody").textContent = thread.body;
   });
 
-  // 📂 コメント一覧
+  // コメント一覧
   onValue(ref(db, `posts/${threadId}`), snap => {
     const list = document.getElementById("commentsList");
     list.innerHTML = "";
@@ -111,11 +98,12 @@
       const div = document.createElement("div");
       div.className = "comment-item";
 
+      // 管理人、またはコメ主、またはスレ主なら削除できる
       const showDelete = isGlobalAdmin || (currentUid && currentUid === comment.userId) || (currentUid && currentUid === threadOwnerId);
       const deleteHtml = showDelete ? `<button class="delete-comment-btn" onclick="deleteComment('${key}')">削除</button>` : "";
 
       div.innerHTML = `
-        <div class="comment-meta">${number}: <b>${escapeHtml(comment.name)}</b> | ${new Date(comment.time).toLocaleString()}</div>
+        <div class="comment-meta">${number}: <b>名無しさん</b> | ${new Date(comment.time).toLocaleString()}</div>
         <div class="comment-text">${escapeHtml(comment.text)}</div>
         ${deleteHtml}
       `;
@@ -124,13 +112,13 @@
     }
   });
 
+  // コメント件数の同期
   onValue(ref(db, `thread-comment-counts/${threadId}`), snap => {
     document.getElementById("commentCountDisplay").textContent = `${snap.val() || 0}件のコメント`;
   });
 
-  // 📝 コメント投稿
+  // コメント投稿
   document.getElementById("postBtn").onclick = async () => {
-    if (!currentUid) return;
     const text = document.getElementById("commentInput").value.trim();
     if (!text) return;
 
@@ -138,11 +126,8 @@
       const nowTime = Date.now();
       await push(ref(db, `posts/${threadId}`), {
         text: text,
-        image: "",
         time: nowTime,
-        name: "名無しさん",
-        icon: "🐰",
-        userId: currentUid
+        userId: currentUid || "guest"
       });
 
       const snap = await get(ref(db, `posts/${threadId}`));
@@ -154,9 +139,10 @@
       await update(ref(db), updates);
 
       document.getElementById("commentInput").value = "";
-    } catch (e) { alert("投稿に失敗しました。"); }
+    } catch (e) { alert("投稿エラーが発生しました。"); }
   };
 
+  // コメント削除
   window.deleteComment = async (cId) => {
     if (!confirm("削除するぺこ？")) return;
     try {
