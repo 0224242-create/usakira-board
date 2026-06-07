@@ -290,9 +290,11 @@ onAuthStateChanged(auth, async user => {
     }
   });
 
+  // 🚀 データの多重読み込みを防ぐため、ここで確実に1回だけ呼び出します
   loadComments();
 });
 
+// 📌 修正版：最新順（レス番固定）のコメント読み込みシステム
 function loadComments(){
   if (stopCommentsListener) stopCommentsListener();
 
@@ -302,23 +304,31 @@ function loadComments(){
     commentsContainer.textContent = ""; 
 
     if (data) {
-       // 古い記述(b.time - a.time)の降順表示から、掲示板として自然な「1番から順に下へ並ぶ」昇順(a.time - b.time)に修正
-const list = Object.entries(data).sort((a,b) => b[1].time - a[1].time);      let index = 1;
+      // 1. まずデータを「古い順」に並べる（これで投稿順が確定する）
+      const chronologicalList = Object.entries(data).sort((a,b) => a[1].time - b[1].time);
 
-      list.forEach(([key, c]) => {
+      // 2. 1番から順番に正しい絶対レス番号（>>1, >>2...）を割り振る
+      const listWithCorrectNumbers = chronologicalList.map(([key, c], idx) => {
+        return { key, c, responseNumber: idx + 1 };
+      });
+
+      // 3. 画面表示用に「新しい順（最新が上）」にひっくり返す！
+      const displayList = listWithCorrectNumbers.reverse();
+
+      displayList.forEach(({ key, c, responseNumber }) => {
         const commentDiv = document.createElement("div");
         commentDiv.classList.add("comment");
 
         const headerDiv = document.createElement("div");
         headerDiv.classList.add("header");
 
+        // 👑 どんなに新しい投稿が来ても絶対にズレない固定レス番を表示
         const numSpan = document.createElement("span");
         numSpan.classList.add("comment-number");
-        numSpan.textContent = `>>${index}`;
+        numSpan.textContent = `>>${responseNumber}`;
 
         const iconImg = document.createElement("img");
         iconImg.classList.add("icon");
-        // 🔄 前のindex.htmlのキー配置(ownerIcon/userIcon)と統一
         const rawIcon = c.userIcon || c.icon; 
         const safeIcon = (isSafeUrl(rawIcon) && (rawIcon || "").length <= 1000) ? (rawIcon || defaultIcon) : defaultIcon;
         iconImg.src = safeIcon;
@@ -326,13 +336,12 @@ const list = Object.entries(data).sort((a,b) => b[1].time - a[1].time);      let
 
         const nameDiv = document.createElement("div");
         nameDiv.classList.add("name");
-        // 🔄 前のindex.htmlのキー配置(ownerName/userName)と統一
         nameDiv.textContent = c.userName || c.name || "名もなき兎";
 
         const timeSpan = document.createElement("span");
         timeSpan.classList.add("time");
         timeSpan.textContent = c.time ? " " + new Date(c.time).toLocaleString() : "";
-        nameDiv.insertBefore(numSpan, nameDiv.firstChild); // 名前の前にレス番を綺麗に挿入
+        nameDiv.insertBefore(numSpan, nameDiv.firstChild); 
         nameDiv.appendChild(timeSpan);
 
         headerDiv.appendChild(iconImg);
@@ -374,7 +383,6 @@ const list = Object.entries(data).sort((a,b) => b[1].time - a[1].time);      let
         }
 
         commentsContainer.appendChild(commentDiv);
-        index++;
       });
     } else {
       commentsContainer.textContent = "コメントがまだありません。最初の足跡を残してみよう！";
@@ -453,15 +461,12 @@ document.getElementById("postBtn").onclick=async()=>{
       text:text,
       image:imageURL,
       time:timestamp,
-      userName:userName.substring(0, 50), // 🔄 index.htmlの変数名とキー構造を完全同期
-      userIcon:userIcon,                 // 🔄 同上
+      userName:userName.substring(0, 50),
+      userIcon:userIcon,
       userId:currentUid
     });
 
-    // スレ上げ処理のタイムスタンプ同期
     await update(ref(db, "threads/" + threadId), { lastTime: timestamp });
-
-    // 🚀 投稿が完了した瞬間にカウンターノードを再計算して最新化
     await refreshCommentCount();
 
     document.getElementById("commentInput").value="";
