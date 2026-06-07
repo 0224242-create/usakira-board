@@ -1,159 +1,335 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>スレッド詳細</title>
-  <style>
-    body { font-family: sans-serif; background: #f9f9f9; padding: 20px; }
-    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    .back-link { display: inline-block; margin-bottom: 15px; color: #ff6b81; text-decoration: none; font-weight: bold; }
-    .thread-header { background: #fff0f2; padding: 20px; border-radius: 6px; margin-bottom: 20px; }
-    .comment-item { padding: 15px; border-bottom: 1px solid #eee; position: relative; }
-    .comment-meta { font-size: 0.85em; color: #777; margin-bottom: 5px; }
-    .comment-text { white-space: pre-wrap; color: #333; }
-    .form-group { margin-top: 20px; padding-top: 20px; border-top: 2px solid #ff6b81; }
-    textarea { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; }
-    button { background: #ff6b81; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px; }
-    .delete-comment-btn { position: absolute; right: 10px; top: 15px; background: #ff4757; color: white; border: none; padding: 3px 8px; font-size: 0.8em; border-radius: 4px; cursor: pointer; }
-  </style>
+<meta charset="utf-8">
+<title>うさきら掲示板 - スレッド詳細</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a1625); color: #e0d9f0; min-height: 100vh; }
+#headerArea { background: #1c142c; padding: 16px; border-bottom: 2px solid #3d2d5a; display: flex; justify-content: space-between; align-items: center; }
+h1 { margin: 0; font-size: 1.5rem; color: #9d88ff; text-shadow: 0 0 10px rgba(157, 136, 255, 0.3); }
+.back-btn { font-size: 13px; padding: 6px 12px; background: #251b3a; border: 1px solid #4a3f66; color: #b39eff; font-weight: bold; border-radius: 6px; text-decoration: none; }
+.back-btn:hover { background: #32254f; }
+
+#mainContainer { max-width: 800px; margin: 0 auto; padding: 16px; }
+
+/* 📌 親スレッドの表示枠 */
+#parentThreadBox { background: #1c142c; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #3d2d5a; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.thread-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #a29bfe; margin-bottom: 10px; }
+.thread-meta img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid #4a3f66; }
+.thread-main-title { font-size: 1.6rem; color: #ffffff; margin: 0 0 12px 0; font-weight: bold; word-break: break-all; }
+.thread-main-body { font-size: 15px; color: #c3b8e0; white-space: pre-wrap; word-break: break-all; line-height: 1.6; border-top: 1px solid #251b3a; padding-top: 12px; }
+.thread-main-body a { color: #9d88ff; text-decoration: underline; }
+
+/* 💬 コメント一覧エリア */
+#commentsBox { margin-bottom: 24px; }
+.comment-card { background: #171024; border-radius: 8px; padding: 14px; margin-bottom: 10px; border: 1px solid #2a1f42; position: relative; }
+.comment-header { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #7d7299; margin-bottom: 6px; }
+.comment-header img { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
+.comment-number { font-weight: bold; color: #9d88ff; margin-right: 4px; }
+.comment-text { font-size: 14px; color: #e0d9f0; white-space: pre-wrap; word-break: break-all; }
+.comment-text a { color: #9d88ff; text-decoration: underline; }
+
+/* 🗑 コメント削除ボタン */
+.btn-comment-delete { position: absolute; right: 10px; top: 12px; font-size: 10px; padding: 3px 6px; background: #2d2640; border: 1px solid #4a3f66; color: #c3b8e0; border-radius: 4px; cursor: pointer; }
+.btn-comment-delete:hover { background: #3d3457; }
+.btn-comment-admin-delete { position: absolute; right: 10px; top: 12px; font-size: 10px; padding: 3px 6px; background: #892224; border: 1px solid #b33939; color: white; font-weight: bold; border-radius: 4px; cursor: pointer; }
+.btn-comment-admin-delete:hover { background: #b33939; }
+
+/* 📝 コメント投稿フォーム */
+#replyFormBox { background: #1c142c; padding: 16px; border-radius: 12px; border: 1px solid #3d2d5a; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+#replyFormBox h3 { margin-top: 0; font-size: 15px; color: #e0d9f0; }
+#replyTextArea { width: 100%; height: 90px; padding: 10px; background: #251b3a; border: 1px solid #4a3f66; border-radius: 6px; box-sizing: border-box; font-size: 14px; color: #fff; resize: vertical; margin-bottom: 10px; }
+#replyTextArea::placeholder { color: #7d7299; }
+#submitReplyBtn { padding: 8px 18px; background: #6c5ce7; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(108, 92, 231, 0.4); }
+#submitReplyBtn:hover { background: #5b4cc4; }
+#submitReplyBtn:disabled { background: #3d3754; color: #777; cursor: not-allowed; box-shadow: none; }
+</style>
 </head>
 <body>
 
-<div class="container">
-  <a href="index.html" class="back-link">← スレッド一覧に戻る</a>
+<div id="headerArea">
+  <h1>🐰 うさきら掲示板 ✨️</h1>
+  <a href="index.html" class="back-btn">← 一覧に戻る</a>
+</div>
 
-  <div class="thread-header">
-    <h2 id="threadTitle">読み込み中...</h2>
-    <p id="threadBody" style="white-space: pre-wrap; color:#555;"></p>
-    <div id="commentCountDisplay" style="font-size:0.9em; font-weight:bold; color:#ff6b81; margin-top:10px;">0件のコメント</div>
+<div id="mainContainer">
+  <div id="parentThreadBox">
+    <div id="threadMeta" class="thread-meta">読み込み中...</div>
+    <h2 id="threadTitle" class="thread-main-title"></h2>
+    <div id="threadBody" class="thread-main-body"></div>
   </div>
 
-  <h3>コメント一覧</h3>
-  <div id="commentsList">Loading...</div>
+  <h3>💬 コメント一覧</h3>
+  <div id="commentsBox">コメントを読み込み中…</div>
 
-  <!-- 📢 誰でも今すぐ書けるコメントフォーム -->
-  <div class="form-group">
-    <h3>コメントを投稿する</h3>
-    <textarea id="commentInput" rows="4" placeholder="コメントを書くぺこ..."></textarea>
-    <br>
-    <button id="postBtn">コメントを送信</button>
+  <div id="replyFormBox">
+    <h3>このスレッドにコメントする</h3>
+    <textarea id="replyTextArea" placeholder="コメントを入力してください（1000文字以内）"></textarea>
+    <button id="submitReplyBtn">コメントを送信</button>
   </div>
 </div>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-  import { getDatabase, ref, push, onValue, remove, update, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
-  import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+import { getDatabase, ref, onValue, push, remove, get, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-  // 🛠️ 【超重要】ここをご自身の Firebase 情報に「最後の一回」書き換えてください！
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    databaseURL: "YOUR_DATABASE_URL",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
+// 🛠️ index.html と同一の Firebase 接続設定
+const firebaseConfig={
+  apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+  authDomain: "keijiban-7c651.firebaseapp.com",
+  projectId: "keijiban-7c651",
+  storageBucket: "keijiban-7c651.appspot.com",
+  messagingSenderId: "587652395561",
+  appId: "1:587652395561:web:ddf858fdf84df2438491c3",
+  databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com"
+};
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-  const auth = getAuth(app);
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
+const db=getDatabase(app);
 
-  const urlParams = new URLSearchParams(window.location.search);
-  const threadId = urlParams.get('id');
+const defaultName="名もなき兎";
+const defaultIcon="usagi.png.jpeg";
 
-  let currentUid = null;
-  let isGlobalAdmin = false;
-  let threadOwnerId = null;
+// URLパラメータからスレッドIDを取得
+const urlParams = new URLSearchParams(window.location.search);
+const threadId = urlParams.get("id");
 
-  // 管理人チェック
-  signInAnonymously(auth).catch(e => console.log("ゲスト閲覧"));
-  onAuthStateChanged(auth, user => {
-    if (user) {
-      currentUid = user.uid;
-      onValue(ref(db, `admins/${currentUid}`), snap => { isGlobalAdmin = !!snap.val(); });
+if (!threadId) {
+  alert("スレッドIDが指定されていません。一覧に戻ります。");
+  window.location.href = "index.html";
+}
+
+let currentUid = null;
+let isGlobalAdmin = false;
+let threadOwnerId = null; 
+
+let stopAdminListener = null;
+let stopThreadListener = null;
+let stopCommentsListener = null;
+
+// ローカルストレージからプロフィールを同期（なければデフォルト）
+let userName = localStorage.getItem("usakira_name") || defaultName;
+let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+
+function isSafeUrl(urlStr) {
+  if (!urlStr) return true;
+  if (urlStr.startsWith("javascript:") || urlStr.startsWith("data:")) return false;
+  return urlStr.startsWith("http://") || urlStr.startsWith("https://");
+}
+
+function renderTextWithLinks(targetElement, text) {
+  targetElement.textContent = ""; 
+  if (!text) return;
+  const urlRegex = /(https?:\/\/[^\s<]+)/g;
+  const parts = text.split(urlRegex);
+  parts.forEach(part => {
+    if (part.startsWith("http://") || part.startsWith("https://")) {
+      if (isSafeUrl(part)) {
+        const anchor = document.createElement("a");
+        anchor.href = part;
+        anchor.textContent = part;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        targetElement.appendChild(anchor);
+      } else {
+        targetElement.appendChild(document.createTextNode(part));
+      }
+    } else {
+      targetElement.appendChild(document.createTextNode(part));
     }
   });
+}
 
-  // 親スレ読み込み
-  onValue(ref(db, `threads/${threadId}`), snap => {
-    const thread = snap.val();
-    if (!thread) { document.getElementById("threadTitle").textContent = "❌ スレッドがありません"; return; }
-    threadOwnerId = thread.ownerId;
-    document.getElementById("threadTitle").textContent = thread.title;
-    document.getElementById("threadBody").textContent = thread.body;
+// 🚀 コメント数を再計算して、軽量カウンターノードを更新する共通関数
+async function refreshCommentCount() {
+  try {
+    const postsSnap = await get(ref(db, `posts/${threadId}`));
+    const currentCount = postsSnap.val() ? Object.keys(postsSnap.val()).length : 0;
+    
+    // カウンターをマルチパッチでクリーンに同期
+    await update(ref(db), {
+      [`thread-comment-counts/${threadId}`]: currentCount
+    });
+  } catch (error) {
+    console.error("Counter Sync Error:", error);
+  }
+}
+
+// コメント削除処理
+window.deleteComment = async (cId) => {
+  if (!confirm("このコメントを本当に削除するぺこ？")) return;
+  try {
+    await remove(ref(db, `posts/${threadId}/${cId}`));
+    // 🚀 削除が完了したら即座にカウンターを減算・同期
+    await refreshCommentCount();
+    alert("コメントを削除したよ 🐰🧹");
+  } catch (error) {
+    console.error(error);
+    alert("削除に失敗しました。");
+  }
+};
+
+// 認証状態の追跡
+onAuthStateChanged(auth, user => {
+  if (!user) {
+    signInAnonymously(auth).catch(e => console.error("匿名ログイン失敗:", e));
+    return;
+  }
+  currentUid = user.uid;
+
+  if (stopAdminListener) stopAdminListener();
+  
+  // 管理者権限をリアルタイムチェック
+  stopAdminListener = onValue(ref(db, "admins/" + currentUid), adminSnap => {
+    isGlobalAdmin = adminSnap.val() === true;
+    
+    // Google認証連携済みなら、名前とアイコンをGoogleのものに固定
+    const googleProfile = user.providerData.find(p => p.providerId === "google.com");
+    if (googleProfile) {
+      userName = googleProfile.displayName || "管理者";
+      userIcon = googleProfile.photoURL || defaultIcon;
+    } else {
+      userName = localStorage.getItem("usakira_name") || defaultName;
+      userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+    }
+    
+    startSyncThread();
+  });
+});
+
+function startSyncThread() {
+  if (stopThreadListener) stopThreadListener();
+  if (stopCommentsListener) stopCommentsListener();
+
+  // 1. 親スレッドデータの読み込み
+  stopThreadListener = onValue(ref(db, `threads/${threadId}`), snap => {
+    const t = snap.val();
+    if (!t) {
+      document.getElementById("threadMeta").textContent = "❌ スレッドが見つかりません";
+      document.getElementById("threadTitle").textContent = "削除されたか、存在しないスレッドです";
+      document.getElementById("threadBody").textContent = "";
+      document.getElementById("submitReplyBtn").disabled = true;
+      return;
+    }
+
+    threadOwnerId = t.ownerId; // スレ主のUIDを保持
+
+    const metaBox = document.getElementById("threadMeta");
+    metaBox.textContent = "";
+    const iconImg = document.createElement("img");
+    iconImg.src = isSafeUrl(t.ownerIcon) ? (t.ownerIcon || defaultIcon) : defaultIcon;
+    iconImg.onerror = () => { iconImg.src = defaultIcon; };
+    const metaSpan = document.createElement("span");
+    metaSpan.textContent = `${t.ownerName || defaultName} が作成 ・ ${t.time ? new Date(t.time).toLocaleString() : ""}`;
+    
+    metaBox.appendChild(iconImg);
+    metaBox.appendChild(metaSpan);
+
+    document.getElementById("threadTitle").textContent = t.title || "無題のスレッド";
+    
+    const bodyBox = document.getElementById("threadBody");
+    renderTextWithLinks(bodyBox, t.body || "");
   });
 
-  // コメント一覧
-  onValue(ref(db, `posts/${threadId}`), snap => {
-    const list = document.getElementById("commentsList");
-    list.innerHTML = "";
+  // 2. コメント一覧データの読み込み
+  stopCommentsListener = onValue(ref(db, `posts/${threadId}`), snap => {
+    const commentsBox = document.getElementById("commentsBox");
+    commentsBox.textContent = "";
+
     const data = snap.val();
-    if (!data) { list.innerHTML = "<p>まだコメントがありません。</p>"; return; }
-
-    let number = 1;
-    for (const key in data) {
-      const comment = data[key];
-      const div = document.createElement("div");
-      div.className = "comment-item";
-
-      // 管理人、またはコメ主、またはスレ主なら削除できる
-      const showDelete = isGlobalAdmin || (currentUid && currentUid === comment.userId) || (currentUid && currentUid === threadOwnerId);
-      const deleteHtml = showDelete ? `<button class="delete-comment-btn" onclick="deleteComment('${key}')">削除</button>` : "";
-
-      div.innerHTML = `
-        <div class="comment-meta">${number}: <b>名無しさん</b> | ${new Date(comment.time).toLocaleString()}</div>
-        <div class="comment-text">${escapeHtml(comment.text)}</div>
-        ${deleteHtml}
-      `;
-      list.appendChild(div);
-      number++;
+    if (!data) {
+      commentsBox.textContent = "コメントがまだありません。最初の足跡を残してみよう！";
+      return;
     }
+
+    let index = 1;
+    Object.entries(data).forEach(([cKey, c]) => {
+      const card = document.createElement("div");
+      card.classList.add("comment-card");
+
+      const header = document.createElement("div");
+      header.classList.add("comment-header");
+
+      const numSpan = document.createElement("span");
+      numSpan.classList.add("comment-number");
+      numSpan.textContent = `${index}`;
+
+      const iconImg = document.createElement("img");
+      iconImg.src = isSafeUrl(c.userIcon) ? (c.userIcon || defaultIcon) : defaultIcon;
+      iconImg.onerror = () => { iconImg.src = defaultIcon; };
+
+      const metaSpan = document.createElement("span");
+      metaSpan.textContent = `${c.userName || defaultName} ・ ${c.time ? new Date(c.time).toLocaleString() : ""}`;
+
+      header.appendChild(numSpan);
+      header.appendChild(iconImg);
+      header.appendChild(metaSpan);
+      card.appendChild(header);
+
+      const textDiv = document.createElement("div");
+      textDiv.classList.add("comment-text");
+      renderTextWithLinks(textDiv, c.text || "");
+      card.appendChild(textDiv);
+
+      // 権限判定（管理人、またはコメント投稿者本人、またはスレッド作成主なら削除可）
+      const canDelete = isGlobalAdmin || (c.userId === currentUid) || (currentUid === threadOwnerId);
+      if (canDelete) {
+        const delBtn = document.createElement("button");
+        delBtn.textContent = isGlobalAdmin ? "👑 管理削除" : "🗑 削除";
+        delBtn.className = isGlobalAdmin ? "btn-comment-admin-delete" : "btn-comment-delete";
+        delBtn.onclick = () => window.deleteComment(cKey);
+        card.appendChild(delBtn);
+      }
+
+      commentsBox.appendChild(card);
+      index++;
+    });
   });
+}
 
-  // コメント件数の同期
-  onValue(ref(db, `thread-comment-counts/${threadId}`), snap => {
-    document.getElementById("commentCountDisplay").textContent = `${snap.val() || 0}件のコメント`;
-  });
+// コメント投稿処理
+document.getElementById("submitReplyBtn").onclick = async () => {
+  if (!currentUid) return alert("ログイン処理中です");
 
-  // コメント投稿
-  document.getElementById("postBtn").onclick = async () => {
-    const text = document.getElementById("commentInput").value.trim();
-    if (!text) return;
+  const btn = document.getElementById("submitReplyBtn");
+  const text = document.getElementById("replyTextArea").value.trim();
 
-    try {
-      const nowTime = Date.now();
-      await push(ref(db, `posts/${threadId}`), {
-        text: text,
-        time: nowTime,
-        userId: currentUid || "guest"
-      });
+  if (!text) return alert("コメント内容を入力してください！");
+  if (text.length > 1000) return alert("コメントは1000文字以内にしてね");
 
-      const snap = await get(ref(db, `posts/${threadId}`));
-      const currentCount = snap.val() ? Object.keys(snap.val()).length : 0;
+  btn.disabled = true;
 
-      const updates = {};
-      updates[`threads/${threadId}/lastTime`] = nowTime;
-      updates[`thread-comment-counts/${threadId}`] = currentCount;
-      await update(ref(db), updates);
+  try {
+    const timestamp = Date.now();
+    
+    // 1. コメントデータを posts ノードへプッシュ
+    await push(ref(db, `posts/${threadId}`), {
+      text: text,
+      userId: currentUid,
+      userName: userName.substring(0, 50),
+      userIcon: userIcon,
+      time: timestamp
+    });
 
-      document.getElementById("commentInput").value = "";
-    } catch (e) { alert("投稿エラーが発生しました。"); }
-  };
+    // 2. 親スレッドの最終更新時間(lastTime)を更新（スレ上げ処理）
+    await update(ref(db, `threads/${threadId}`), {
+      lastTime: timestamp
+    });
 
-  // コメント削除
-  window.deleteComment = async (cId) => {
-    if (!confirm("削除するぺこ？")) return;
-    try {
-      await remove(ref(db, `posts/${threadId}/${cId}`));
-      const snap = await get(ref(db, `posts/${threadId}`));
-      const currentCount = snap.val() ? Object.keys(snap.val()).length : 0;
-      await update(ref(db), { [`thread-comment-counts/${threadId}`]: currentCount });
-    } catch (e) { alert("削除権限がありません。"); }
-  };
+    // 3. 🚀 軽量カウンターノードの数値を最新化
+    await refreshCommentCount();
 
-  function escapeHtml(str) { return str ? str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; }
+    document.getElementById("replyTextArea").value = "";
+  } catch (error) {
+    console.error("Post Reply Error:", error);
+    alert("コメントの投稿に失敗しました。");
+  } finally {
+    btn.disabled = false;
+  }
+};
 </script>
 </body>
 </html>
