@@ -128,7 +128,7 @@ const defaultIcon="usagi.png.jpeg";
 let currentUid = null;
 let currentThreadOwnerId = null;
 let isGlobalAdmin = false;
-let globalCommentCount = 0; // 🛠️ 現在のコメント数を保持する変数を追加
+let globalCommentCount = 0; // 現在のコメント数を保持する変数
 
 let stopAdminListener = null;
 let stopThreadListener = null;
@@ -203,7 +203,7 @@ function renderTextWithLinks(targetElement, text) {
   });
 }
 
-// 🚀 コメントカウンターを最新の実数に再計算して同期する関数
+// コメントカウンターを最新の実数に再計算して同期する関数
 async function refreshCommentCount() {
   try {
     const postsSnap = await get(ref(db, `posts/${threadId}`));
@@ -226,7 +226,6 @@ window.deleteComment = async (commentId) => {
   if (!confirm("このコメントを削除するぺこ？")) return;
   try {
     await remove(ref(db, `posts/${threadId}/${commentId}`));
-    // 🚀 削除が完了した瞬間にカウンターを再計算・デクリメント
     await refreshCommentCount();
     alert("コメントを削除したよ 🐰🧹");
   } catch (error) {
@@ -292,11 +291,10 @@ onAuthStateChanged(auth, async user => {
     }
   });
 
-  // 🚀 データの多重読み込みを防ぐため、ここで確実に1回だけ呼び出します
   loadComments();
 });
 
-// 📌 最新順（レス番固定）のコメント読み込みシステム
+// 最新順（レス番固定）のコメント読み込みシステム
 function loadComments(){
   if (stopCommentsListener) stopCommentsListener();
 
@@ -308,15 +306,12 @@ function loadComments(){
     if (data) {
       globalCommentCount = Object.keys(data).length; // カウントを同期
       
-      // 1. まずデータを「古い順」に並べる（これで投稿順が確定する）
       const chronologicalList = Object.entries(data).sort((a,b) => a[1].time - b[1].time);
 
-      // 2. 1番から順番に正しい絶対レス番号（>>1, >>2...）を割り振る
       const listWithCorrectNumbers = chronologicalList.map(([key, c], idx) => {
         return { key, c, responseNumber: idx + 1 };
       });
 
-      // 3. 画面表示用に「新しい順（最新が上）」にひっくり返す！
       const displayList = listWithCorrectNumbers.reverse();
 
       displayList.forEach(({ key, c, responseNumber }) => {
@@ -326,7 +321,6 @@ function loadComments(){
         const headerDiv = document.createElement("div");
         headerDiv.classList.add("header");
 
-        // 👑 どんなに新しい投稿が来ても絶対にズレない固定レス番を表示
         const numSpan = document.createElement("span");
         numSpan.classList.add("comment-number");
         numSpan.textContent = `>>${responseNumber}`;
@@ -439,7 +433,7 @@ async function uploadImage(file){
   return data.secure_url;
 }
 
-// 🛠️ 1回のリクエストで安全にカウンター増分と投稿を行うマルチパスアップデート処理 🐰✨
+// 🛠️ ログ出力＆引き算切り分けを組み込んだ検証用・投稿処理 🐰✨
 document.getElementById("postBtn").onclick=async()=>{
   if(!currentUid) return alert("ログイン処理中です");
   
@@ -470,17 +464,25 @@ document.getElementById("postBtn").onclick=async()=>{
     }
 
     const timestamp = Date.now();
-    
-    // 🛠️ セキュリティルールを確実に通過するため、新しく追加するノード（ポストID）のキーを事前生成
     const newPostRef = push(ref(db, `posts/${threadId}`));
     const newPostKey = newPostRef.key;
 
-    // 現在のコメント件数を割り出して +1 する
     const currentCount = typeof globalCommentCount === "number" ? globalCommentCount : 0;
     const newCount = currentCount + 1;
 
-    // 🔒 1回のリクエストでまとめて送る「マルチパスアップデート」のオブジェクトを作成
+    // 🔍 【デバッグログ】送信直前の全ての変数状態を出力ぺこ！
+    console.log("=== 🐰 うさきらデバッグログここから ===");
+    console.log("① UID:", currentUid);
+    console.log("② 現在のカウント数 (globalCommentCount):", globalCommentCount);
+    console.log("③ 送信予定の newCount:", newCount);
+    console.log("④ スレッドID (threadId):", threadId);
+    console.log("⑤ 画像URL (imageURL):", imageURL);
+    console.log("⑥ 送信アイコン (userIcon):", savedIcon, "長さ:", savedIcon.length);
+    console.log("⑦ 送信ユーザー名 (userName):", savedName.substring(0, 50));
+    
     const updates = {};
+    
+    // 【検証A】まずメインのコメントデータのみを詰める
     updates[`posts/${threadId}/${newPostKey}`] = {
       text: text,
       image: imageURL,
@@ -489,10 +491,19 @@ document.getElementById("postBtn").onclick=async()=>{
       userIcon: savedIcon,
       userId: currentUid
     };
-    updates[`threads/${threadId}/lastTime`] = timestamp;
-    updates[`thread-comment-counts/${threadId}`] = newCount;
 
-    // 🚀 データベースにまとめて一括送信！
+    // 🧪 【切り分け実験】原因特定のため、一旦下の2つを完全に除外してテスト！
+    // 💡 もしこれで投稿が成功するなら、犯人は「threads」か「counts」！
+    // 💡 もしこれでも PERMISSION_DENIED になるなら、犯人は「posts」のデータ内容！
+    // ================================================================
+    // updates[`threads/${threadId}/lastTime`] = timestamp;
+    // updates[`thread-comment-counts/${threadId}`] = newCount;
+    // ================================================================
+
+    console.log("⑧ 送信オブジェクト全体（引き算状態）:", updates);
+    console.log("=== 🐰 うさきらデバッグログここまで ===");
+
+    // データベースに送信！
     await update(ref(db), updates);
 
     document.getElementById("commentInput").value="";
@@ -503,7 +514,7 @@ document.getElementById("postBtn").onclick=async()=>{
 
   } catch (error) {
     console.error("Post Error:", error);
-    alert("投稿に失敗しました。ルールに違反しているか、通信エラーの可能性があります。");
+    alert("投稿に失敗しました。F12の開発者ツール（Console）に出たログを確認してぺこ！");
   } finally {
     postBtn.disabled = false;
   }
