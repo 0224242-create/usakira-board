@@ -128,6 +128,7 @@ const defaultIcon="usagi.png.jpeg";
 let currentUid = null;
 let currentThreadOwnerId = null;
 let isGlobalAdmin = false;
+let globalCommentCount = 0; // 🛠️ 現在のコメント数を保持する変数を追加
 
 let stopAdminListener = null;
 let stopThreadListener = null;
@@ -207,6 +208,7 @@ async function refreshCommentCount() {
   try {
     const postsSnap = await get(ref(db, `posts/${threadId}`));
     const currentCount = postsSnap.val() ? Object.keys(postsSnap.val()).length : 0;
+    globalCommentCount = currentCount; // 状態を更新
     await update(ref(db), {
       [`thread-comment-counts/${threadId}`]: currentCount
     });
@@ -294,7 +296,7 @@ onAuthStateChanged(auth, async user => {
   loadComments();
 });
 
-// 📌 修正版：最新順（レス番固定）のコメント読み込みシステム
+// 📌 最新順（レス番固定）のコメント読み込みシステム
 function loadComments(){
   if (stopCommentsListener) stopCommentsListener();
 
@@ -304,6 +306,8 @@ function loadComments(){
     commentsContainer.textContent = ""; 
 
     if (data) {
+      globalCommentCount = Object.keys(data).length; // カウントを同期
+      
       // 1. まずデータを「古い順」に並べる（これで投稿順が確定する）
       const chronologicalList = Object.entries(data).sort((a,b) => a[1].time - b[1].time);
 
@@ -385,6 +389,7 @@ function loadComments(){
         commentsContainer.appendChild(commentDiv);
       });
     } else {
+      globalCommentCount = 0;
       commentsContainer.textContent = "コメントがまだありません。最初の足跡を残してみよう！";
     }
   });
@@ -434,6 +439,7 @@ async function uploadImage(file){
   return data.secure_url;
 }
 
+// 🛠️ 1回のリクエストで安全にカウンター増分と投稿を行うマルチパスアップデート処理 🐰✨
 document.getElementById("postBtn").onclick=async()=>{
   if(!currentUid) return alert("ログイン処理中です");
   
@@ -456,29 +462,38 @@ document.getElementById("postBtn").onclick=async()=>{
       throw new Error("Malicious or invalid image URL detected.");
     }
 
-    // 🔒 鉄壁セキュリティルールを絶対に突破するための安全対策 🐰✨
     const savedName = localStorage.getItem("usakira_name") || defaultName;
     let savedIcon = localStorage.getItem("usakira_icon") || defaultIcon;
 
-    // もしアイコンが "usagi.png.jpeg" などのローカル名だった場合、ルールに弾かれる(https://必須)ので、
-    // セキュリティルールが許容するプレースホルダー用の安全なURL形式に置き換えます
     if (!savedIcon.startsWith("http://") && !savedIcon.startsWith("https://")) {
       savedIcon = "https://res.cloudinary.com/dfhevulda/image/upload/v12345678/default_usagi.png"; 
     }
 
     const timestamp = Date.now();
-    await push(commentsRef,{
+    
+    // 🛠️ セキュリティルールを確実に通過するため、新しく追加するノード（ポストID）のキーを事前生成
+    const newPostRef = push(ref(db, `posts/${threadId}`));
+    const newPostKey = newPostRef.key;
+
+    // 現在のコメント件数を割り出して +1 する
+    const currentCount = typeof globalCommentCount === "number" ? globalCommentCount : 0;
+    const newCount = currentCount + 1;
+
+    // 🔒 1回のリクエストでまとめて送る「マルチパスアップデート」のオブジェクトを作成
+    const updates = {};
+    updates[`posts/${threadId}/${newPostKey}`] = {
       text: text,
       image: imageURL,
       time: timestamp,
-      userName: savedName.substring(0, 50), // 👈 常に最新の変更後の名前を送る
-      userIcon: savedIcon,                  // 👈 必ず https:// から始まるアイコンを送る
+      userName: savedName.substring(0, 50),
+      userIcon: savedIcon,
       userId: currentUid
-    });
+    };
+    updates[`threads/${threadId}/lastTime`] = timestamp;
+    updates[`thread-comment-counts/${threadId}`] = newCount;
 
-    // スレッドの最終更新時間を更新
-    await update(ref(db, "threads/" + threadId), { lastTime: timestamp });
-    await refreshCommentCount();
+    // 🚀 データベースにまとめて一括送信！
+    await update(ref(db), updates);
 
     document.getElementById("commentInput").value="";
     document.getElementById("imageInput").value="";
@@ -488,7 +503,7 @@ document.getElementById("postBtn").onclick=async()=>{
 
   } catch (error) {
     console.error("Post Error:", error);
-    alert("投稿に失敗しました。プロフィール画像（アイコン）が正しく設定されていないか、ルール違反の可能性があります。");
+    alert("投稿に失敗しました。ルールに違反しているか、通信エラーの可能性があります。");
   } finally {
     postBtn.disabled = false;
   }
