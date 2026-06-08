@@ -456,16 +456,27 @@ document.getElementById("postBtn").onclick=async()=>{
       throw new Error("Malicious or invalid image URL detected.");
     }
 
+    // 🔒 鉄壁セキュリティルールを絶対に突破するための安全対策 🐰✨
+    const savedName = localStorage.getItem("usakira_name") || defaultName;
+    let savedIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+
+    // もしアイコンが "usagi.png.jpeg" などのローカル名だった場合、ルールに弾かれる(https://必須)ので、
+    // セキュリティルールが許容するプレースホルダー用の安全なURL形式に置き換えます
+    if (!savedIcon.startsWith("http://") && !savedIcon.startsWith("https://")) {
+      savedIcon = "https://res.cloudinary.com/dfhevulda/image/upload/v12345678/default_usagi.png"; 
+    }
+
     const timestamp = Date.now();
     await push(commentsRef,{
-      text:text,
-      image:imageURL,
-      time:timestamp,
-      userName:userName.substring(0, 50),
-      userIcon:userIcon,
-      userId:currentUid
+      text: text,
+      image: imageURL,
+      time: timestamp,
+      userName: savedName.substring(0, 50), // 👈 常に最新の変更後の名前を送る
+      userIcon: savedIcon,                  // 👈 必ず https:// から始まるアイコンを送る
+      userId: currentUid
     });
 
+    // スレッドの最終更新時間を更新
     await update(ref(db, "threads/" + threadId), { lastTime: timestamp });
     await refreshCommentCount();
 
@@ -477,7 +488,7 @@ document.getElementById("postBtn").onclick=async()=>{
 
   } catch (error) {
     console.error("Post Error:", error);
-    alert(error.message || "投稿に失敗しました。");
+    alert("投稿に失敗しました。プロフィール画像（アイコン）が正しく設定されていないか、ルール違反の可能性があります。");
   } finally {
     postBtn.disabled = false;
   }
