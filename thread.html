@@ -479,10 +479,8 @@ document.getElementById("postBtn").onclick=async()=>{
     console.log("⑤ 画像URL (imageURL):", imageURL);
     console.log("⑥ 送信アイコン (userIcon):", savedIcon, "長さ:", savedIcon.length);
     console.log("⑦ 送信ユーザー名 (userName):", savedName.substring(0, 50));
-    
     const updates = {};
     
-    // 【検証A】まずメインのコメントデータのみを詰める
     updates[`posts/${threadId}/${newPostKey}`] = {
       text: text,
       image: imageURL,
@@ -492,13 +490,9 @@ document.getElementById("postBtn").onclick=async()=>{
       userId: currentUid
     };
 
-    // 🧪 【切り分け実験】原因特定のため、一旦下の2つを完全に除外してテスト！
-    // 💡 もしこれで投稿が成功するなら、犯人は「threads」か「counts」！
-    // 💡 もしこれでも PERMISSION_DENIED になるなら、犯人は「posts」のデータ内容！
-    // ================================================================
-    // updates[`threads/${threadId}/lastTime`] = timestamp;
-    // updates[`thread-comment-counts/${threadId}`] = newCount;
-    // ================================================================
+    // 🔓 コメントアウトを解除して、全てを同時に更新するぺこ！
+    updates[`threads/${threadId}/lastTime`] = timestamp;
+    updates[`thread-comment-counts/${threadId}`] = newCount;
 
     console.log("⑧ 送信オブジェクト全体（引き算状態）:", updates);
     console.log("=== 🐰 うさきらデバッグログここまで ===");
