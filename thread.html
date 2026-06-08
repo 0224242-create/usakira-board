@@ -94,7 +94,8 @@ body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, update, remove, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+// 🛠️ increment を新しくインポートしたぺこ！
+import { getDatabase, ref, onValue, push, update, remove, get, increment } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -128,7 +129,7 @@ const defaultIcon="usagi.png.jpeg";
 let currentUid = null;
 let currentThreadOwnerId = null;
 let isGlobalAdmin = false;
-let globalCommentCount = 0; // 現在のコメント数を保持する変数
+let globalCommentCount = 0; 
 
 let stopAdminListener = null;
 let stopThreadListener = null;
@@ -203,12 +204,12 @@ function renderTextWithLinks(targetElement, text) {
   });
 }
 
-// コメントカウンターを最新の実数に再計算して同期する関数
+// 🛠️ 削除時や同期ズレが起きたときにコメント数をリアルタイムの実数から再計算・修正する関数
 async function refreshCommentCount() {
   try {
     const postsSnap = await get(ref(db, `posts/${threadId}`));
     const currentCount = postsSnap.val() ? Object.keys(postsSnap.val()).length : 0;
-    globalCommentCount = currentCount; // 状態を更新
+    globalCommentCount = currentCount; 
     await update(ref(db), {
       [`thread-comment-counts/${threadId}`]: currentCount
     });
@@ -294,7 +295,6 @@ onAuthStateChanged(auth, async user => {
   loadComments();
 });
 
-// 最新順（レス番固定）のコメント読み込みシステム
 function loadComments(){
   if (stopCommentsListener) stopCommentsListener();
 
@@ -304,7 +304,7 @@ function loadComments(){
     commentsContainer.textContent = ""; 
 
     if (data) {
-      globalCommentCount = Object.keys(data).length; // カウントを同期
+      globalCommentCount = Object.keys(data).length; 
       
       const chronologicalList = Object.entries(data).sort((a,b) => a[1].time - b[1].time);
 
@@ -433,7 +433,6 @@ async function uploadImage(file){
   return data.secure_url;
 }
 
-// 🛠️ ログ出力＆引き算切り分けを組み込んだ検証用・投稿処理 🐰✨
 document.getElementById("postBtn").onclick=async()=>{
   if(!currentUid) return alert("ログイン処理中です");
   
@@ -467,18 +466,6 @@ document.getElementById("postBtn").onclick=async()=>{
     const newPostRef = push(ref(db, `posts/${threadId}`));
     const newPostKey = newPostRef.key;
 
-    const currentCount = typeof globalCommentCount === "number" ? globalCommentCount : 0;
-    const newCount = currentCount + 1;
-
-    // 🔍 【デバッグログ】送信直前の全ての変数状態を出力ぺこ！
-    console.log("=== 🐰 うさきらデバッグログここから ===");
-    console.log("① UID:", currentUid);
-    console.log("② 現在のカウント数 (globalCommentCount):", globalCommentCount);
-    console.log("③ 送信予定の newCount:", newCount);
-    console.log("④ スレッドID (threadId):", threadId);
-    console.log("⑤ 画像URL (imageURL):", imageURL);
-    console.log("⑥ 送信アイコン (userIcon):", savedIcon, "長さ:", savedIcon.length);
-    console.log("⑦ 送信ユーザー名 (userName):", savedName.substring(0, 50));
     const updates = {};
     
     updates[`posts/${threadId}/${newPostKey}`] = {
@@ -490,14 +477,12 @@ document.getElementById("postBtn").onclick=async()=>{
       userId: currentUid
     };
 
-    // 🔓 コメントアウトを解除して、全てを同時に更新するぺこ！
     updates[`threads/${threadId}/lastTime`] = timestamp;
-    updates[`thread-comment-counts/${threadId}`] = newCount;
+    
+    // 🛠️ 【ここを劇的修正！】固定のnewCountではなく、Firebaseサーバー側の実数に確実に +1 する安全設計 🐰✨
+    updates[`thread-comment-counts/${threadId}`] = increment(1);
 
-    console.log("⑧ 送信オブジェクト全体（引き算状態）:", updates);
-    console.log("=== 🐰 うさきらデバッグログここまで ===");
-
-    // データベースに送信！
+    // データベースに同時一括送信！
     await update(ref(db), updates);
 
     document.getElementById("commentInput").value="";
@@ -508,7 +493,7 @@ document.getElementById("postBtn").onclick=async()=>{
 
   } catch (error) {
     console.error("Post Error:", error);
-    alert("投稿に失敗しました。F12の開発者ツール（Console）に出たログを確認してぺこ！");
+    alert("投稿に失敗しました。");
   } finally {
     postBtn.disabled = false;
   }
