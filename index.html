@@ -81,7 +81,7 @@ h1 { margin: 0; font-size: 1.5rem; color: #9d88ff; text-shadow: 0 0 10px rgba(15
 
 <div id="mainContainer">
   <div id="searchBox">
-    <input id="searchInput" type="text" placeholder="🔍 スレッドのタイトルでリアルタイム検索ぺこ...">
+    <input id="searchInput" type="text" placeholder="🔍 スレッドのタイトルでリアルタイム検索...">
   </div>
 
   <div id="createThreadBox">
@@ -217,50 +217,18 @@ window.togglePinThread = async (tId, currentStatus) => {
     alert("固定状態の変更に失敗しました。");
   }
 };
-
-onAuthStateChanged(auth, async user => {
-  if (!user) {
-    document.getElementById("logoutBtn").style.display = "none";
-    document.getElementById("userBadge").style.display = "none";
-    document.getElementById("adminLoginBtn").style.display = "block";
-    signInAnonymously(auth).catch(e => console.error("匿名ログイン失敗:", e));
-    return;
+window.togglePinThread = async (tId, currentStatus) => {
+  try {
+    await update(ref(db, `threads/${tId}`), { pinned: !currentStatus });
+    alert(!currentStatus ? "スレッドを固定したよ！📌" : "スレッド固定を解除したよ！📍");
+  } catch (error) {
+    console.error(error);
+    alert("固定状態の変更に失敗しました。");
   }
-  currentUid = user.uid;
-  document.getElementById("logoutBtn").style.display = "block";
+};
 
-  if (stopAdminListener) stopAdminListener();
-
-  stopAdminListener = onValue(ref(db, "admins/" + currentUid), adminSnap => {
-    isGlobalAdmin = adminSnap.val() === true;
-    const isGoogleLinked = user.providerData.some(p => p.providerId === "google.com");
-
-    if (!isGoogleLinked) {
-      userName = localStorage.getItem("usakira_name") || defaultName;
-      userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
-      document.getElementById("adminLoginBtn").style.display = "block";
-      document.getElementById("userBadge").style.display = "flex"; // 一般でも変更できるようにbadgeを出す
-    } else {
-      const googleProfile = user.providerData.find(p => p.providerId === "google.com");
-      userName = googleProfile.displayName || "管理者";
-      userIcon = googleProfile.photoURL || defaultIcon;
-      document.getElementById("adminLoginBtn").style.display = "none";
-      
-      const nameEl = document.getElementById("myName");
-      const iconEl = document.getElementById("myIcon");
-      nameEl.textContent = isGlobalAdmin ? userName + " (管理人公認) 👑" : "統合完了UID: " + currentUid;
-      iconEl.src = isSafeUrl(userIcon) ? userIcon : defaultIcon;
-      document.getElementById("userBadge").style.display = "flex";
-    }
-    
-    // バッジ内の入力欄の初期値を更新
-    const profileInput = document.getElementById("inputProfileName");
-    if (profileInput) {
-      profileInput.value = (userName && userName !== defaultName) ? userName : "";
-    }
-    document.getElementById("myName").textContent = (isGoogleLinked && isGlobalAdmin) ? userName + " (管理人公認) 👑" : userName;
-    document.getElementById("myIcon").src = isSafeUrl(userIcon) ? userIcon : defaultIcon;
-
+function updateProfileBadge(isGoogleLinked) {
+updateProfileBadge(isGoogleLinked);
     startSync();
   });
 });
@@ -461,9 +429,7 @@ document.getElementById("submitThreadBtn").onclick = async () => {
   try {
     const timestamp = Date.now();
     
-    // 🛠️ マルチパス更新（一括書き込み）で、threadsノードとthread-comment-countsノードを同時に作成！
-    // これにより、セキュリティルール（初期値1が必要）を一発で100%安全にクリアできるぺこ！
-    const newThreadRef = push(ref(db, "threads"));
+  const newThreadRef = push(ref(db, "threads"));
     const tId = newThreadRef.key;
 
     const updates = {};
@@ -477,10 +443,21 @@ document.getElementById("submitThreadBtn").onclick = async () => {
       lastTime: timestamp,
       pinned: false 
     };
-    updates[`thread-comment-counts/${tId}`] = 1; // 👈 鉄壁ルール対応の初期値1！
+    
+    // 🐰 ここを追加！1件目の自動レスをpostsに格納する設計に
+    const firstPostRef = push(ref(db, `posts/${tId}`));
+    const firstPostKey = firstPostRef.key;
+    updates[`posts/${tId}/${firstPostKey}`] = {
+      text: body || "（本文なしスレッドが作成されました）",
+      time: timestamp,
+      userName: userName.substring(0, 50),
+      userIcon: userIcon,
+      userId: currentUid
+    };
+
+    updates[`thread-comment-counts/${tId}`] = 1; 
 
     await update(ref(db), updates);
-
     document.getElementById("threadTitleInput").value = "";
     document.getElementById("threadBodyInput").value = "";
     alert("スレッドを立てたよ！ 🚀");
@@ -520,8 +497,11 @@ document.getElementById("btnSaveProfile").onclick = async () => {
 
   // 右上のバッジを即時更新
   document.getElementById("myName").textContent = userName;
-  document.getElementById("myIcon").src = iconUrl;
-  alert("変更完了したぺこ！🐰");
+ // 変更後（これに差し替え！）
+const isGoogleLinked = auth.currentUser.providerData.some(p => p.providerId === "google.com");
+updateProfileBadge(isGoogleLinked);
+
+alert("変更完了したよ！🐰");
 };
 </script>
 </body>
