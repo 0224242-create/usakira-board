@@ -217,18 +217,51 @@ window.togglePinThread = async (tId, currentStatus) => {
     alert("固定状態の変更に失敗しました。");
   }
 };
-window.togglePinThread = async (tId, currentStatus) => {
-  try {
-    await update(ref(db, `threads/${tId}`), { pinned: !currentStatus });
-    alert(!currentStatus ? "スレッドを固定したよ！📌" : "スレッド固定を解除したよ！📍");
-  } catch (error) {
-    console.error(error);
-    alert("固定状態の変更に失敗しました。");
-  }
-};
 
+// 👤 プロフィール状態を安全に描画・更新するための共通関数
 function updateProfileBadge(isGoogleLinked) {
-updateProfileBadge(isGoogleLinked);
+  const nameEl = document.getElementById("myName");
+  const iconEl = document.getElementById("myIcon");
+  const profileInput = document.getElementById("inputProfileName");
+
+  if (profileInput && document.activeElement !== profileInput) {
+    profileInput.value = (userName && userName !== defaultName) ? userName : "";
+  }
+
+  nameEl.textContent = (isGoogleLinked && isGlobalAdmin) ? userName + " (管理人公認) 👑" : userName;
+  iconEl.src = isSafeUrl(userIcon) ? userIcon : defaultIcon;
+  document.getElementById("userBadge").style.display = "flex";
+}
+
+onAuthStateChanged(auth, async user => {
+  if (!user) {
+    document.getElementById("logoutBtn").style.display = "none";
+    document.getElementById("userBadge").style.display = "none";
+    document.getElementById("adminLoginBtn").style.display = "block";
+    signInAnonymously(auth).catch(e => console.error("匿名ログイン失敗:", e));
+    return;
+  }
+  currentUid = user.uid;
+  document.getElementById("logoutBtn").style.display = "block";
+
+  if (stopAdminListener) stopAdminListener();
+
+  stopAdminListener = onValue(ref(db, "admins/" + currentUid), adminSnap => {
+    isGlobalAdmin = adminSnap.val() === true;
+    const isGoogleLinked = user.providerData.some(p => p.providerId === "google.com");
+
+    if (!isGoogleLinked) {
+      userName = localStorage.getItem("usakira_name") || defaultName;
+      userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+      document.getElementById("adminLoginBtn").style.display = "block";
+    } else {
+      const googleProfile = user.providerData.find(p => p.providerId === "google.com");
+      userName = googleProfile.displayName || "管理者";
+      userIcon = googleProfile.photoURL || defaultIcon;
+      document.getElementById("adminLoginBtn").style.display = "none";
+    }
+    
+    updateProfileBadge(isGoogleLinked);
     startSync();
   });
 });
@@ -367,7 +400,7 @@ function renderThreadsList() {
   }
 }
 
-// 🖼️ 画像圧縮ロジック（thread.htmlの優秀な関数をここにも完全移植）
+// 🖼️ 画像圧縮ロジック
 function compressImage(file){
   return new Promise((resolve, reject) => {
     const img=new Image(); 
@@ -398,12 +431,12 @@ function compressImage(file){
   });
 }
 
-// ☁️ Cloudinaryアップロードロジック（thread.htmlと同じプリセット名を使用）
+// ☁️ Cloudinaryアップロードロジック
 async function uploadImage(file){
   const compressed=await compressImage(file);
   const formData=new FormData();
   formData.append("file",compressed);
-  formData.append("upload_preset","usakira_upload"); // 👈 thread.htmlと同じに統一
+  formData.append("upload_preset","usakira_upload");
   
   const res=await fetch("https://api.cloudinary.com/v1_1/dfhevulda/image/upload",{method:"POST",body:formData});
   if(!res.ok) throw new Error(`Upload Failed: Status ${res.status}`);
@@ -428,8 +461,7 @@ document.getElementById("submitThreadBtn").onclick = async () => {
 
   try {
     const timestamp = Date.now();
-    
-  const newThreadRef = push(ref(db, "threads"));
+    const newThreadRef = push(ref(db, "threads"));
     const tId = newThreadRef.key;
 
     const updates = {};
@@ -444,7 +476,7 @@ document.getElementById("submitThreadBtn").onclick = async () => {
       pinned: false 
     };
     
-    // 🐰 ここを追加！1件目の自動レスをpostsに格納する設計に
+    // 🐰 スレ作成時に1件目の自動レスをpostsに同時書き込みして整合性を確保
     const firstPostRef = push(ref(db, `posts/${tId}`));
     const firstPostKey = firstPostRef.key;
     updates[`posts/${tId}/${firstPostKey}`] = {
@@ -495,13 +527,11 @@ document.getElementById("btnSaveProfile").onclick = async () => {
   userName = newName;
   userIcon = iconUrl;
 
-  // 右上のバッジを即時更新
-  document.getElementById("myName").textContent = userName;
- // 変更後（これに差し替え！）
-const isGoogleLinked = auth.currentUser.providerData.some(p => p.providerId === "google.com");
-updateProfileBadge(isGoogleLinked);
+  // 保存完了後に安全にバッジを即時再描画
+  const isGoogleLinked = auth.currentUser.providerData.some(p => p.providerId === "google.com");
+  updateProfileBadge(isGoogleLinked);
 
-alert("変更完了したよ！🐰");
+  alert("変更完了したよ！🐰");
 };
 </script>
 </body>
