@@ -5,78 +5,53 @@
 <title>うさきら掲示板 - スレッド詳細</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-/* 🌙 ダークモードの全体ベース設定 */
-body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a1625); color: #e0d9f0; min-height: 100vh; }
-#threadHeaderArea { background: #1c142c; padding: 16px; border-bottom: 2px solid #3d2d5a; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
-.header-main { flex: 1; min-width: 250px; }
-#threadHeaderArea h1 { margin: 0 0 8px 0; font-size: 1.6rem; color: #9d88ff; text-shadow: 0 0 10px rgba(157, 136, 255, 0.3); }
-#threadHeaderArea .thread-body { font-size: 14px; color: #c3b8e0; white-space: pre-wrap; background: #251b3a; padding: 10px; border-radius: 8px; border: 1px solid #3d2d5a; }
-#threadHeaderArea .thread-body a { color: #9d88ff; text-decoration: underline; }
-.admin-control-panel { display: flex; align-items: center; gap: 8px; }
-.admin-btn { font-size: 11px; padding: 4px 8px; background: #3a1c28; border: 1px solid #632337; color: #ff6b81; font-weight: bold; border-radius: 4px; cursor: pointer; }
-.admin-btn:hover { background: #4d2233; }
-.logout-btn { font-size: 11px; padding: 4px 8px; background: #2d2640; border: 1px solid #4a3f66; color: #c3b8e0; font-weight: bold; border-radius: 4px; cursor: pointer; margin-left: 4px; }
-.logout-btn:hover { background: #3d3457; }
-.user-profile-badge { background: #1c3322; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #2d5a39; color: #a2f0b5; }
-.user-profile-badge img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
-.back-link-container { padding: 0 16px; margin-top: 10px; }
-.back-btn { font-size: 13px; color: #b39eff; text-decoration: none; font-weight: bold; }
-.back-btn:hover { text-decoration: underline; }
+body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a1625); color:#e0d9f0; min-height:100vh; }
+#threadHeaderArea{ background:#1c142c; padding:16px; border-bottom:2px solid #3d2d5a; margin-bottom:10px; display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; }
+.header-main{ flex:1; min-width:250px; }
+#threadHeaderArea h1{ margin:0 0 8px 0; font-size:1.6rem; color:#9d88ff; text-shadow:0 0 10px rgba(157,136,255,.3); }
+#threadHeaderArea .thread-body{ font-size:14px; color:#c3b8e0; white-space:pre-wrap; background:#251b3a; padding:10px; border-radius:8px; border:1px solid #3d2d5a; }
+#threadHeaderArea .thread-body a{ color:#9d88ff; text-decoration:underline; }
+.admin-control-panel{ display:flex; align-items:center; gap:8px; }
+.admin-btn{ font-size:11px; padding:4px 8px; background:#3a1c28; border:1px solid #632337; color:#ff6b81; font-weight:bold; border-radius:4px; cursor:pointer; }
+.admin-btn:hover{ background:#4d2233; }
+.logout-btn{ font-size:11px; padding:4px 8px; background:#2d2640; border:1px solid #4a3f66; color:#c3b8e0; font-weight:bold; border-radius:4px; cursor:pointer; margin-left:4px; }
+.logout-btn:hover{ background:#3d3457; }
+.user-profile-badge{ background:#1c3322; padding:6px 12px; border-radius:20px; font-size:12px; display:flex; align-items:center; gap:8px; border:1px solid #2d5a39; color:#a2f0b5; }
+.user-profile-badge img{ width:24px; height:24px; border-radius:50%; object-fit:cover; }
+.back-link-container{ padding:0 16px; margin-top:10px; }
+.back-btn{ font-size:13px; color:#b39eff; text-decoration:none; font-weight:bold; }
+.back-btn:hover{ text-decoration:underline; }
 #comments{ padding:16px; padding-bottom:140px; }
-.comment{ background: #1c142c; border-radius:12px; padding:14px; margin-bottom:14px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border: 1px solid #32254f; position: relative; }
+.comment{ background:#1c142c; border-radius:12px; padding:14px; margin-bottom:14px; box-shadow:0 4px 15px rgba(0,0,0,.2); border:1px solid #32254f; position:relative; }
 .header{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
-.icon{ width:36px; height:36px; border-radius:50%; object-fit:cover; border: 1px solid #4a3f66; }
-.name{ font-weight:bold; font-size:15px; color: #ffffff; }
-.comment-number { font-weight: bold; color: #9d88ff; margin-right: 4px; }
-.time{ font-size:12px; color:#7d7299; margin-left:8px; font-weight: normal; }
+.icon{ width:36px; height:36px; border-radius:50%; object-fit:cover; border:1px solid #4a3f66; }
+.name{ font-weight:bold; font-size:15px; color:#fff; }
+.comment-number{ font-weight:bold; color:#9d88ff; margin-right:4px; }
+.time{ font-size:12px; color:#7d7299; margin-left:8px; font-weight:normal; }
 .actions{ margin-left:auto; display:flex; gap:5px; }
-.actions button { font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid #4a3f66; }
-.btn-delete { background: #2d2640; color: #c3b8e0; }
-.btn-delete:hover { background: #3d3457; }
-.btn-admin-delete { background: #892224; color: white; border: 1px solid #b33939 !important; font-weight: bold; }
-.btn-admin-delete:hover { background: #b33939; }
-.text{ font-size:15px; line-height:1.4; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; color: #e0d9f0; }
-.comment-text-container a{ color:#9d88ff; text-decoration: underline; word-break:break-all; }
-.comment-img{ max-width:220px; border-radius:8px; margin-top:8px; cursor:pointer; display:block; border: 1px solid #3d2d5a; }
-
-/* 📥 下部固定コメントフォーム（ダーク） */
-#commentBox{ position:fixed; bottom:0; left:0; width:100%; background:#1c142c; padding:10px 12px; box-shadow:0 -4px 20px rgba(0,0,0,0.4); display:flex; align-items:center; gap:8px; flex-wrap:wrap; border-top: 1px solid #3d2d5a; box-sizing: border-box; z-index: 1000; }
-#commentInput{ flex:1; padding:8px 12px; font-size:14px; min-width:150px; background: #251b3a; border: 1px solid #4a3f66; color: #fff; border-radius: 6px; }
-#commentInput::placeholder { color: #7d7299; }
-#imageInput{ font-size:12px; color: #c3b8e0; max-width: 150px; }
+.actions button{ font-size:11px; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #4a3f66; }
+.btn-delete{ background:#2d2640; color:#c3b8e0; }
+.btn-delete:hover{ background:#3d3457; }
+.btn-admin-delete{ background:#892224; color:white; border:1px solid #b33939 !important; font-weight:bold; }
+.btn-admin-delete:hover{ background:#b33939; }
+.text{ font-size:15px; line-height:1.4; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; color:#e0d9f0; }
+.comment-text-container a{ color:#9d88ff; text-decoration:underline; word-break:break-all; }
+.comment-img{ max-width:220px; border-radius:8px; margin-top:8px; cursor:pointer; display:block; border:1px solid #3d2d5a; }
+#commentBox{ position:fixed; bottom:0; left:0; width:100%; background:#1c142c; padding:10px 12px; box-shadow:0 -4px 20px rgba(0,0,0,.4); display:flex; align-items:center; gap:8px; flex-wrap:wrap; border-top:1px solid #3d2d5a; box-sizing:border-box; z-index:1000; }
+#commentInput{ flex:1; padding:8px 12px; font-size:14px; min-width:150px; background:#251b3a; border:1px solid #4a3f66; color:#fff; border-radius:6px; }
+#commentInput::placeholder{ color:#7d7299; }
+#imageInput{ font-size:12px; color:#c3b8e0; max-width:150px; }
 #fileName{ font-size:12px; color:#a29bfe; }
-#postBtn{ padding:8px 16px; font-size:13px; background: #6c5ce7; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
-#postBtn:hover { background: #5b4cc4; }
-#postBtn:disabled { background: #3d3754; color: #777; cursor: not-allowed; }
+#postBtn{ padding:8px 16px; font-size:13px; background:#6c5ce7; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; }
+#postBtn:hover{ background:#5b4cc4; }
+#postBtn:disabled{ background:#3d3754; color:#777; cursor:not-allowed; }
 #postStatus{ font-size:12px; color:#a2f0b5; }
-
-/* 📥 過去コメント読み込みボタン */
-.load-more-container{
-  text-align:center;
-  margin:18px 0 8px;
-}
-
-.load-more-btn{
-  padding:9px 16px;
-  border-radius:8px;
-  border:1px solid #4a3f66;
-  background:#2d2640;
-  color:#c3b8e0;
-  cursor:pointer;
-  font-weight:bold;
-}
-
-.load-more-btn:hover{
-  background:#3d3457;
-}
-
-.load-more-btn:disabled{
-  opacity:0.6;
-  cursor:default;
-}
+.load-more-container{ text-align:center; margin:18px 0 8px; }
+.load-more-btn{ padding:9px 16px; border-radius:8px; border:1px solid #4a3f66; background:#2d2640; color:#c3b8e0; cursor:pointer; font-weight:bold; }
+.load-more-btn:hover{ background:#3d3457; }
+.load-more-btn:disabled{ opacity:.6; cursor:default; }
 </style>
 </head>
-
 <body>
 
 <div id="threadHeaderArea">
@@ -84,18 +59,13 @@ body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a
     <h1 id="mainThreadTitle">読み込み中…</h1>
     <div id="mainThreadBody" class="thread-body" style="display:none;"></div>
   </div>
-
   <div class="admin-control-panel">
     <button id="adminLoginBtn" class="admin-btn">👑 管理者ログイン</button>
-
-    <div id="userBadge" class="user-profile-badge" style="display: none;">
+    <div id="userBadge" class="user-profile-badge" style="display:none;">
       <img id="myIcon" src="">
       <span id="myName"></span>
     </div>
-
-    <button id="logoutBtn" class="logout-btn" style="display: none;">
-      🚪 ログアウト
-    </button>
+    <button id="logoutBtn" class="logout-btn" style="display:none;">🚪 ログアウト</button>
   </div>
 </div>
 
@@ -113,1753 +83,652 @@ body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a
   <span id="postStatus"></span>
 </div>
 
-<div
-  id="imageModal"
-  style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:none; align-items:center; justify-content:center; z-index:9999;"
-  onclick="this.style.display='none'"
->
-  <img
-    id="modalImg"
-    style="max-width:90%; max-height:90%; border: 2px solid #4a3f66; border-radius: 8px;"
-  >
+<div id="imageModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:9999;" onclick="this.style.display='none'">
+  <img id="modalImg" style="max-width:90%;max-height:90%;border:2px solid #4a3f66;border-radius:8px;">
 </div>
 
 <script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+import { getDatabase, ref, onValue, push, update, remove, get, increment, query, orderByKey, limitToLast, endAt } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-import { initializeApp }
-  from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-
-import {
-  getAuth,
-  signInAnonymously,
-  linkWithPopup,
-  signInWithCredential,
-  GoogleAuthProvider,
-  onAuthStateChanged,
-  signOut
-}
-from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-
-import {
-  getDatabase,
-  ref,
-  onValue,
-  push,
-  update,
-  remove,
-  get,
-  increment,
-  query,
-  orderByChild,
-  limitToLast,
-  endAt
-}
-from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
-
-
-const firebaseConfig = {
-  apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
-  authDomain: "keijiban-7c651.firebaseapp.com",
-  projectId: "keijiban-7c651",
-  storageBucket: "keijiban-7c651.appspot.com",
-  messagingSenderId: "587652395561",
-  appId: "1:587652395561:web:ddf858fdf84df2438491c3",
-  databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com"
+const firebaseConfig={
+  apiKey:"AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
+  authDomain:"keijiban-7c651.firebaseapp.com",
+  projectId:"keijiban-7c651",
+  storageBucket:"keijiban-7c651.appspot.com",
+  messagingSenderId:"587652395561",
+  appId:"1:587652395561:web:ddf858fdf84df2438491c3",
+  databaseURL:"https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
 
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
+const db=getDatabase(app);
+const googleProvider=new GoogleAuthProvider();
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getDatabase(app);
-const googleProvider = new GoogleAuthProvider();
+const params=new URLSearchParams(location.search);
+const threadId=params.get("id");
+const idRegex=/^[A-Za-z0-9_-]{10,128}$/;
 
-const params = new URLSearchParams(location.search);
-const threadId = params.get("id");
-
-const idRegex = /^[A-Za-z0-9_-]{10,128}$/;
-
-if (!threadId || !idRegex.test(threadId)) {
+if(!threadId || !idRegex.test(threadId)){
   alert("不正なスレッドIDです。トップページに戻ります。");
-  location.href = "index.html";
+  location.href="index.html";
 }
 
+const commentsRef=ref(db,"posts/"+threadId);
+const defaultName="名もなき兎";
+const defaultIcon="usagi.png.jpeg";
 
-const commentsRef = ref(db, "posts/" + threadId);
+let currentUid=null;
+let currentThreadOwnerId=null;
+let isGlobalAdmin=false;
+let globalCommentCount=0;
+let stopAdminListener=null;
+let stopThreadListener=null;
+let stopCommentsListener=null;
 
-const defaultName = "名もなき兎";
-const defaultIcon = "usagi.png.jpeg";
+const COMMENTS_PER_PAGE=50;
+let loadedComments={};
+let oldestLoadedKey=null;
+let hasMoreComments=false;
+let isLoadingMore=false;
 
-let currentUid = null;
-let currentThreadOwnerId = null;
-let isGlobalAdmin = false;
-let globalCommentCount = 0;
+let userName=localStorage.getItem("usakira_name")||defaultName;
+let userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
-let stopAdminListener = null;
-let stopThreadListener = null;
-let stopCommentsListener = null;
+document.getElementById("adminLoginBtn").onclick=()=>{
+  if(!auth.currentUser)return;
 
-
-/* =========================================================
-   コメントページング用
-   ========================================================= */
-
-const COMMENTS_PER_PAGE = 50;
-
-let loadedComments = {};
-let oldestLoadedTime = null;
-let hasMoreComments = false;
-let isLoadingMore = false;
-
-
-/* =========================================================
-   ユーザー情報
-   ========================================================= */
-
-let userName =
-  localStorage.getItem("usakira_name") || defaultName;
-
-let userIcon =
-  localStorage.getItem("usakira_icon") || defaultIcon;
-
-
-/* =========================================================
-   管理者ログイン
-   ========================================================= */
-
-document.getElementById("adminLoginBtn").onclick = () => {
-
-  if (!auth.currentUser) return;
-
-  linkWithPopup(auth.currentUser, googleProvider)
-    .then(() => {
-      alert("管理者アカウントとの統合に成功したよ！ 🐰✨");
-    })
-    .catch(error => {
-
-      if (
-        error.code === "auth/credential-already-in-use" ||
-        error.code === "auth/account-exists-with-different-credential"
-      ) {
-
-        const credential =
-          GoogleAuthProvider.credentialFromError(error);
-
-        if (credential) {
-
-          alert(
-            "このGoogleアカウントは既に登録されています。既存の管理者セッションへ切り替えます 👑"
-          );
-
-          signInWithCredential(auth, credential)
-            .catch(e =>
-              alert("サインイン失敗: " + e.message)
-            );
+  linkWithPopup(auth.currentUser,googleProvider)
+    .then(()=>alert("管理者アカウントとの統合に成功したよ！ 🐰✨"))
+    .catch(error=>{
+      if(error.code==="auth/credential-already-in-use" || error.code==="auth/account-exists-with-different-credential"){
+        const credential=GoogleAuthProvider.credentialFromError(error);
+        if(credential){
+          alert("このGoogleアカウントは既に登録されています。既存の管理者セッションへ切り替えます 👑");
+          signInWithCredential(auth,credential).catch(e=>alert("サインイン失敗: "+e.message));
         }
-
-      } else {
-
-        alert("ログインエラー: " + error.code);
-
+      }else{
+        alert("ログインエラー: "+error.code);
       }
     });
 };
 
+document.getElementById("logoutBtn").onclick=async()=>{
+  if(!confirm("ログアウトするぺこ？"))return;
 
-/* =========================================================
-   ログアウト
-   ========================================================= */
-
-document.getElementById("logoutBtn").onclick = async () => {
-
-  if (!confirm("ログアウトするぺこ？")) return;
-
-  try {
-
-    if (stopAdminListener) stopAdminListener();
-    if (stopThreadListener) stopThreadListener();
-    if (stopCommentsListener) stopCommentsListener();
+  try{
+    if(stopAdminListener)stopAdminListener();
+    if(stopThreadListener)stopThreadListener();
+    if(stopCommentsListener)stopCommentsListener();
 
     await signOut(auth);
 
-    currentUid = null;
-    isGlobalAdmin = false;
+    currentUid=null;
+    isGlobalAdmin=false;
 
     alert("ログアウトしたよ！一覧へ戻ります。🚪");
-
-    location.href = "index.html";
-
-  } catch (error) {
-
-    console.error("Logout Error:", error);
-
+    location.href="index.html";
+  }catch(error){
+    console.error("Logout Error:",error);
     alert("ログアウト中にエラーが発生しました。");
   }
 };
 
-
-/* =========================================================
-   URL安全確認
-   ========================================================= */
-
-function isSafeUrl(urlStr) {
-
-  if (!urlStr) return true;
-
-  if (
-    urlStr.startsWith("javascript:") ||
-    urlStr.startsWith("data:")
-  ) {
-    return false;
-  }
-
-  return (
-    urlStr.startsWith("http://") ||
-    urlStr.startsWith("https://")
-  );
+function isSafeUrl(urlStr){
+  if(!urlStr)return true;
+  if(urlStr.startsWith("javascript:") || urlStr.startsWith("data:"))return false;
+  return urlStr.startsWith("http://") || urlStr.startsWith("https://");
 }
 
+function renderTextWithLinks(targetElement,text){
+  targetElement.textContent="";
+  if(!text)return;
 
-/* =========================================================
-   本文中のURLをリンク化
-   ========================================================= */
+  const urlRegex=/(https?:\/\/[^\s<]+)/g;
+  const parts=text.split(urlRegex);
 
-function renderTextWithLinks(targetElement, text) {
-
-  targetElement.textContent = "";
-
-  if (!text) return;
-
-  const urlRegex = /(https?:\/\/[^\s<]+)/g;
-
-  const parts = text.split(urlRegex);
-
-  parts.forEach(part => {
-
-    if (
-      part.startsWith("http://") ||
-      part.startsWith("https://")
-    ) {
-
-      if (isSafeUrl(part)) {
-
-        const anchor =
-          document.createElement("a");
-
-        anchor.href = part;
-        anchor.textContent = part;
-        anchor.target = "_blank";
-        anchor.rel = "noopener noreferrer";
-
+  parts.forEach(part=>{
+    if(part.startsWith("http://") || part.startsWith("https://")){
+      if(isSafeUrl(part)){
+        const anchor=document.createElement("a");
+        anchor.href=part;
+        anchor.textContent=part;
+        anchor.target="_blank";
+        anchor.rel="noopener noreferrer";
         targetElement.appendChild(anchor);
-
-      } else {
-
-        targetElement.appendChild(
-          document.createTextNode(part)
-        );
+      }else{
+        targetElement.appendChild(document.createTextNode(part));
       }
-
-    } else {
-
-      targetElement.appendChild(
-        document.createTextNode(part)
-      );
+    }else{
+      targetElement.appendChild(document.createTextNode(part));
     }
   });
 }
 
+async function refreshCommentCount(){
+  try{
+    const postsSnap=await get(ref(db,`posts/${threadId}`));
+    const currentCount=postsSnap.val()?Object.keys(postsSnap.val()).length:0;
+    globalCommentCount=currentCount;
 
-/* =========================================================
-   コメント数同期
-   ========================================================= */
-
-async function refreshCommentCount() {
-
-  try {
-
-    const postsSnap =
-      await get(ref(db, `posts/${threadId}`));
-
-    const currentCount =
-      postsSnap.val()
-        ? Object.keys(postsSnap.val()).length
-        : 0;
-
-    globalCommentCount = currentCount;
-
-    await update(ref(db), {
-      [`thread-comment-counts/${threadId}`]:
-        currentCount
+    await update(ref(db),{
+      [`thread-comment-counts/${threadId}`]:currentCount
     });
-
-  } catch (error) {
-
-    console.error(
-      "Counter Sync Error:",
-      error
-    );
+  }catch(error){
+    console.error("Counter Sync Error:",error);
   }
 }
 
-
-/* =========================================================
-   画像モーダル
-   ========================================================= */
-
-window.openImage = (src) => {
-
-  document.getElementById("modalImg").src = src;
-
-  document.getElementById("imageModal").style.display =
-    "flex";
+window.openImage=(src)=>{
+  document.getElementById("modalImg").src=src;
+  document.getElementById("imageModal").style.display="flex";
 };
 
+window.deleteComment=async(commentId)=>{
+  if(!confirm("このコメントを削除するぺこ？"))return;
 
-/* =========================================================
-   コメント削除
-   ========================================================= */
-
-window.deleteComment = async (commentId) => {
-
-  if (!confirm("このコメントを削除するぺこ？")) {
-    return;
-  }
-
-  try {
-
-    await remove(
-      ref(
-        db,
-        `posts/${threadId}/${commentId}`
-      )
-    );
-
+  try{
+    await remove(ref(db,`posts/${threadId}/${commentId}`));
     await refreshCommentCount();
-
     alert("コメントを削除したよ 🐰🧹");
-
-  } catch (error) {
-
+  }catch(error){
     console.error(error);
-
-    alert(
-      "削除に失敗しました。権限がありません。"
-    );
+    alert("削除に失敗しました。権限がありません。");
   }
 };
 
+onAuthStateChanged(auth,async user=>{
+  if(!user){
+    document.getElementById("logoutBtn").style.display="none";
+    document.getElementById("userBadge").style.display="none";
+    document.getElementById("adminLoginBtn").style.display="block";
 
-/* =========================================================
-   Firebase Auth
-   ========================================================= */
-
-onAuthStateChanged(auth, async user => {
-
-  if (!user) {
-
-    document.getElementById(
-      "logoutBtn"
-    ).style.display = "none";
-
-    document.getElementById(
-      "userBadge"
-    ).style.display = "none";
-
-    document.getElementById(
-      "adminLoginBtn"
-    ).style.display = "block";
-
-    signInAnonymously(auth)
-      .catch(e =>
-        console.error(
-          "匿名ログイン失敗:",
-          e
-        )
-      );
-
+    signInAnonymously(auth).catch(e=>console.error("匿名ログイン失敗:",e));
     return;
   }
 
+  currentUid=user.uid;
 
-  currentUid = user.uid;
+  if(stopAdminListener)stopAdminListener();
 
+  stopAdminListener=onValue(ref(db,"admins/"+currentUid),adminSnap=>{
+    isGlobalAdmin=adminSnap.val()===true;
 
-  /* 管理者情報 */
+    const isGoogleLinked=user.providerData.some(p=>p.providerId==="google.com");
 
-  if (stopAdminListener) {
-    stopAdminListener();
-  }
+    if(!isGoogleLinked){
+      userName=localStorage.getItem("usakira_name")||defaultName;
+      userIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
-  stopAdminListener =
-    onValue(
-      ref(
-        db,
-        "admins/" + currentUid
-      ),
-      adminSnap => {
+      document.getElementById("adminLoginBtn").style.display="block";
+      document.getElementById("userBadge").style.display="none";
+      document.getElementById("logoutBtn").style.display="none";
+    }else{
+      const googleProfile=user.providerData.find(p=>p.providerId==="google.com");
 
-        isGlobalAdmin =
-          adminSnap.val() === true;
+      userName=googleProfile.displayName||"管理者";
+      userIcon=googleProfile.photoURL||defaultIcon;
 
-        const isGoogleLinked =
-          user.providerData.some(
-            p => p.providerId === "google.com"
-          );
+      document.getElementById("adminLoginBtn").style.display="none";
 
+      const nameEl=document.getElementById("myName");
+      const iconEl=document.getElementById("myIcon");
 
-        if (!isGoogleLinked) {
+      nameEl.textContent=isGlobalAdmin?userName+" (管理人公認) 👑":"統合完了UID: "+currentUid;
+      iconEl.src=isSafeUrl(userIcon)?userIcon:defaultIcon;
 
-          userName =
-            localStorage.getItem(
-              "usakira_name"
-            ) || defaultName;
+      document.getElementById("userBadge").style.display="flex";
+      document.getElementById("logoutBtn").style.display="block";
+    }
+  });
 
-          userIcon =
-            localStorage.getItem(
-              "usakira_icon"
-            ) || defaultIcon;
+  if(stopThreadListener)stopThreadListener();
 
+  stopThreadListener=onValue(ref(db,"threads/"+threadId),snap=>{
+    const t=snap.val();
 
-          document.getElementById(
-            "adminLoginBtn"
-          ).style.display = "block";
+    if(t){
+      currentThreadOwnerId=t.ownerId;
+      document.getElementById("mainThreadTitle").textContent=t.title;
 
-          document.getElementById(
-            "userBadge"
-          ).style.display = "none";
-
-          document.getElementById(
-            "logoutBtn"
-          ).style.display = "none";
-
-
-        } else {
-
-          const googleProfile =
-            user.providerData.find(
-              p => p.providerId === "google.com"
-            );
-
-
-          userName =
-            googleProfile.displayName ||
-            "管理者";
-
-          userIcon =
-            googleProfile.photoURL ||
-            defaultIcon;
-
-
-          document.getElementById(
-            "adminLoginBtn"
-          ).style.display = "none";
-
-
-          const nameEl =
-            document.getElementById(
-              "myName"
-            );
-
-          const iconEl =
-            document.getElementById(
-              "myIcon"
-            );
-
-
-          nameEl.textContent =
-            isGlobalAdmin
-              ? userName +
-                " (管理人公認) 👑"
-              : "統合完了UID: " +
-                currentUid;
-
-
-          iconEl.src =
-            isSafeUrl(userIcon)
-              ? userIcon
-              : defaultIcon;
-
-
-          document.getElementById(
-            "userBadge"
-          ).style.display = "flex";
-
-
-          document.getElementById(
-            "logoutBtn"
-          ).style.display = "block";
-        }
+      if(t.body && t.body.trim()!==""){
+        renderTextWithLinks(document.getElementById("mainThreadBody"),t.body);
+        document.getElementById("mainThreadBody").style.display="block";
+      }else{
+        document.getElementById("mainThreadBody").style.display="none";
       }
-    );
-
-
-  /* スレッド情報 */
-
-  if (stopThreadListener) {
-    stopThreadListener();
-  }
-
-  stopThreadListener =
-    onValue(
-      ref(
-        db,
-        "threads/" + threadId
-      ),
-      snap => {
-
-        const t = snap.val();
-
-        if (t) {
-
-          currentThreadOwnerId =
-            t.ownerId;
-
-          document.getElementById(
-            "mainThreadTitle"
-          ).textContent =
-            t.title;
-
-
-          if (
-            t.body &&
-            t.body.trim() !== ""
-          ) {
-
-            renderTextWithLinks(
-              document.getElementById(
-                "mainThreadBody"
-              ),
-              t.body
-            );
-
-            document.getElementById(
-              "mainThreadBody"
-            ).style.display =
-              "block";
-
-          } else {
-
-            document.getElementById(
-              "mainThreadBody"
-            ).style.display =
-              "none";
-          }
-
-
-        } else {
-
-          document.getElementById(
-            "mainThreadTitle"
-          ).textContent =
-            "スレッドが存在しないか削除されました。";
-
-          document.getElementById(
-            "mainThreadBody"
-          ).style.display =
-            "none";
-
-          document.getElementById(
-            "postBtn"
-          ).disabled = true;
-        }
-      }
-    );
-
+    }else{
+      document.getElementById("mainThreadTitle").textContent="スレッドが存在しないか削除されました。";
+      document.getElementById("mainThreadBody").style.display="none";
+      document.getElementById("postBtn").disabled=true;
+    }
+  });
 
   loadComments();
 });
 
-
-/* =========================================================
-   コメント取得
-   最新50件だけ
-   ========================================================= */
-
-function loadComments() {
-
-  if (stopCommentsListener) {
+/*
+ * 最初は最新50件だけ取得。
+ * orderByKey() は push() で作られたキーの順番を使う。
+ */
+function loadComments(){
+  if(stopCommentsListener){
     stopCommentsListener();
-    stopCommentsListener = null;
+    stopCommentsListener=null;
   }
 
-
-  loadedComments = {};
-  oldestLoadedTime = null;
-  hasMoreComments = false;
-  isLoadingMore = false;
-
-
-  /*
-   * Firebaseから最初に取得するのは
-   * 最新50件だけ。
-   */
-
-  const latestCommentsQuery =
-    query(
-      commentsRef,
-      orderByChild("time"),
-      limitToLast(
-        COMMENTS_PER_PAGE
-      )
-    );
-
-
-  stopCommentsListener =
-    onValue(
-      latestCommentsQuery,
-      async snap => {
-
-        const data = snap.val();
-
-
-        const entries =
-          data
-            ? Object.entries(data).sort(
-                (a, b) =>
-                  (a[1].time || 0) -
-                  (b[1].time || 0)
-              )
-            : [];
-
-
-        /*
-         * 最新50件を保存
-         */
-
-        entries.forEach(
-          ([key, comment]) => {
-
-            loadedComments[key] =
-              comment;
-          }
-        );
-
-
-        /*
-         * 現在読み込んでいる
-         * 一番古いコメントを取得
-         */
-
-        const loadedEntries =
-          Object.entries(
-            loadedComments
-          ).sort(
-            (a, b) =>
-              (a[1].time || 0) -
-              (b[1].time || 0)
-          );
-
-
-        if (
-          loadedEntries.length > 0
-        ) {
-
-          oldestLoadedTime =
-            loadedEntries[0][1].time ||
-            null;
-        }
-
-
-        /*
-         * コメント総数は
-         * 既存のカウンターを使用
-         *
-         * ここではposts全件を
-         * 取得しない。
-         */
-
-        try {
-
-          const countSnap =
-            await get(
-              ref(
-                db,
-                `thread-comment-counts/${threadId}`
-              )
-            );
-
-
-          const count =
-            countSnap.val();
-
-
-          globalCommentCount =
-            typeof count === "number"
-              ? count
-              : loadedEntries.length;
-
-
-        } catch (error) {
-
-          console.error(
-            "Comment Count Error:",
-            error
-          );
-
-
-          globalCommentCount =
-            loadedEntries.length;
-        }
-
-
-        /*
-         * まだ過去コメントが
-         * 残っているか
-         */
-
-        hasMoreComments =
-          globalCommentCount >
-          loadedEntries.length;
-
-
-        renderComments();
-      }
-    );
-}
-
-
-/* =========================================================
-   コメント表示
-   ========================================================= */
-
-function renderComments() {
-
-  const commentsContainer =
-    document.getElementById(
-      "comments"
-    );
-
-
-  commentsContainer.textContent = "";
-
-
-  const chronologicalList =
-    Object.entries(
-      loadedComments
-    ).sort(
-      (a, b) =>
-        (a[1].time || 0) -
-        (b[1].time || 0)
-    );
-
-
-  if (
-    chronologicalList.length === 0
-  ) {
-
-    globalCommentCount = 0;
-
-    commentsContainer.textContent =
-      "コメントがまだありません。最初の足跡を残してみよう！";
-
-    return;
-  }
-
-
-  /*
-   * 全コメント数から
-   * 正しいレス番号を計算
-   *
-   * 例：
-   * 1000件中最新50件
-   * → >>951 ～ >>1000
-   */
-
-  const startNumber =
-    Math.max(
-      1,
-      globalCommentCount -
-        chronologicalList.length +
-        1
-    );
-
-
-  const listWithCorrectNumbers =
-    chronologicalList.map(
-      ([key, c], index) => {
-
-        return {
-          key,
-          c,
-          responseNumber:
-            startNumber + index
-        };
-      }
-    );
-
-
-  /*
-   * 新しいコメントを上
-   */
-
-  const displayList =
-    listWithCorrectNumbers.reverse();
-
-
-  displayList.forEach(
-    ({
-      key,
-      c,
-      responseNumber
-    }) => {
-
-
-      const commentDiv =
-        document.createElement(
-          "div"
-        );
-
-      commentDiv.classList.add(
-        "comment"
-      );
-
-
-      const headerDiv =
-        document.createElement(
-          "div"
-        );
-
-      headerDiv.classList.add(
-        "header"
-      );
-
-
-      const numSpan =
-        document.createElement(
-          "span"
-        );
-
-      numSpan.classList.add(
-        "comment-number"
-      );
-
-      numSpan.textContent =
-        `>>${responseNumber}`;
-
-
-      const iconImg =
-        document.createElement(
-          "img"
-        );
-
-      iconImg.classList.add(
-        "icon"
-      );
-
-
-      const rawIcon =
-        c.userIcon ||
-        c.icon;
-
-
-      const safeIcon =
-        (
-          isSafeUrl(rawIcon) &&
-          (rawIcon || "").length <= 1000
-        )
-          ? (
-              rawIcon ||
-              defaultIcon
-            )
-          : defaultIcon;
-
-
-      iconImg.src =
-        safeIcon;
-
-
-      iconImg.onerror = () => {
-        iconImg.src =
-          defaultIcon;
-      };
-
-
-      const nameDiv =
-        document.createElement(
-          "div"
-        );
-
-      nameDiv.classList.add(
-        "name"
-      );
-
-
-      nameDiv.textContent =
-        c.userName ||
-        c.name ||
-        "名もなき兎";
-
-
-      const timeSpan =
-        document.createElement(
-          "span"
-        );
-
-      timeSpan.classList.add(
-        "time"
-      );
-
-
-      timeSpan.textContent =
-        c.time
-          ? " " +
-            new Date(
-              c.time
-            ).toLocaleString()
-          : "";
-
-
-      nameDiv.insertBefore(
-        numSpan,
-        nameDiv.firstChild
-      );
-
-
-      nameDiv.appendChild(
-        timeSpan
-      );
-
-
-      headerDiv.appendChild(
-        iconImg
-      );
-
-
-      headerDiv.appendChild(
-        nameDiv
-      );
-
-
-      /* 管理者削除 */
-
-      if (isGlobalAdmin) {
-
-        const actionsDiv =
-          document.createElement(
-            "div"
-          );
-
-        actionsDiv.classList.add(
-          "actions"
-        );
-
-
-        const btn =
-          document.createElement(
-            "button"
-          );
-
-        btn.classList.add(
-          "btn-admin-delete"
-        );
-
-        btn.textContent =
-          "👑 管理削除";
-
-
-        btn.onclick = () =>
-          window.deleteComment(
-            key
-          );
-
-
-        actionsDiv.appendChild(
-          btn
-        );
-
-
-        headerDiv.appendChild(
-          actionsDiv
-        );
-
-
-      /*
-       * 自分または
-       * スレッド所有者
-       */
-
-      } else if (
-        c.userId === currentUid ||
-        currentThreadOwnerId === currentUid
-      ) {
-
-        const actionsDiv =
-          document.createElement(
-            "div"
-          );
-
-        actionsDiv.classList.add(
-          "actions"
-        );
-
-
-        const btn =
-          document.createElement(
-            "button"
-          );
-
-        btn.classList.add(
-          "btn-delete"
-        );
-
-        btn.textContent =
-          "🗑 削除";
-
-
-        btn.onclick = () =>
-          window.deleteComment(
-            key
-          );
-
-
-        actionsDiv.appendChild(
-          btn
-        );
-
-
-        headerDiv.appendChild(
-          actionsDiv
-        );
-      }
-
-
-      const textDiv =
-        document.createElement(
-          "div"
-        );
-
-
-      textDiv.classList.add(
-        "text",
-        "comment-text-container"
-      );
-
-
-      renderTextWithLinks(
-        textDiv,
-        c.text || ""
-      );
-
-
-      commentDiv.appendChild(
-        headerDiv
-      );
-
-
-      commentDiv.appendChild(
-        textDiv
-      );
-
-
-      /* コメント画像 */
-
-      if (
-        c.image &&
-        isSafeUrl(c.image) &&
-        c.image.length <= 1000
-      ) {
-
-        const commentImg =
-          document.createElement(
-            "img"
-          );
-
-
-        commentImg.classList.add(
-          "comment-img"
-        );
-
-
-        commentImg.src =
-          c.image;
-
-
-        commentImg.onclick = () =>
-          window.openImage(
-            c.image
-          );
-
-
-        commentDiv.appendChild(
-          commentImg
-        );
-      }
-
-
-      commentsContainer.appendChild(
-        commentDiv
-      );
-    }
+  loadedComments={};
+  oldestLoadedKey=null;
+  hasMoreComments=false;
+  isLoadingMore=false;
+
+  const latestQuery=query(
+    commentsRef,
+    orderByKey(),
+    limitToLast(COMMENTS_PER_PAGE)
   );
 
+  stopCommentsListener=onValue(latestQuery,async snap=>{
+    const data=snap.val();
 
-  /*
-   * 📥 過去コメントボタン
-   *
-   * コメントを全部描画した「後」に
-   * appendするので一番下になる。
-   */
+    if(!data){
+      globalCommentCount=0;
+      hasMoreComments=false;
+      renderComments();
+      return;
+    }
 
-  if (hasMoreComments) {
+    Object.entries(data).forEach(([key,comment])=>{
+      loadedComments[key]=comment;
+    });
 
-    const loadMoreContainer =
-      document.createElement(
-        "div"
+    const loadedEntries=Object.entries(loadedComments)
+      .sort((a,b)=>(a[1].time||0)-(b[1].time||0));
+
+    if(loadedEntries.length>0){
+      oldestLoadedKey=loadedEntries[0][0];
+    }
+
+    /*
+     * コメント総数は既存のカウンターを利用。
+     * これにより、初回表示でposts全件を取得しない。
+     */
+    try{
+      const countSnap=await get(
+        ref(db,`thread-comment-counts/${threadId}`)
       );
 
+      const count=countSnap.val();
 
-    loadMoreContainer.classList.add(
-      "load-more-container"
-    );
+      globalCommentCount=
+        typeof count==="number"
+          ? count
+          : loadedEntries.length;
+    }catch(error){
+      console.error("Comment Count Error:",error);
+      globalCommentCount=loadedEntries.length;
+    }
 
+    hasMoreComments=globalCommentCount>Object.keys(loadedComments).length;
 
-    const loadMoreBtn =
-      document.createElement(
-        "button"
-      );
-
-
-    loadMoreBtn.classList.add(
-      "load-more-btn"
-    );
-
-
-    loadMoreBtn.textContent =
-      isLoadingMore
-        ? "読み込み中…"
-        : "📥 過去のコメントを読み込む";
-
-
-    loadMoreBtn.disabled =
-      isLoadingMore;
-
-
-    loadMoreBtn.onclick =
-      loadMoreComments;
-
-
-    loadMoreContainer.appendChild(
-      loadMoreBtn
-    );
-
-
-    commentsContainer.appendChild(
-      loadMoreContainer
-    );
-  }
+    renderComments();
+  });
 }
 
+function renderComments(){
+  const commentsContainer=document.getElementById("comments");
+  commentsContainer.textContent="";
 
-/* =========================================================
-   過去コメントを50件追加
-   ========================================================= */
+  const chronologicalList=Object.entries(loadedComments)
+    .sort((a,b)=>(a[1].time||0)-(b[1].time||0));
 
-async function loadMoreComments() {
-
-  if (
-    isLoadingMore ||
-    !hasMoreComments ||
-    oldestLoadedTime === null
-  ) {
-
+  if(chronologicalList.length===0){
+    globalCommentCount=0;
+    commentsContainer.textContent="コメントがまだありません。最初の足跡を残してみよう！";
     return;
   }
 
+  const startNumber=Math.max(
+    1,
+    globalCommentCount-chronologicalList.length+1
+  );
 
-  isLoadingMore = true;
+  const listWithCorrectNumbers=chronologicalList.map(([key,c],idx)=>({
+    key,
+    c,
+    responseNumber:startNumber+idx
+  }));
 
+  /*
+   * 新しいコメントを上に表示。
+   */
+  const displayList=listWithCorrectNumbers.reverse();
+
+  displayList.forEach(({key,c,responseNumber})=>{
+    const commentDiv=document.createElement("div");
+    commentDiv.classList.add("comment");
+
+    const headerDiv=document.createElement("div");
+    headerDiv.classList.add("header");
+
+    const numSpan=document.createElement("span");
+    numSpan.classList.add("comment-number");
+    numSpan.textContent=`>>${responseNumber}`;
+
+    const iconImg=document.createElement("img");
+    iconImg.classList.add("icon");
+
+    const rawIcon=c.userIcon||c.icon;
+
+    const safeIcon=
+      (isSafeUrl(rawIcon)&&(rawIcon||"").length<=1000)
+        ?(rawIcon||defaultIcon)
+        :defaultIcon;
+
+    iconImg.src=safeIcon;
+    iconImg.onerror=()=>{iconImg.src=defaultIcon;};
+
+    const nameDiv=document.createElement("div");
+    nameDiv.classList.add("name");
+    nameDiv.textContent=c.userName||c.name||"名もなき兎";
+
+    const timeSpan=document.createElement("span");
+    timeSpan.classList.add("time");
+    timeSpan.textContent=c.time?" "+new Date(c.time).toLocaleString():"";
+
+    nameDiv.insertBefore(numSpan,nameDiv.firstChild);
+    nameDiv.appendChild(timeSpan);
+
+    headerDiv.appendChild(iconImg);
+    headerDiv.appendChild(nameDiv);
+
+    if(isGlobalAdmin){
+      const actionsDiv=document.createElement("div");
+      actionsDiv.classList.add("actions");
+
+      const btn=document.createElement("button");
+      btn.classList.add("btn-admin-delete");
+      btn.textContent="👑 管理削除";
+      btn.onclick=()=>window.deleteComment(key);
+
+      actionsDiv.appendChild(btn);
+      headerDiv.appendChild(actionsDiv);
+    }else if(c.userId===currentUid || currentThreadOwnerId===currentUid){
+      const actionsDiv=document.createElement("div");
+      actionsDiv.classList.add("actions");
+
+      const btn=document.createElement("button");
+      btn.classList.add("btn-delete");
+      btn.textContent="🗑 削除";
+      btn.onclick=()=>window.deleteComment(key);
+
+      actionsDiv.appendChild(btn);
+      headerDiv.appendChild(actionsDiv);
+    }
+
+    const textDiv=document.createElement("div");
+    textDiv.classList.add("text","comment-text-container");
+    renderTextWithLinks(textDiv,c.text||"");
+
+    commentDiv.appendChild(headerDiv);
+    commentDiv.appendChild(textDiv);
+
+    if(c.image && isSafeUrl(c.image) && c.image.length<=1000){
+      const commentImg=document.createElement("img");
+      commentImg.classList.add("comment-img");
+      commentImg.src=c.image;
+      commentImg.onclick=()=>window.openImage(c.image);
+      commentDiv.appendChild(commentImg);
+    }
+
+    commentsContainer.appendChild(commentDiv);
+  });
+
+  /*
+   * ボタンは全コメントを描画した後に追加するため、
+   * コメント一覧の一番下に表示される。
+   */
+  if(hasMoreComments){
+    const loadMoreContainer=document.createElement("div");
+    loadMoreContainer.classList.add("load-more-container");
+
+    const loadMoreBtn=document.createElement("button");
+    loadMoreBtn.classList.add("load-more-btn");
+    loadMoreBtn.textContent=isLoadingMore
+      ?"読み込み中…"
+      :"📥 過去のコメントを読み込む";
+
+    loadMoreBtn.disabled=isLoadingMore;
+    loadMoreBtn.onclick=loadMoreComments;
+
+    loadMoreContainer.appendChild(loadMoreBtn);
+    commentsContainer.appendChild(loadMoreContainer);
+  }
+}
+
+/*
+ * 過去50件を追加。
+ *
+ * endAt(oldestLoadedKey) で現在の最古コメントまでを取得し、
+ * limitToLast(51) で境界の1件を含めて取得。
+ * その後、現在の最古コメント自身を除外する。
+ *
+ * これにより time の同値問題を避ける。
+ */
+async function loadMoreComments(){
+  if(isLoadingMore || !hasMoreComments || !oldestLoadedKey){
+    return;
+  }
+
+  isLoadingMore=true;
   renderComments();
 
+  try{
+    const olderQuery=query(
+      commentsRef,
+      orderByKey(),
+      endAt(oldestLoadedKey),
+      limitToLast(COMMENTS_PER_PAGE+1)
+    );
 
-  try {
+    const snap=await get(olderQuery);
+    const data=snap.val();
 
-    /*
-     * 現在読み込んでいる最古の
-     * コメントより前だけ取得。
-     *
-     * -1 にすることで
-     * 現在の最古コメントを
-     * 重複取得しない。
-     */
-
-    const olderCommentsQuery =
-      query(
-        commentsRef,
-        orderByChild("time"),
-        endAt(
-          oldestLoadedTime - 1
-        ),
-        limitToLast(
-          COMMENTS_PER_PAGE
-        )
-      );
-
-
-    const snap =
-      await get(
-        olderCommentsQuery
-      );
-
-
-    const data =
-      snap.val();
-
-
-    if (!data) {
-
-      hasMoreComments = false;
-
+    if(!data){
+      hasMoreComments=false;
       return;
     }
 
+    const entries=Object.entries(data)
+      .sort((a,b)=>(a[1].time||0)-(b[1].time||0));
 
-    const entries =
-      Object.entries(
-        data
-      ).sort(
-        (a, b) =>
-          (a[1].time || 0) -
-          (b[1].time || 0)
-      );
+    /*
+     * endAt() では現在の最古コメント自身も返るため除外。
+     */
+    const olderEntries=entries.filter(
+      ([key])=>key!==oldestLoadedKey
+    );
 
-
-    if (
-      entries.length === 0
-    ) {
-
-      hasMoreComments = false;
-
+    if(olderEntries.length===0){
+      hasMoreComments=false;
       return;
     }
 
+    olderEntries.forEach(([key,comment])=>{
+      loadedComments[key]=comment;
+    });
 
-    /*
-     * 過去コメントを追加
-     */
+    oldestLoadedKey=olderEntries[0][0];
 
-    entries.forEach(
-      ([key, comment]) => {
-
-        loadedComments[key] =
-          comment;
-      }
-    );
-
-
-    /*
-     * 今回取得した中で
-     * 最も古いコメント
-     */
-
-    oldestLoadedTime =
-      entries[0][1].time ||
-      null;
-
-
-    /*
-     * まだ過去コメントがあるか
-     */
-
-    hasMoreComments =
-      globalCommentCount >
-      Object.keys(
-        loadedComments
-      ).length;
-
-
-  } catch (error) {
-
-    console.error(
-      "Load More Comments Error:",
-      error
-    );
-
-
-    alert(
-      "過去のコメントの読み込みに失敗しました。"
-    );
-
-
-  } finally {
-
-    isLoadingMore = false;
-
+    hasMoreComments=
+      globalCommentCount>Object.keys(loadedComments).length;
+  }catch(error){
+    console.error("Load More Comments Error:",error);
+    alert("過去のコメントの読み込みに失敗しました。");
+  }finally{
+    isLoadingMore=false;
     renderComments();
   }
 }
 
+function compressImage(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    const canvas=document.createElement("canvas");
+    const ctx=canvas.getContext("2d");
+    const objectUrl=URL.createObjectURL(file);
 
-/* =========================================================
-   画像圧縮
-   ========================================================= */
+    img.onerror=()=>{
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("画像の読み込みに失敗しました。"));
+    };
 
-function compressImage(file) {
+    img.onload=()=>{
+      let w=img.width;
+      let h=img.height;
+      const max=1000;
 
-  return new Promise(
-    (resolve, reject) => {
+      if(w>h){
+        if(w>max){
+          h*=max/w;
+          w=max;
+        }
+      }else{
+        if(h>max){
+          w*=max/h;
+          h=max;
+        }
+      }
 
-      const img =
-        new Image();
+      canvas.width=w;
+      canvas.height=h;
+      ctx.drawImage(img,0,0,w,h);
 
-      const canvas =
-        document.createElement(
-          "canvas"
-        );
+      canvas.toBlob(blob=>{
+        URL.revokeObjectURL(objectUrl);
 
-      const ctx =
-        canvas.getContext(
-          "2d"
-        );
-
-      const objectUrl =
-        URL.createObjectURL(
-          file
-        );
-
-
-      img.onerror = () => {
-
-        URL.revokeObjectURL(
-          objectUrl
-        );
-
-        reject(
-          new Error(
-            "画像の読み込みに失敗しました。"
-          )
-        );
-      };
-
-
-      img.onload = () => {
-
-        let w =
-          img.width;
-
-        let h =
-          img.height;
-
-        const max =
-          1000;
-
-
-        if (w > h) {
-
-          if (w > max) {
-
-            h *=
-              max / w;
-
-            w =
-              max;
-          }
-
-        } else {
-
-          if (h > max) {
-
-            w *=
-              max / h;
-
-            h =
-              max;
-          }
+        if(!blob){
+          reject(new Error("画像の圧縮処理に失敗しました。"));
+          return;
         }
 
+        resolve(blob);
+      },"image/jpeg",.7);
+    };
 
-        canvas.width =
-          w;
-
-        canvas.height =
-          h;
-
-
-        ctx.drawImage(
-          img,
-          0,
-          0,
-          w,
-          h
-        );
-
-
-        canvas.toBlob(
-          blob => {
-
-            URL.revokeObjectURL(
-              objectUrl
-            );
-
-
-            if (!blob) {
-
-              reject(
-                new Error(
-                  "画像の圧縮処理に失敗しました。"
-                )
-              );
-
-              return;
-            }
-
-
-            resolve(
-              blob
-            );
-
-          },
-          "image/jpeg",
-          0.7
-        );
-      };
-
-
-      img.src =
-        objectUrl;
-    }
-  );
+    img.src=objectUrl;
+  });
 }
 
+async function uploadImage(file){
+  const compressed=await compressImage(file);
+  const formData=new FormData();
 
-/* =========================================================
-   Cloudinaryアップロード
-   ========================================================= */
+  formData.append("file",compressed);
+  formData.append("upload_preset","usakira_upload");
 
-async function uploadImage(file) {
-
-  const compressed =
-    await compressImage(
-      file
-    );
-
-
-  const formData =
-    new FormData();
-
-
-  formData.append(
-    "file",
-    compressed
+  const res=await fetch(
+    "https://api.cloudinary.com/v1_1/dfhevulda/image/upload",
+    {method:"POST",body:formData}
   );
 
-
-  formData.append(
-    "upload_preset",
-    "usakira_upload"
-  );
-
-
-  const res =
-    await fetch(
-      "https://api.cloudinary.com/v1_1/dfhevulda/image/upload",
-      {
-        method: "POST",
-        body: formData
-      }
-    );
-
-
-  if (!res.ok) {
-
-    throw new Error(
-      `Upload Failed: Status ${res.status}`
-    );
+  if(!res.ok){
+    throw new Error(`Upload Failed: Status ${res.status}`);
   }
 
+  const data=await res.json();
 
-  const data =
-    await res.json();
-
-
-  if (!data.secure_url) {
-
-    throw new Error(
-      "Missing secure_url"
-    );
+  if(!data.secure_url){
+    throw new Error("Missing secure_url");
   }
-
 
   return data.secure_url;
 }
 
+document.getElementById("postBtn").onclick=async()=>{
+  if(!currentUid)return alert("ログイン処理中です");
 
-/* =========================================================
-   コメント投稿
-   ========================================================= */
+  const postBtn=document.getElementById("postBtn");
+  const text=document.getElementById("commentInput").value.trim();
+  const file=document.getElementById("imageInput").files[0];
 
-document.getElementById(
-  "postBtn"
-).onclick = async () => {
-
-  if (!currentUid) {
-
-    return alert(
-      "ログイン処理中です"
-    );
-  }
-
-
-  const postBtn =
-    document.getElementById(
-      "postBtn"
-    );
-
-
-  const text =
-    document.getElementById(
-      "commentInput"
-    ).value.trim();
-
-
-  const file =
-    document.getElementById(
-      "imageInput"
-    ).files[0];
-
-
-  if (!text && !file) {
-
-    alert(
-      "コメントか画像を入れてください"
-    );
-
+  if(!text&&!file){
+    alert("コメントか画像を入れてください");
     return;
   }
 
-
-  if (text.length > 1000) {
-
-    alert(
-      "コメントは1000文字以内にしてね"
-    );
-
+  if(text.length>1000){
+    alert("コメントは1000文字以内にしてね");
     return;
   }
 
-
-  if (
-    file &&
-    file.size >
-      5 * 1024 * 1024
-  ) {
-
-    return alert(
-      "画像ファイルは5MB以下にしてね 🐰❌"
-    );
+  if(file && file.size>5*1024*1024){
+    return alert("画像ファイルは5MB以下にしてね 🐰❌");
   }
 
+  postBtn.disabled=true;
+  document.getElementById("postStatus").textContent="投稿処理中...";
 
-  postBtn.disabled =
-    true;
+  try{
+    let imageURL="";
 
-
-  document.getElementById(
-    "postStatus"
-  ).textContent =
-    "投稿処理中...";
-
-
-  try {
-
-    let imageURL = "";
-
-
-    if (file) {
-
-      imageURL =
-        await uploadImage(
-          file
-        );
+    if(file){
+      imageURL=await uploadImage(file);
     }
 
-
-    if (
-      imageURL &&
-      (
-        imageURL.length > 1000 ||
-        !isSafeUrl(imageURL)
-      )
-    ) {
-
-      throw new Error(
-        "Malicious or invalid image URL detected."
-      );
+    if(imageURL && (imageURL.length>1000 || !isSafeUrl(imageURL))){
+      throw new Error("Malicious or invalid image URL detected.");
     }
 
+    const savedName=localStorage.getItem("usakira_name")||defaultName;
+    let savedIcon=localStorage.getItem("usakira_icon")||defaultIcon;
 
-    const savedName =
-      localStorage.getItem(
-        "usakira_name"
-      ) ||
-      defaultName;
-
-
-    let savedIcon =
-      localStorage.getItem(
-        "usakira_icon"
-      ) ||
-      defaultIcon;
-
-
-    if (
-      !savedIcon.startsWith(
-        "http://"
-      ) &&
-      !savedIcon.startsWith(
-        "https://"
-      )
-    ) {
-
-      savedIcon =
-        "https://res.cloudinary.com/dfhevulda/image/upload/v12345678/default_usagi.png";
+    if(!savedIcon.startsWith("http://")&&!savedIcon.startsWith("https://")){
+      savedIcon="https://res.cloudinary.com/dfhevulda/image/upload/v12345678/default_usagi.png";
     }
 
+    const timestamp=Date.now();
+    const newPostRef=push(ref(db,`posts/${threadId}`));
+    const newPostKey=newPostRef.key;
+    const updates={};
 
-    const timestamp =
-      Date.now();
-
-
-    const newPostRef =
-      push(
-        ref(
-          db,
-          `posts/${threadId}`
-        )
-      );
-
-
-    const newPostKey =
-      newPostRef.key;
-
-
-    const updates = {};
-
-
-    updates[
-      `posts/${threadId}/${newPostKey}`
-    ] = {
-
-      text: text,
-
-      image: imageURL,
-
-      time: timestamp,
-
-      userName:
-        savedName.substring(
-          0,
-          50
-        ),
-
-      userIcon:
-        savedIcon,
-
-      userId:
-        currentUid
+    updates[`posts/${threadId}/${newPostKey}`]={
+      text:text,
+      image:imageURL,
+      time:timestamp,
+      userName:savedName.substring(0,50),
+      userIcon:savedIcon,
+      userId:currentUid
     };
 
+    updates[`threads/${threadId}/lastTime`]=timestamp;
+    updates[`thread-comment-counts/${threadId}`]=increment(1);
 
-    updates[
-      `threads/${threadId}/lastTime`
-    ] =
-      timestamp;
+    await update(ref(db),updates);
 
+    document.getElementById("commentInput").value="";
+    document.getElementById("imageInput").value="";
+    document.getElementById("fileName").textContent="";
+    document.getElementById("postStatus").textContent="投稿しました！";
 
-    /*
-     * コメント数を +1
-     */
+    setTimeout(()=>{
+      document.getElementById("postStatus").textContent="";
+    },2000);
 
-    updates[
-      `thread-comment-counts/${threadId}`
-    ] =
-      increment(1);
-
-
-    /*
-     * Firebaseへ一括送信
-     */
-
-    await update(
-      ref(db),
-      updates
-    );
-
-
-    document.getElementById(
-      "commentInput"
-    ).value = "";
-
-
-    document.getElementById(
-      "imageInput"
-    ).value = "";
-
-
-    document.getElementById(
-      "fileName"
-    ).textContent = "";
-
-
-    document.getElementById(
-      "postStatus"
-    ).textContent =
-      "投稿しました！";
-
-
-    setTimeout(
-      () => {
-
-        document.getElementById(
-          "postStatus"
-        ).textContent = "";
-
-      },
-      2000
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      "Post Error:",
-      error
-    );
-
-
-    alert(
-      "投稿に失敗しました。"
-    );
-
-
-  } finally {
-
-    postBtn.disabled =
-      false;
+  }catch(error){
+    console.error("Post Error:",error);
+    alert("投稿に失敗しました。");
+  }finally{
+    postBtn.disabled=false;
   }
 };
 
-
-/* =========================================================
-   画像ファイル選択
-   ========================================================= */
-
-document.getElementById(
-  "imageInput"
-).onchange = e => {
-
-  const file =
-    e.target.files[0];
-
-
-  document.getElementById(
-    "fileName"
-  ).textContent =
-    file
-      ? file.name
-      : "";
+document.getElementById("imageInput").onchange=e=>{
+  const file=e.target.files[0];
+  document.getElementById("fileName").textContent=file?file.name:"";
 };
-
 </script>
-
 </body>
 </html>
