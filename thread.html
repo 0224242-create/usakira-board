@@ -295,90 +295,283 @@ onAuthStateChanged(auth, async user => {
   loadComments();
 });
 
+```js
+// 💬 コメント取得
+// 最初は最新50件だけ読み込み、「過去のコメントを読み込む」で追加取得
+let commentsLimit = 50;
+let allCommentsData = {};
+let oldestLoadedTime = null;
+let hasMoreComments = false;
+
 function loadComments(){
   if (stopCommentsListener) stopCommentsListener();
 
+  const commentsContainer = document.getElementById("comments");
+
+  // 初期化
+  commentsLimit = 50;
+  allCommentsData = {};
+  oldestLoadedTime = null;
+  hasMoreComments = false;
+
+  // 最新50件を取得
   stopCommentsListener = onValue(commentsRef, snap => {
     const data = snap.val();
-    const commentsContainer = document.getElementById("comments");
-    commentsContainer.textContent = ""; 
 
-    if (data) {
-      globalCommentCount = Object.keys(data).length; 
-      
-      const chronologicalList = Object.entries(data).sort((a,b) => a[1].time - b[1].time);
+    if (!data) {
+      globalCommentCount = 0;
+      allCommentsData = {};
+      oldestLoadedTime = null;
+      hasMoreComments = false;
+      renderComments();
+      return;
+    }
 
-      const listWithCorrectNumbers = chronologicalList.map(([key, c], idx) => {
-        return { key, c, responseNumber: idx + 1 };
-      });
+    globalCommentCount = Object.keys(data).length;
 
-      const displayList = listWithCorrectNumbers.reverse();
+    const allEntries = Object.entries(data)
+      .sort((a, b) => (a[1].time || 0) - (b[1].time || 0));
 
-      displayList.forEach(({ key, c, responseNumber }) => {
-        const commentDiv = document.createElement("div");
-        commentDiv.classList.add("comment");
+    // 最新50件だけを最初に表示
+    const startIndex = Math.max(0, allEntries.length - commentsLimit);
+    const visibleEntries = allEntries.slice(startIndex);
 
-        const headerDiv = document.createElement("div");
-        headerDiv.classList.add("header");
+    allCommentsData = {};
+    visibleEntries.forEach(([key, comment]) => {
+      allCommentsData[key] = comment;
+    });
 
-        const numSpan = document.createElement("span");
-        numSpan.classList.add("comment-number");
-        numSpan.textContent = `>>${responseNumber}`;
+    // まだ読み込んでいない過去コメントがあるか
+    hasMoreComments = startIndex > 0;
 
-        const iconImg = document.createElement("img");
-        iconImg.classList.add("icon");
-        const rawIcon = c.userIcon || c.icon; 
-        const safeIcon = (isSafeUrl(rawIcon) && (rawIcon || "").length <= 1000) ? (rawIcon || defaultIcon) : defaultIcon;
-        iconImg.src = safeIcon;
-        iconImg.onerror = () => { iconImg.src = defaultIcon; };
+    if (visibleEntries.length > 0) {
+      oldestLoadedTime = visibleEntries[0][1].time || null;
+    } else {
+      oldestLoadedTime = null;
+    }
 
-        const nameDiv = document.createElement("div");
-        nameDiv.classList.add("name");
-        nameDiv.textContent = c.userName || c.name || "名もなき兎";
+    renderComments();
+  });
+}
 
-        const timeSpan = document.createElement("span");
-        timeSpan.classList.add("time");
-        timeSpan.textContent = c.time ? " " + new Date(c.time).toLocaleString() : "";
-        nameDiv.insertBefore(numSpan, nameDiv.firstChild); 
-        nameDiv.appendChild(timeSpan);
 
-        headerDiv.appendChild(iconImg);
-        headerDiv.appendChild(nameDiv);
+// 📥 過去コメントをさらに50件読み込む
+window.loadMoreComments = async () => {
+  if (!hasMoreComments || oldestLoadedTime === null) return;
 
-        if (isGlobalAdmin) {
-          const actionsDiv = document.createElement("div");
-          actionsDiv.classList.add("actions");
-          const btn = document.createElement("button");
-          btn.classList.add("btn-admin-delete");
-          btn.textContent = "👑 管理削除";
-          btn.onclick = () => window.deleteComment(key);
-          actionsDiv.appendChild(btn);
-          headerDiv.appendChild(actionsDiv);
-        } else if (c.userId === currentUid || currentThreadOwnerId === currentUid) {
-          const actionsDiv = document.createElement("div");
-          actionsDiv.classList.add("actions");
-          const btn = document.createElement("button");
-          btn.classList.add("btn-delete");
-          btn.textContent = "🗑 削除";
-          btn.onclick = () => window.deleteComment(key);
-          actionsDiv.appendChild(btn);
-          headerDiv.appendChild(actionsDiv);
-        }
+  try {
+    const snap = await get(commentsRef);
+    const data = snap.val();
 
-        const textDiv = document.createElement("div");
-        textDiv.classList.add("text", "comment-text-container");
-        renderTextWithLinks(textDiv, c.text || "");
+    if (!data) {
+      hasMoreComments = false;
+      renderComments();
+      return;
+    }
 
-        commentDiv.appendChild(headerDiv);
-        commentDiv.appendChild(textDiv);
+    const allEntries = Object.entries(data)
+      .sort((a, b) => (a[1].time || 0) - (b[1].time || 0));
 
-        if (c.image && isSafeUrl(c.image) && c.image.length <= 1000) {
-          const commentImg = document.createElement("img");
-          commentImg.classList.add("comment-img");
-          commentImg.src = c.image;
-          commentImg.onclick = () => window.openImage(c.image);
-          commentDiv.appendChild(commentImg);
-        }
+    // 現在読み込んでいるコメントより古いものを取得
+    const olderEntries = allEntries.filter(([key, comment]) => {
+      return (comment.time || 0) < oldestLoadedTime;
+    });
+
+    // さらに50件
+    const newEntries = olderEntries.slice(-50);
+
+    if (newEntries.length === 0) {
+      hasMoreComments = false;
+      renderComments();
+      return;
+    }
+
+    // 既存データに追加
+    newEntries.forEach(([key, comment]) => {
+      allCommentsData[key] = comment;
+    });
+
+    // 一番古い読み込み済みコメントの時刻を更新
+    oldestLoadedTime = newEntries[0][1].time || null;
+
+    // まだ過去コメントが残っているか確認
+    hasMoreComments = olderEntries.length > newEntries.length;
+
+    renderComments();
+
+  } catch (error) {
+    console.error("Load More Comments Error:", error);
+    alert("過去のコメントの読み込みに失敗しました。");
+  }
+};
+
+
+// 🖥️ コメント表示
+function renderComments(){
+  const commentsContainer = document.getElementById("comments");
+  commentsContainer.textContent = "";
+
+  const entries = Object.entries(allCommentsData)
+    .sort((a, b) => (a[1].time || 0) - (b[1].time || 0));
+
+  if (entries.length === 0) {
+    globalCommentCount = 0;
+    commentsContainer.textContent =
+      "コメントがまだありません。最初の足跡を残してみよう！";
+    return;
+  }
+
+  globalCommentCount = Math.max(globalCommentCount, entries.length);
+
+  /*
+   * コメント番号はスレッド全体の時系列を基準にする。
+   * そのため、最新50件だけ表示していても
+   * >>951 など本来の番号を維持する。
+   */
+  const allCommentsSnapshot = entries;
+
+  // 現在読み込んでいるコメントを新しい順に表示
+  const displayList = entries
+    .map(([key, c]) => {
+      const responseNumber =
+        allCommentsSnapshot.findIndex(item => item[0] === key) + 1;
+
+      return {
+        key,
+        c,
+        responseNumber
+      };
+    })
+    .reverse();
+
+  // 📥 過去コメント読み込みボタン
+  if (hasMoreComments) {
+    const loadMoreContainer = document.createElement("div");
+    loadMoreContainer.style.textAlign = "center";
+    loadMoreContainer.style.margin = "10px 0 20px";
+
+    const loadMoreBtn = document.createElement("button");
+    loadMoreBtn.textContent = "📥 過去のコメントを読み込む";
+    loadMoreBtn.style.padding = "9px 16px";
+    loadMoreBtn.style.borderRadius = "8px";
+    loadMoreBtn.style.border = "1px solid #4a3f66";
+    loadMoreBtn.style.background = "#2d2640";
+    loadMoreBtn.style.color = "#c3b8e0";
+    loadMoreBtn.style.cursor = "pointer";
+    loadMoreBtn.style.fontWeight = "bold";
+
+    loadMoreBtn.onclick = async () => {
+      loadMoreBtn.disabled = true;
+      loadMoreBtn.textContent = "読み込み中…";
+
+      await window.loadMoreComments();
+
+      // renderComments() がボタンを再生成するためここでは何もしない
+    };
+
+    loadMoreContainer.appendChild(loadMoreBtn);
+    commentsContainer.appendChild(loadMoreContainer);
+  }
+
+  displayList.forEach(({ key, c, responseNumber }) => {
+    const commentDiv = document.createElement("div");
+    commentDiv.classList.add("comment");
+
+    const headerDiv = document.createElement("div");
+    headerDiv.classList.add("header");
+
+    const numSpan = document.createElement("span");
+    numSpan.classList.add("comment-number");
+    numSpan.textContent = `>>${responseNumber}`;
+
+    const iconImg = document.createElement("img");
+    iconImg.classList.add("icon");
+
+    const rawIcon = c.userIcon || c.icon;
+    const safeIcon =
+      (isSafeUrl(rawIcon) && (rawIcon || "").length <= 1000)
+        ? (rawIcon || defaultIcon)
+        : defaultIcon;
+
+    iconImg.src = safeIcon;
+    iconImg.onerror = () => {
+      iconImg.src = defaultIcon;
+    };
+
+    const nameDiv = document.createElement("div");
+    nameDiv.classList.add("name");
+    nameDiv.textContent =
+      c.userName || c.name || "名もなき兎";
+
+    const timeSpan = document.createElement("span");
+    timeSpan.classList.add("time");
+    timeSpan.textContent =
+      c.time
+        ? " " + new Date(c.time).toLocaleString()
+        : "";
+
+    nameDiv.insertBefore(numSpan, nameDiv.firstChild);
+    nameDiv.appendChild(timeSpan);
+
+    headerDiv.appendChild(iconImg);
+    headerDiv.appendChild(nameDiv);
+
+    // 👑 管理者削除
+    if (isGlobalAdmin) {
+      const actionsDiv = document.createElement("div");
+      actionsDiv.classList.add("actions");
+
+      const btn = document.createElement("button");
+      btn.classList.add("btn-admin-delete");
+      btn.textContent = "👑 管理削除";
+      btn.onclick = () => window.deleteComment(key);
+
+      actionsDiv.appendChild(btn);
+      headerDiv.appendChild(actionsDiv);
+
+    // 🗑 自分またはスレッド所有者による削除
+    } else if (
+      c.userId === currentUid ||
+      currentThreadOwnerId === currentUid
+    ) {
+      const actionsDiv = document.createElement("div");
+      actionsDiv.classList.add("actions");
+
+      const btn = document.createElement("button");
+      btn.classList.add("btn-delete");
+      btn.textContent = "🗑 削除";
+      btn.onclick = () => window.deleteComment(key);
+
+      actionsDiv.appendChild(btn);
+      headerDiv.appendChild(actionsDiv);
+    }
+
+    const textDiv = document.createElement("div");
+    textDiv.classList.add("text", "comment-text-container");
+
+    renderTextWithLinks(textDiv, c.text || "");
+
+    commentDiv.appendChild(headerDiv);
+    commentDiv.appendChild(textDiv);
+
+    // 🖼️ 画像
+    if (
+      c.image &&
+      isSafeUrl(c.image) &&
+      c.image.length <= 1000
+    ) {
+      const commentImg = document.createElement("img");
+      commentImg.classList.add("comment-img");
+      commentImg.src = c.image;
+      commentImg.onclick = () => window.openImage(c.image);
+
+      commentDiv.appendChild(commentImg);
+    }
+
+    commentsContainer.appendChild(commentDiv);
+  });
+}
+```
 
         commentsContainer.appendChild(commentDiv);
       });
