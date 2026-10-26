@@ -113,6 +113,12 @@ let isGlobalAdmin = false;
 let globalCommentCount = 0;
 let actualCommentCount = 0;
 let maxCommentNumber = 0;
+const maxNumberStorageKey = `usakira_max_comment_number_${threadId}`;
+try {
+  maxCommentNumber = Number(localStorage.getItem(maxNumberStorageKey) || 0) || 0;
+} catch (e) {
+  maxCommentNumber = 0;
+}
 let displayNumberMap = {};
 const displayNumberStorageKey = `usakira_comment_numbers_${threadId}`;
 try {
@@ -210,43 +216,27 @@ window.openImage = (src) => {
 window.deleteComment = async (commentId) => {
   if (!confirm("このコメントを削除するぺこ？")) return;
   try {
-    // 一度表示したコメントの番号は、削除後も詰め直さない。
-    // 既存コメントには number が保存されていないものがあるため、画面側でも番号を保持する。
-    const deletedNumber = displayNumberMap[commentId];
     await remove(ref(db, `posts/${threadId}/${commentId}`));
 
-    // Firebaseの再通知を待たず、画面から即時に削除
     delete loadedComments[commentId];
     latestCommentKeys.delete(commentId);
 
     if (actualCommentCount > 0) actualCommentCount--;
-
-    // 現在のコメント数は減らすが、コメント番号の最大値は減らさない。
-    // 削除した番号を後から詰め直さないため、>>90 を削除しても次は >>91 のままにする。
     await update(ref(db), {
-      [`thread-comment-counts/${threadId}`]: actualCommentCount,
-      [`thread-comment-max-numbers/${threadId}`]: maxCommentNumber
+      [`thread-comment-counts/${threadId}`]: actualCommentCount
     });
 
-    // 削除しても、画面に残っているコメントの番号を詰め直さない。
-    // 新規投稿時は読み込めている最大番号も考慮して重複を防ぐ。
     const remainingEntries = Object.entries(loadedComments)
       .sort((a,b) => a[0].localeCompare(b[0]));
 
-    if (remainingEntries.length > 0) {
-      oldestLoadedKey = remainingEntries[0][0];
-      oldestLoadedTime = remainingEntries[0][1].time || null;
-    } else {
-      oldestLoadedKey = null;
-      oldestLoadedTime = null;
-    }
-
+    oldestLoadedKey = remainingEntries.length ? remainingEntries[0][0] : null;
+    oldestLoadedTime = remainingEntries.length ? (remainingEntries[0][1].time || null) : null;
     hasMoreComments = actualCommentCount > remainingEntries.length;
     renderComments();
     alert("コメントを削除したよ 🐰🧹");
   } catch (error) {
     console.error("Delete Comment Error:", error);
-    alert("削除に失敗しました。権限がありません。");
+    alert("削除に失敗しました。権限がありません。\n\nエラー: " + (error?.message || "不明なエラー"));
   }
 };
 onAuthStateChanged(auth, async user => {
@@ -316,12 +306,22 @@ function getHighestLoadedCommentNumber(){
   return values.length ? Math.max(...values) : 0;
 }
 
+function saveMaxCommentNumber(value){
+  maxCommentNumber = Math.max(maxCommentNumber, Number(value) || 0);
+  try { localStorage.setItem(maxNumberStorageKey, String(maxCommentNumber)); } catch (e) {}
+}
+
 function renderComments(){
   const commentsContainer = document.getElementById("comments");
   commentsContainer.textContent = "";
 
   const chronologicalList = Object.entries(loadedComments)
-    .sort((a,b) => a[0].localeCompare(b[0]));
+    .sort((a,b) => {
+      const at = Number(a[1].time) || 0;
+      const bt = Number(b[1].time) || 0;
+      if (at !== bt) return at - bt;
+      return a[0].localeCompare(b[0]);
+    });
 
   if (chronologicalList.length === 0) {
     globalCommentCount = 0;
@@ -332,13 +332,16 @@ function renderComments(){
   // 新規コメントはFirebaseに保存した number を必ず優先する。
   // 旧コメント（number未保存）は既存の表示番号マップを優先し、未登録分だけ
   // 現在の最大番号から決定的に補完する。削除後に既存番号を詰め直さない。
-  const firstNumber = Math.max(1, maxCommentNumber - chronologicalList.length + 1);
+  const firstNumber = Math.max(1, actualCommentCount - chronologicalList.length + 1);
 
   const listWithCorrectNumbers = chronologicalList.map(([key, c], index) => ({
     key,
     c,
     responseNumber: getCommentNumber(c, key, firstNumber + index)
   }));
+
+  const visibleMax = listWithCorrectNumbers.reduce((m, item) => Math.max(m, item.responseNumber || 0), 0);
+  saveMaxCommentNumber(visibleMax);
 
   // 新しいコメントを上に表示
   const displayList = listWithCorrectNumbers.reverse();
@@ -491,20 +494,10 @@ function loadComments(){
         });
       }
 
-      // コメント番号の最大値は削除では減らさない。
-      // 既存スレッドでは最初に現在件数を初期値として使う。
-      const maxSnap = await get(ref(db, `thread-comment-max-numbers/${threadId}`));
-      const savedMax = maxSnap.val();
-      if (typeof savedMax === "number" && savedMax >= 0) {
-        maxCommentNumber = Math.max(savedMax, actualCommentCount);
-      } else {
-        maxCommentNumber = actualCommentCount;
-        await update(ref(db), {
-          [`thread-comment-max-numbers/${threadId}`]: maxCommentNumber
-        });
-      }
-
-      globalCommentCount = maxCommentNumber;
+      // 番号の最大値は削除で減らさない。新しい管理用DBパスには書き込まない。
+      saveMaxCommentNumber(actualCommentCount);
+      saveMaxCommentNumber(getHighestLoadedCommentNumber());
+      globalCommentCount = actualCommentCount;
     } catch (error) {
       console.error("Comment Count Error:", error);
       globalCommentCount = Math.max(globalCommentCount, loadedEntries.length);
@@ -638,7 +631,7 @@ document.getElementById("postBtn").onclick=async()=>{
     }
     const timestamp = Date.now();
     const highestLoadedNumber = getHighestLoadedCommentNumber();
-    const newNumber = Math.max(maxCommentNumber, highestLoadedNumber) + 1;
+    const newNumber = Math.max(maxCommentNumber, highestLoadedNumber, actualCommentCount) + 1;
     const newPostRef = push(ref(db, `posts/${threadId}`));
     const newPostKey = newPostRef.key;
     const updates = {};
@@ -653,12 +646,12 @@ document.getElementById("postBtn").onclick=async()=>{
     };
     updates[`threads/${threadId}/lastTime`] = timestamp;
     updates[`thread-comment-counts/${threadId}`] = increment(1);
-    updates[`thread-comment-max-numbers/${threadId}`] = newNumber;
     await update(ref(db), updates);
 
     // 新規投稿を画面側のキャッシュにも即時追加
     displayNumberMap[newPostKey] = newNumber;
     try { localStorage.setItem(displayNumberStorageKey, JSON.stringify(displayNumberMap)); } catch (e) {}
+    saveMaxCommentNumber(newNumber);
 
     loadedComments[newPostKey] = {
       text: text,
@@ -696,7 +689,7 @@ document.getElementById("postBtn").onclick=async()=>{
     setTimeout(()=>{ document.getElementById("postStatus").textContent=""; },2000);
   } catch (error) {
     console.error("Post Error:", error);
-    alert("投稿に失敗しました。");
+    alert("投稿に失敗しました。\n\nエラー: " + (error?.message || "不明なエラー"));
   } finally {
     postBtn.disabled = false;
   }
