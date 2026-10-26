@@ -493,10 +493,13 @@ async function loadMoreComments(){
      * endAt(time, key) を使って「現在の最古コメント」までを指定し、
      * 51件取得してカーソル自身を除外する。
      */
+    // 現在の最古コメントより前を取得する。
+    // timeはDate.now()なので通常は一意だが、同時刻の投稿があっても
+    // 取りこぼしにくいよう、少し多めに取得してから現在のコメントを除外する。
     const olderCommentsQuery = query(
       commentsRef,
       orderByChild("time"),
-      endAt(oldestLoadedTime, oldestLoadedKey),
+      endAt(oldestLoadedTime),
       limitToLast(COMMENTS_PER_PAGE + 1)
     );
 
@@ -511,10 +514,14 @@ async function loadMoreComments(){
     }
 
     const entries = Object.entries(data)
-      .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
+      .sort((a,b) => {
+        const timeDiff = (a[1].time || 0) - (b[1].time || 0);
+        return timeDiff !== 0 ? timeDiff : a[0].localeCompare(b[0]);
+      });
 
-    // 現在のカーソル自身を除外
-    const olderEntries = entries.filter(([key]) => key !== oldestLoadedKey);
+    // すでに表示しているコメントは除外する。
+    const loadedKeys = new Set(Object.keys(loadedComments));
+    const olderEntries = entries.filter(([key]) => !loadedKeys.has(key));
 
     if (olderEntries.length === 0) {
       hasMoreComments = false;
@@ -523,7 +530,7 @@ async function loadMoreComments(){
       return;
     }
 
-    // 51件取得できる場合があるため、古い50件だけ追加
+    // 古い順に最大50件追加
     const entriesToAdd = olderEntries.slice(-COMMENTS_PER_PAGE);
 
     entriesToAdd.forEach(([key, comment]) => {
@@ -537,7 +544,7 @@ async function loadMoreComments(){
 
   } catch (error) {
     console.error("Load More Comments Error:", error);
-    alert("過去のコメントの読み込みに失敗しました。もう一度試してください。");
+    alert("過去のコメントの読み込みに失敗しました。もう一度試してください。\n\nエラー: " + (error?.message || "不明なエラー"));
   }
 
   isLoadingMore = false;
