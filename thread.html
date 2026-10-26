@@ -83,7 +83,7 @@ body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, update, remove, get, increment, query, orderByChild, limitToLast, endAt } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, update, remove, get, increment, query, orderByKey, limitToLast, endAt } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   authDomain: "keijiban-7c651.firebaseapp.com",
@@ -417,9 +417,11 @@ function loadComments(){
   isLoadingMore = false;
   latestCommentKeys = new Set();
 
+  // Firebase Rulesで time のインデックスを要求されないよう、Pushキーで取得する。
+  // FirebaseのPushキーは生成順に並ぶため、投稿順のページングに利用できる。
   const latestCommentsQuery = query(
     commentsRef,
-    orderByChild("time"),
+    orderByKey(),
     limitToLast(COMMENTS_PER_PAGE)
   );
 
@@ -480,7 +482,7 @@ function loadComments(){
 }
 
 async function loadMoreComments(){
-  if (isLoadingMore || !hasMoreComments || oldestLoadedTime === null || oldestLoadedKey === null) {
+  if (isLoadingMore || !hasMoreComments || !oldestLoadedKey) {
     return;
   }
 
@@ -488,18 +490,13 @@ async function loadMoreComments(){
   renderComments();
 
   try {
-    /*
-     * timeだけで切ると同じ時刻のコメントで境界が不安定になるため、
-     * endAt(time, key) を使って「現在の最古コメント」までを指定し、
-     * 51件取得してカーソル自身を除外する。
-     */
-    // 現在の最古コメントより前を取得する。
-    // timeはDate.now()なので通常は一意だが、同時刻の投稿があっても
-    // 取りこぼしにくいよう、少し多めに取得してから現在のコメントを除外する。
+    // timeではなくFirebaseのPushキーをカーソルにする。
+    // これならDatabase Rulesに time の .indexOn は不要。
+    // 現在の最古キーまで51件取得し、カーソル自身を除外する。
     const olderCommentsQuery = query(
       commentsRef,
-      orderByChild("time"),
-      endAt(oldestLoadedTime),
+      orderByKey(),
+      endAt(oldestLoadedKey),
       limitToLast(COMMENTS_PER_PAGE + 1)
     );
 
@@ -538,7 +535,6 @@ async function loadMoreComments(){
     });
 
     oldestLoadedKey = entriesToAdd[0][0];
-    oldestLoadedTime = entriesToAdd[0][1].time || null;
 
     hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
 
