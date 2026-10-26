@@ -209,6 +209,12 @@ window.deleteComment = async (commentId) => {
 
     if (globalCommentCount > 0) globalCommentCount--;
 
+    await update(ref(db), {
+      [`thread-comment-counts/${threadId}`]: globalCommentCount
+    });
+
+    // 削除しても、画面に残っているコメントの番号を詰め直さない。
+    // 新規投稿時は読み込めている最大番号も考慮して重複を防ぐ。
     const remainingEntries = Object.entries(loadedComments)
       .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
 
@@ -280,6 +286,17 @@ onAuthStateChanged(auth, async user => {
   });
   loadComments();
 });
+function getCommentNumber(comment, fallbackNumber){
+  return typeof comment.number === "number" ? comment.number : fallbackNumber;
+}
+
+function getHighestLoadedCommentNumber(){
+  const values=Object.values(loadedComments)
+    .map(c => typeof c.number === "number" ? c.number : 0)
+    .filter(n => n > 0);
+  return values.length ? Math.max(...values) : 0;
+}
+
 function renderComments(){
   const commentsContainer = document.getElementById("comments");
   commentsContainer.textContent = "";
@@ -293,14 +310,14 @@ function renderComments(){
     return;
   }
 
-  // 現在読み込んでいる範囲の先頭コメント番号を、全体件数から逆算する。
-  // 例: 全体120件・表示50件なら 71〜120 になる。
+  // 既存コメントには number がないため、古いコメントだけ表示上の番号を補完する。
+  // 新規コメントには保存済みの number を優先する。
   const firstNumber = Math.max(1, globalCommentCount - chronologicalList.length + 1);
 
   const listWithCorrectNumbers = chronologicalList.map(([key, c], index) => ({
     key,
     c,
-    responseNumber: firstNumber + index
+    responseNumber: getCommentNumber(c, firstNumber + index)
   }));
 
   // 新しいコメントを上に表示
@@ -439,10 +456,22 @@ function loadComments(){
     try {
       const countSnap = await get(ref(db, `thread-comment-counts/${threadId}`));
       const count = countSnap.val();
-      globalCommentCount = typeof count === "number" ? count : loadedEntries.length;
+
+      if (typeof count === "number") {
+        globalCommentCount = count;
+      } else {
+        // 旧スレッドでカウンターがまだ存在しない場合だけ一度だけ同期する。
+        // 通常は最新50件の取得だけで済む。
+        const postsSnap = await get(commentsRef);
+        const actualCount = postsSnap.exists() ? Object.keys(postsSnap.val()).length : 0;
+        globalCommentCount = actualCount;
+        await update(ref(db), {
+          [`thread-comment-counts/${threadId}`]: actualCount
+        });
+      }
     } catch (error) {
       console.error("Comment Count Error:", error);
-      globalCommentCount = loadedEntries.length;
+      globalCommentCount = Math.max(globalCommentCount, loadedEntries.length);
     }
 
     hasMoreComments = globalCommentCount > loadedEntries.length;
@@ -573,6 +602,8 @@ document.getElementById("postBtn").onclick=async()=>{
       savedIcon = "https://res.cloudinary.com/dfhevulda/image/upload/v12345678/default_usagi.png";
     }
     const timestamp = Date.now();
+    const highestLoadedNumber = getHighestLoadedCommentNumber();
+    const newNumber = Math.max(globalCommentCount, highestLoadedNumber) + 1;
     const newPostRef = push(ref(db, `posts/${threadId}`));
     const newPostKey = newPostRef.key;
     const updates = {};
@@ -582,7 +613,8 @@ document.getElementById("postBtn").onclick=async()=>{
       time: timestamp,
       userName: savedName.substring(0, 50),
       userIcon: savedIcon,
-      userId: currentUid
+      userId: currentUid,
+      number: newNumber
     };
     updates[`threads/${threadId}/lastTime`] = timestamp;
     updates[`thread-comment-counts/${threadId}`] = increment(1);
@@ -595,9 +627,10 @@ document.getElementById("postBtn").onclick=async()=>{
       time: timestamp,
       userName: savedName.substring(0, 50),
       userIcon: savedIcon,
-      userId: currentUid
+      userId: currentUid,
+      number: newNumber
     };
-    globalCommentCount++;
+    globalCommentCount = Math.max(globalCommentCount + 1, newNumber);
 
     const afterPostEntries = Object.entries(loadedComments)
       .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
