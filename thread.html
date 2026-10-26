@@ -231,7 +231,7 @@ window.deleteComment = async (commentId) => {
     // 削除しても、画面に残っているコメントの番号を詰め直さない。
     // 新規投稿時は読み込めている最大番号も考慮して重複を防ぐ。
     const remainingEntries = Object.entries(loadedComments)
-      .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
+      .sort((a,b) => a[0].localeCompare(b[0]));
 
     if (remainingEntries.length > 0) {
       oldestLoadedKey = remainingEntries[0][0];
@@ -310,9 +310,9 @@ function getCommentNumber(comment, key, fallbackNumber){
 }
 
 function getHighestLoadedCommentNumber(){
-  const values=Object.values(loadedComments)
-    .map(c => typeof c.number === "number" ? c.number : 0)
-    .filter(n => n > 0);
+  const values = Object.entries(loadedComments)
+    .map(([key, c]) => getCommentNumber(c, key, 0))
+    .filter(n => typeof n === "number" && n > 0);
   return values.length ? Math.max(...values) : 0;
 }
 
@@ -321,7 +321,7 @@ function renderComments(){
   commentsContainer.textContent = "";
 
   const chronologicalList = Object.entries(loadedComments)
-    .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
+    .sort((a,b) => a[0].localeCompare(b[0]));
 
   if (chronologicalList.length === 0) {
     globalCommentCount = 0;
@@ -329,9 +329,9 @@ function renderComments(){
     return;
   }
 
-  // 既存コメントには number がないため、古いコメントだけ表示上の番号を補完する。
-  // 新規コメントには保存済みの number を優先する。
-  // 番号は現在のコメント数ではなく、削除しても減らない最大番号を基準にする。
+  // 新規コメントはFirebaseに保存した number を必ず優先する。
+  // 旧コメント（number未保存）は既存の表示番号マップを優先し、未登録分だけ
+  // 現在の最大番号から決定的に補完する。削除後に既存番号を詰め直さない。
   const firstNumber = Math.max(1, maxCommentNumber - chronologicalList.length + 1);
 
   const listWithCorrectNumbers = chronologicalList.map(([key, c], index) => ({
@@ -448,7 +448,7 @@ function loadComments(){
   stopCommentsListener = onValue(latestCommentsQuery, async snap => {
     const data = snap.val();
     const entries = data
-      ? Object.entries(data).sort((a,b) => (a[1].time || 0) - (b[1].time || 0))
+      ? Object.entries(data).sort((a,b) => a[0].localeCompare(b[0]))
       : [];
 
     // 最新50件の監視範囲から削除されたコメントを取り除く
@@ -465,7 +465,7 @@ function loadComments(){
     });
 
     const loadedEntries = Object.entries(loadedComments)
-      .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
+      .sort((a,b) => a[0].localeCompare(b[0]));
 
     if (loadedEntries.length > 0) {
       oldestLoadedKey = loadedEntries[0][0];
@@ -545,10 +545,7 @@ async function loadMoreComments(){
     }
 
     const entries = Object.entries(data)
-      .sort((a,b) => {
-        const timeDiff = (a[1].time || 0) - (b[1].time || 0);
-        return timeDiff !== 0 ? timeDiff : a[0].localeCompare(b[0]);
-      });
+      .sort((a,b) => a[0].localeCompare(b[0]));
 
     // すでに表示しているコメントは除外する。
     const loadedKeys = new Set(Object.keys(loadedComments));
@@ -677,7 +674,7 @@ document.getElementById("postBtn").onclick=async()=>{
     globalCommentCount = maxCommentNumber;
 
     const afterPostEntries = Object.entries(loadedComments)
-      .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
+      .sort((a,b) => a[0].localeCompare(b[0]));
 
     // 最新50件を超えた場合は表示キャッシュを最新50件に保つ
     if (afterPostEntries.length > COMMENTS_PER_PAGE) {
@@ -685,7 +682,7 @@ document.getElementById("postBtn").onclick=async()=>{
     }
 
     const visibleEntries = Object.entries(loadedComments)
-      .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
+      .sort((a,b) => a[0].localeCompare(b[0]));
 
     oldestLoadedKey = visibleEntries.length ? visibleEntries[0][0] : null;
     oldestLoadedTime = visibleEntries.length ? (visibleEntries[0][1].time || null) : null;
