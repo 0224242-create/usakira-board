@@ -83,8 +83,7 @@ body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, set, remove, get, query, orderByKey, limitToLast, endAt } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
-
+import { getDatabase, ref, onValue, push, update, remove, get, query, orderByKey, limitToLast, endAt } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   authDomain: "keijiban-7c651.firebaseapp.com",
@@ -94,340 +93,518 @@ const firebaseConfig={
   appId: "1:587652395561:web:ddf858fdf84df2438491c3",
   databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
-
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
 const db=getDatabase(app);
-const googleProvider=new GoogleAuthProvider();
+const googleProvider = new GoogleAuthProvider();
 const params=new URLSearchParams(location.search);
 const threadId=params.get("id");
-const idRegex=/^[A-Za-z0-9_-]{10,128}$/;
-if(!threadId || !idRegex.test(threadId)){
+const idRegex = /^[A-Za-z0-9_-]{10,128}$/;
+if (!threadId || !idRegex.test(threadId)) {
   alert("不正なスレッドIDです。トップページに戻ります。");
-  location.href="index.html";
+  location.href = "index.html";
 }
-
-const commentsRef=ref(db,`posts/${threadId}`);
+const commentsRef=ref(db,"posts/"+threadId);
 const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
-const COMMENTS_PER_PAGE=50;
-const numberMapKey=`usakira_comment_numbers_${threadId}`;
-
-let currentUid=null;
-let currentThreadOwnerId=null;
-let isGlobalAdmin=false;
-let stopAdminListener=null;
-let stopThreadListener=null;
-let stopCommentsListener=null;
-let loadedComments={};
-let oldestLoadedKey=null;
-let hasMoreComments=false;
-let isLoadingMore=false;
-let latestCommentKeys=new Set();
-let olderLoadedKeys=new Set();
-let totalKnownComments=0;
-let exactCountLoaded=false;
-let legacyNumberMap=loadNumberMap();
-
-function loadNumberMap(){
-  try{
-    const raw=localStorage.getItem(numberMapKey);
-    const parsed=raw?JSON.parse(raw):{};
-    return parsed && typeof parsed==="object" ? parsed : {};
-  }catch(e){
-    return {};
+let currentUid = null;
+let currentThreadOwnerId = null;
+let isGlobalAdmin = false;
+let globalCommentCount = 0;
+let stopAdminListener = null;
+let stopThreadListener = null;
+let stopCommentsListener = null;
+const COMMENTS_PER_PAGE = 50;
+let loadedComments = {};
+let oldestLoadedTime = null;
+let oldestLoadedKey = null;
+let hasMoreComments = false;
+let latestCommentKeys = new Set();
+let isLoadingMore = false;
+let hasLoadedOlderComments = false;
+let userName = localStorage.getItem("usakira_name") || defaultName;
+let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+document.getElementById("adminLoginBtn").onclick = () => {
+  if (!auth.currentUser) return;
+  linkWithPopup(auth.currentUser, googleProvider)
+    .then(() => { alert("管理者アカウントとの統合に成功したよ！ 🐰✨"); })
+    .catch(error => {
+      if (error.code === "auth/credential-already-in-use" || error.code === "auth/account-exists-with-different-credential") {
+        const credential = GoogleAuthProvider.credentialFromError(error);
+        if (credential) {
+          alert("このGoogleアカウントは既に登録されています。既存の管理者セッションへ切り替えます 👑");
+          signInWithCredential(auth, credential).catch(e => alert("サインイン失敗: " + e.message));
+        }
+      } else {
+        alert("ログインエラー: " + error.code);
+      }
+    });
+};
+document.getElementById("logoutBtn").onclick = async () => {
+  if (!confirm("ログアウトするぺこ？")) return;
+  try {
+    if (stopAdminListener) stopAdminListener();
+    if (stopThreadListener) stopThreadListener();
+    if (stopCommentsListener) stopCommentsListener();
+    await signOut(auth);
+    currentUid = null;
+    isGlobalAdmin = false;
+    alert("ログアウトしたよ！一覧へ戻ります。🚪");
+    location.href = "index.html";
+  } catch (error) {
+    console.error("Logout Error:", error);
+    alert("ログアウト中にエラーが発生しました。");
   }
-}
-function saveNumberMap(){
-  try{ localStorage.setItem(numberMapKey,JSON.stringify(legacyNumberMap)); }catch(e){}
-}
-
-function isSafeUrl(urlStr){
-  if(!urlStr) return true;
+};
+function isSafeUrl(urlStr) {
+  if (!urlStr) return true;
+  if (urlStr.startsWith("javascript:") || urlStr.startsWith("data:")) return false;
   return urlStr.startsWith("http://") || urlStr.startsWith("https://");
 }
-function renderTextWithLinks(targetElement,text){
-  targetElement.textContent="";
-  if(!text) return;
-  const urlRegex=/(https?:\/\/[^\s<]+)/g;
-  text.split(urlRegex).forEach(part=>{
-    if((part.startsWith("http://")||part.startsWith("https://")) && isSafeUrl(part)){
-      const a=document.createElement("a");
-      a.href=part; a.textContent=part; a.target="_blank"; a.rel="noopener noreferrer";
-      targetElement.appendChild(a);
-    }else targetElement.appendChild(document.createTextNode(part));
+function renderTextWithLinks(targetElement, text) {
+  targetElement.textContent = "";
+  if (!text) return;
+  const urlRegex = /(https?:\/\/[^\s<]+)/g;
+  const parts = text.split(urlRegex);
+  parts.forEach(part => {
+    if (part.startsWith("http://") || part.startsWith("https://")) {
+      if (isSafeUrl(part)) {
+        const anchor = document.createElement("a");
+        anchor.href = part;
+        anchor.textContent = part;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        targetElement.appendChild(anchor);
+      } else {
+        targetElement.appendChild(document.createTextNode(part));
+      }
+    } else {
+      targetElement.appendChild(document.createTextNode(part));
+    }
   });
 }
-
-function getStoredNumber(key){
-  const n=legacyNumberMap[key];
-  return Number.isInteger(n) && n>0 ? n : null;
-}
-function getSavedNumber(comment,key){
-  if(comment && Number.isInteger(comment.number) && comment.number>0) return comment.number;
-  return getStoredNumber(key);
-}
-function sortEntries(entries){
-  return entries.sort((a,b)=>a[0].localeCompare(b[0]));
-}
-
-function buildDisplayNumbers(entries,totalCount){
-  const sorted=sortEntries(entries.slice());
-  const result=new Map();
-  const used=new Set();
-  let maxSeen=0;
-
-  // Firebaseに保存された番号、またはこの端末で過去に確定した番号を最優先。
-  for(const [key,c] of sorted){
-    const n=getSavedNumber(c,key);
-    if(n!==null){
-      result.set(key,n);
-      used.add(n);
-      maxSeen=Math.max(maxSeen,n);
-    }
-  }
-
-  // numberを持たない旧コメントは、現在の総コメント数が分かっている場合、
-  // 「現在表示しているページ内での位置」から番号を補完する。
-  // 最新50件だけ取得している場合でも、totalKnownComments=90なら41～90になる。
-  const missing=sorted.filter(([key])=>!result.has(key));
-  const knownTotal=Number.isInteger(totalCount)&&totalCount>0?totalCount:null;
-  const base=knownTotal!==null ? Math.max(0,knownTotal-sorted.length) : 0;
-
-  missing.forEach(([key],index)=>{
-    let candidate=base+index+1;
-    while(used.has(candidate)) candidate++;
-    result.set(key,candidate);
-    used.add(candidate);
-    legacyNumberMap[key]=candidate;
-    maxSeen=Math.max(maxSeen,candidate);
-  });
-
-  saveNumberMap();
-  return {result,maxSeen};
-}
-
-function getHighestLoadedCommentNumber(){
-  const {result}=buildDisplayNumbers(Object.entries(loadedComments),totalKnownComments);
-  let max=0;
-  result.forEach(n=>{ if(n>max) max=n; });
-  return max;
-}
-
-function renderComments(){
-  const container=document.getElementById("comments");
-  container.textContent="";
-  const entries=sortEntries(Object.entries(loadedComments));
-
-  if(entries.length===0){
-    container.textContent="コメントがまだありません。最初の足跡を残してみよう！";
-    return;
-  }
-
-  const {result}=buildDisplayNumbers(entries,totalKnownComments);
-
-  // Newest first, while the numbering remains chronological.
-  entries.slice().reverse().forEach(([key,c])=>{
-    const commentDiv=document.createElement("div");
-    commentDiv.className="comment";
-
-    const header=document.createElement("div");
-    header.className="header";
-
-    const icon=document.createElement("img");
-    icon.className="icon";
-    const rawIcon=c.userIcon||c.icon||defaultIcon;
-    icon.src=(isSafeUrl(rawIcon)&&rawIcon.length<=1000)?rawIcon:defaultIcon;
-    icon.onerror=()=>{icon.src=defaultIcon;};
-
-    const name=document.createElement("div");
-    name.className="name";
-    const num=document.createElement("span");
-    num.className="comment-number";
-    num.textContent=`>>${result.get(key)}`;
-    name.appendChild(num);
-    name.appendChild(document.createTextNode(c.userName||c.name||defaultName));
-
-    const time=document.createElement("span");
-    time.className="time";
-    time.textContent=c.time?" "+new Date(c.time).toLocaleString():"";
-    name.appendChild(time);
-
-    header.appendChild(icon);
-    header.appendChild(name);
-
-    if(isGlobalAdmin || c.userId===currentUid || currentThreadOwnerId===currentUid){
-      const actions=document.createElement("div");
-      actions.className="actions";
-      const btn=document.createElement("button");
-      btn.className=isGlobalAdmin?"btn-admin-delete":"btn-delete";
-      btn.textContent=isGlobalAdmin?"👑 管理削除":"🗑 削除";
-      btn.onclick=()=>window.deleteComment(key);
-      actions.appendChild(btn);
-      header.appendChild(actions);
-    }
-
-    const text=document.createElement("div");
-    text.className="text comment-text-container";
-    renderTextWithLinks(text,c.text||"");
-    commentDiv.appendChild(header);
-    commentDiv.appendChild(text);
-
-    if(c.image && isSafeUrl(c.image) && c.image.length<=1000){
-      const img=document.createElement("img");
-      img.className="comment-img";
-      img.src=c.image;
-      img.onclick=()=>window.openImage(c.image);
-      commentDiv.appendChild(img);
-    }
-    container.appendChild(commentDiv);
-  });
-
-  if(hasMoreComments){
-    const wrap=document.createElement("div");
-    wrap.className="load-more-wrap";
-    const btn=document.createElement("button");
-    btn.className="load-more-btn";
-    btn.textContent=isLoadingMore?"読み込み中…":"📥 過去のコメントを読み込む";
-    btn.disabled=isLoadingMore;
-    btn.onclick=loadMoreComments;
-    wrap.appendChild(btn);
-    container.appendChild(wrap);
+async function refreshCommentCount() {
+  try {
+    const postsSnap = await get(ref(db, `posts/${threadId}`));
+    const currentCount = postsSnap.val() ? Object.keys(postsSnap.val()).length : 0;
+    globalCommentCount = currentCount;
+    await update(ref(db), {
+      [`thread-comment-counts/${threadId}`]: currentCount
+    });
+  } catch (error) {
+    console.error("Counter Sync Error:", error);
   }
 }
-
-async function refreshTotalCount(){
-  // We deliberately do not write a counter path here. Writing a separate
-  // counter was the reason normal users could be blocked from posting by rules.
-  // A full read is only used when the exact count is needed for numbering.
-  try{
-    const snap=await get(commentsRef);
-    const data=snap.val();
-    totalKnownComments=data?Object.keys(data).length:0;
-    return data||{};
-  }catch(error){
-    console.error("Comment count/read error:",error);
-    return null;
-  }
-}
-
-window.openImage=(src)=>{
+window.openImage = (src) => {
   document.getElementById("modalImg").src=src;
   document.getElementById("imageModal").style.display="flex";
 };
+window.deleteComment = async (commentId) => {
+  if (!confirm("このコメントを削除するぺこ？")) return;
+  try {
+    await remove(ref(db, `posts/${threadId}/${commentId}`));
 
-window.deleteComment=async(commentId)=>{
-  if(!confirm("このコメントを削除するぺこ？")) return;
-  try{
-    await remove(ref(db,`posts/${threadId}/${commentId}`));
+    // Firebaseの再通知を待たず、画面から即時に削除
     delete loadedComments[commentId];
     latestCommentKeys.delete(commentId);
-    olderLoadedKeys.delete(commentId);
-    totalKnownComments=Math.max(0,totalKnownComments-1);
-    // IMPORTANT: never delete the stored number mapping. The number is a
-    // historical identifier and must not be reused after deletion.
-    hasMoreComments=Object.keys(loadedComments).length<totalKnownComments;
-    const entries=sortEntries(Object.entries(loadedComments));
-    oldestLoadedKey=entries.length?entries[0][0]:null;
+
+    if (globalCommentCount > 0) globalCommentCount--;
+
+    await update(ref(db), {
+      [`thread-comment-counts/${threadId}`]: globalCommentCount
+    });
+
+    // 削除しても、画面に残っているコメントの番号を詰め直さない。
+    // 新規投稿時は読み込めている最大番号も考慮して重複を防ぐ。
+    const remainingEntries = Object.entries(loadedComments)
+      .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
+
+    if (remainingEntries.length > 0) {
+      oldestLoadedKey = remainingEntries[0][0];
+      oldestLoadedTime = remainingEntries[0][1].time || null;
+    } else {
+      oldestLoadedKey = null;
+      oldestLoadedTime = null;
+    }
+
+    hasMoreComments = globalCommentCount > remainingEntries.length;
     renderComments();
     alert("コメントを削除したよ 🐰🧹");
-  }catch(error){
-    console.error("Delete Comment Error:",error);
-    alert("削除に失敗しました。権限がありません。\n\nエラー: "+(error?.message||"不明なエラー"));
+  } catch (error) {
+    console.error("Delete Comment Error:", error);
+    alert("削除に失敗しました。権限がありません。");
   }
 };
+onAuthStateChanged(auth, async user => {
+  if (!user) {
+    document.getElementById("logoutBtn").style.display = "none";
+    document.getElementById("userBadge").style.display = "none";
+    document.getElementById("adminLoginBtn").style.display = "block";
+    signInAnonymously(auth).catch(e => console.error("匿名ログイン失敗:", e));
+    return;
+  }
+  currentUid = user.uid;
+  if (stopAdminListener) stopAdminListener();
+  stopAdminListener = onValue(ref(db, "admins/" + currentUid), adminSnap => {
+    isGlobalAdmin = adminSnap.val() === true;
+    const isGoogleLinked = user.providerData.some(p => p.providerId === "google.com");
+    if (!isGoogleLinked) {
+      userName = localStorage.getItem("usakira_name") || defaultName;
+      userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+      document.getElementById("adminLoginBtn").style.display = "block";
+      document.getElementById("userBadge").style.display = "none";
+      document.getElementById("logoutBtn").style.display = "none";
+    } else {
+      const googleProfile = user.providerData.find(p => p.providerId === "google.com");
+      userName = googleProfile.displayName || "管理者";
+      userIcon = googleProfile.photoURL || defaultIcon;
+      document.getElementById("adminLoginBtn").style.display = "none";
+      const nameEl = document.getElementById("myName");
+      const iconEl = document.getElementById("myIcon");
+      nameEl.textContent = isGlobalAdmin ? userName + " (管理人公認) 👑" : "統合完了UID: " + currentUid;
+      iconEl.src = isSafeUrl(userIcon) ? userIcon : defaultIcon;
+      document.getElementById("userBadge").style.display = "flex";
+      document.getElementById("logoutBtn").style.display = "block";
+    }
+  });
+  if (stopThreadListener) stopThreadListener();
+  stopThreadListener = onValue(ref(db, "threads/" + threadId), snap => {
+    const t = snap.val();
+    if(t) {
+      currentThreadOwnerId = t.ownerId;
+      document.getElementById("mainThreadTitle").textContent = t.title;
+      if(t.body && t.body.trim() !== "") {
+        renderTextWithLinks(document.getElementById("mainThreadBody"), t.body);
+        document.getElementById("mainThreadBody").style.display = "block";
+      } else {
+        document.getElementById("mainThreadBody").style.display = "none";
+      }
+    } else {
+      document.getElementById("mainThreadTitle").textContent = "スレッドが存在しないか削除されました。";
+      document.getElementById("mainThreadBody").style.display = "none";
+      document.getElementById("postBtn").disabled = true;
+    }
+  });
+  loadComments();
+});
+const numberMapStorageKey = `usakira_comment_numbers_${threadId}`;
+let displayNumberMap = {};
+try {
+  displayNumberMap = JSON.parse(localStorage.getItem(numberMapStorageKey) || "{}");
+} catch (_) {
+  displayNumberMap = {};
+}
+
+function saveDisplayNumberMap(){
+  try {
+    localStorage.setItem(numberMapStorageKey, JSON.stringify(displayNumberMap));
+  } catch (_) {}
+}
+
+function getCommentNumber(comment, key, fallbackNumber){
+  if (typeof comment?.number === "number" && comment.number > 0) {
+    return comment.number;
+  }
+  if (displayNumberMap[key] > 0) {
+    return displayNumberMap[key];
+  }
+  return fallbackNumber;
+}
+
+function getHighestLoadedCommentNumber(){
+  const values = Object.entries(loadedComments)
+    .map(([key, c]) => getCommentNumber(c, key, 0))
+    .filter(n => Number.isFinite(n) && n > 0);
+  return values.length ? Math.max(...values) : 0;
+}
+
+function sortByFirebaseKey(entries){
+  return entries.sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function updateOldestCursor(){
+  const entries = sortByFirebaseKey(Object.entries(loadedComments));
+  if (entries.length > 0) {
+    oldestLoadedKey = entries[0][0];
+  } else {
+    oldestLoadedKey = null;
+  }
+}
+
+async function ensureLegacyNumbers(){
+  // numberを持たない旧コメントに、一度だけ恒久的な番号を付与する。
+  // 表示順とは独立した「番号」の初期化なので、削除やページングで番号が詰まらない。
+  try {
+    const snap = await get(commentsRef);
+    const data = snap.val();
+    if (!data) return;
+
+    const entries = sortByFirebaseKey(Object.entries(data));
+    const updates = {};
+    let changed = false;
+
+    entries.forEach(([key, comment], index) => {
+      const existing = comment && typeof comment.number === "number" && comment.number > 0
+        ? comment.number
+        : null;
+      if (existing) {
+        displayNumberMap[key] = existing;
+      } else {
+        const number = index + 1;
+        displayNumberMap[key] = number;
+        updates[`posts/${threadId}/${key}/number`] = number;
+        changed = true;
+      }
+    });
+
+    saveDisplayNumberMap();
+    if (changed) {
+      await update(ref(db), updates);
+    }
+  } catch (error) {
+    console.warn("Legacy number migration skipped:", error);
+  }
+}
+
+function renderComments(){
+  const commentsContainer = document.getElementById("comments");
+  commentsContainer.textContent = "";
+
+  // 表示順は「番号」ではなくFirebase Pushキーだけで決める。
+  // Pushキーは生成順なので、削除・過去ログ読み込みをしても順番が崩れない。
+  const chronologicalList = sortByFirebaseKey(Object.entries(loadedComments));
+
+  if (chronologicalList.length === 0) {
+    commentsContainer.textContent = "コメントがまだありません。最初の足跡を残してみよう！";
+    return;
+  }
+
+  const displayList = chronologicalList.slice().reverse();
+
+  displayList.forEach(([key, c]) => {
+    const fallbackNumber = displayNumberMap[key] || 0;
+    const responseNumber = getCommentNumber(c, key, fallbackNumber);
+    if (responseNumber > 0 && displayNumberMap[key] !== responseNumber) {
+      displayNumberMap[key] = responseNumber;
+    }
+
+    const commentDiv = document.createElement("div");
+    commentDiv.classList.add("comment");
+
+    const headerDiv = document.createElement("div");
+    headerDiv.classList.add("header");
+
+    const numSpan = document.createElement("span");
+    numSpan.classList.add("comment-number");
+    numSpan.textContent = responseNumber > 0 ? `>>${responseNumber}` : "";
+
+    const iconImg = document.createElement("img");
+    iconImg.classList.add("icon");
+    const rawIcon = c.userIcon || c.icon;
+    const safeIcon = (isSafeUrl(rawIcon) && (rawIcon || "").length <= 1000) ? (rawIcon || defaultIcon) : defaultIcon;
+    iconImg.src = safeIcon;
+    iconImg.onerror = () => { iconImg.src = defaultIcon; };
+
+    const nameDiv = document.createElement("div");
+    nameDiv.classList.add("name");
+    nameDiv.textContent = c.userName || c.name || "名もなき兎";
+
+    const timeSpan = document.createElement("span");
+    timeSpan.classList.add("time");
+    timeSpan.textContent = c.time ? " " + new Date(c.time).toLocaleString() : "";
+
+    nameDiv.insertBefore(numSpan, nameDiv.firstChild);
+    nameDiv.appendChild(timeSpan);
+    headerDiv.appendChild(iconImg);
+    headerDiv.appendChild(nameDiv);
+
+    if (isGlobalAdmin) {
+      const actionsDiv = document.createElement("div");
+      actionsDiv.classList.add("actions");
+      const btn = document.createElement("button");
+      btn.classList.add("btn-admin-delete");
+      btn.textContent = "👑 管理削除";
+      btn.onclick = () => window.deleteComment(key);
+      actionsDiv.appendChild(btn);
+      headerDiv.appendChild(actionsDiv);
+    } else if (c.userId === currentUid || currentThreadOwnerId === currentUid) {
+      const actionsDiv = document.createElement("div");
+      actionsDiv.classList.add("actions");
+      const btn = document.createElement("button");
+      btn.classList.add("btn-delete");
+      btn.textContent = "🗑 削除";
+      btn.onclick = () => window.deleteComment(key);
+      actionsDiv.appendChild(btn);
+      headerDiv.appendChild(actionsDiv);
+    }
+
+    const textDiv = document.createElement("div");
+    textDiv.classList.add("text", "comment-text-container");
+    renderTextWithLinks(textDiv, c.text || "");
+    commentDiv.appendChild(headerDiv);
+    commentDiv.appendChild(textDiv);
+
+    if (c.image && isSafeUrl(c.image) && c.image.length <= 1000) {
+      const commentImg = document.createElement("img");
+      commentImg.classList.add("comment-img");
+      commentImg.src = c.image;
+      commentImg.onclick = () => window.openImage(c.image);
+      commentDiv.appendChild(commentImg);
+    }
+
+    commentsContainer.appendChild(commentDiv);
+  });
+
+  saveDisplayNumberMap();
+
+  if (hasMoreComments) {
+    const loadMoreContainer = document.createElement("div");
+    loadMoreContainer.classList.add("load-more-wrap");
+
+    const loadMoreBtn = document.createElement("button");
+    loadMoreBtn.classList.add("load-more-btn");
+    loadMoreBtn.textContent = isLoadingMore ? "読み込み中…" : "📥 過去のコメントを読み込む";
+    loadMoreBtn.disabled = isLoadingMore;
+    loadMoreBtn.onclick = loadMoreComments;
+
+    loadMoreContainer.appendChild(loadMoreBtn);
+    commentsContainer.appendChild(loadMoreContainer);
+  }
+}
 
 function loadComments(){
-  if(stopCommentsListener) stopCommentsListener();
-  loadedComments={};
-  oldestLoadedKey=null;
-  hasMoreComments=false;
-  isLoadingMore=false;
-  latestCommentKeys=new Set();
-  olderLoadedKeys=new Set();
+  if (stopCommentsListener) stopCommentsListener();
 
-  const latestQuery=query(commentsRef,orderByKey(),limitToLast(COMMENTS_PER_PAGE));
-  stopCommentsListener=onValue(latestQuery,async snap=>{
-    const data=snap.val()||{};
-    const entries=sortEntries(Object.entries(data));
-    const currentKeys=new Set(entries.map(([key])=>key));
+  loadedComments = {};
+  oldestLoadedKey = null;
+  hasMoreComments = false;
+  isLoadingMore = false;
+  hasLoadedOlderComments = false;
+  latestCommentKeys = new Set();
 
-    // Keep older pages already loaded. Only the live latest-50 window is
-    // replaced when Firebase notifies us.
-    latestCommentKeys.forEach(key=>{
-      if(!currentKeys.has(key) && !olderLoadedKeys.has(key)) delete loadedComments[key];
-    });
-    latestCommentKeys=currentKeys;
-    entries.forEach(([key,c])=>{loadedComments[key]=c;});
+  // 表示順・ページングともにPushキーで統一する。
+  const latestCommentsQuery = query(
+    commentsRef,
+    orderByKey(),
+    limitToLast(COMMENTS_PER_PAGE)
+  );
 
-    const loadedEntries=sortEntries(Object.entries(loadedComments));
-    oldestLoadedKey=loadedEntries.length?loadedEntries[0][0]:null;
+  stopCommentsListener = onValue(latestCommentsQuery, async snap => {
+    const data = snap.val();
+    const entries = data ? sortByFirebaseKey(Object.entries(data)) : [];
+    latestCommentKeys = new Set(entries.map(([key]) => key));
 
-    // 50件未満なら、このスレッドの総数が確定する。
-    // 50件ちょうどの場合は総数を決め打ちせず、過去読み込みで確認する。
-    if(entries.length<COMMENTS_PER_PAGE) totalKnownComments=entries.length;
-    hasMoreComments=entries.length===COMMENTS_PER_PAGE || loadedEntries.length<totalKnownComments;
+    // 過去ログをまだ読んでいない間だけ、表示キャッシュを最新50件に同期。
+    // 一度でも過去ログを読んだ後は、既に読み込んだ古いコメントを消さない。
+    if (!hasLoadedOlderComments) {
+      loadedComments = Object.fromEntries(entries);
+    } else {
+      entries.forEach(([key, comment]) => {
+        loadedComments[key] = comment;
+      });
+    }
+
+    updateOldestCursor();
+
+    try {
+      const countSnap = await get(ref(db, `thread-comment-counts/${threadId}`));
+      const count = countSnap.val();
+      if (typeof count === "number") {
+        globalCommentCount = count;
+      } else {
+        const postsSnap = await get(commentsRef);
+        const actualCount = postsSnap.exists() ? Object.keys(postsSnap.val()).length : 0;
+        globalCommentCount = actualCount;
+        await update(ref(db), { [`thread-comment-counts/${threadId}`]: actualCount });
+      }
+    } catch (error) {
+      console.error("Comment Count Error:", error);
+      globalCommentCount = Math.max(globalCommentCount, Object.keys(loadedComments).length);
+    }
+
+    hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
     renderComments();
-  },error=>{
-    console.error("Comments Listener Error:",error);
-    alert("コメントの読み込みに失敗しました。\n\nエラー: "+(error?.message||"不明なエラー"));
   });
 }
 
 async function loadMoreComments(){
-  if(isLoadingMore || !hasMoreComments || !oldestLoadedKey) return;
-  isLoadingMore=true;
+  if (isLoadingMore || !hasMoreComments || !oldestLoadedKey) return;
+
+  isLoadingMore = true;
   renderComments();
 
-  try{
-    // Push keys are chronological Firebase keys. No time index is needed.
-    const olderQuery=query(commentsRef,orderByKey(),endAt(oldestLoadedKey),limitToLast(COMMENTS_PER_PAGE+1));
-    const snap=await get(olderQuery);
-    const data=snap.val()||{};
-    const entries=sortEntries(Object.entries(data));
-    const loadedKeys=new Set(Object.keys(loadedComments));
-    const olderEntries=entries.filter(([key])=>!loadedKeys.has(key));
+  try {
+    // 現在の最古Pushキーより前を50件取得。番号は一切参照しない。
+    const olderCommentsQuery = query(
+      commentsRef,
+      orderByKey(),
+      endAt(oldestLoadedKey),
+      limitToLast(COMMENTS_PER_PAGE + 1)
+    );
 
-    if(olderEntries.length===0){
-      hasMoreComments=false;
-    }else{
-      // We want the 50 immediately older comments, not the oldest 50 in the
-      // whole returned window.
-      const toAdd=olderEntries.slice(-COMMENTS_PER_PAGE);
-      toAdd.forEach(([key,c])=>{loadedComments[key]=c; olderLoadedKeys.add(key);});
-      oldestLoadedKey=sortEntries(Object.entries(loadedComments))[0][0];
-      hasMoreComments=toAdd.length===COMMENTS_PER_PAGE;
+    const snap = await get(olderCommentsQuery);
+    const data = snap.val();
+
+    if (!data) {
+      hasMoreComments = false;
+      return;
     }
-  }catch(error){
-    console.error("Load More Comments Error:",error);
-    alert("過去のコメントの読み込みに失敗しました。もう一度試してください。\n\nエラー: "+(error?.message||"不明なエラー"));
-  }finally{
-    isLoadingMore=false;
+
+    const entries = sortByFirebaseKey(Object.entries(data));
+    const olderEntries = entries.filter(([key]) => key !== oldestLoadedKey && !loadedComments[key]);
+
+    if (olderEntries.length === 0) {
+      hasMoreComments = false;
+      return;
+    }
+
+    // 取得した中から「現在の最古より古い」最大50件を追加。
+    const entriesToAdd = olderEntries.slice(-COMMENTS_PER_PAGE);
+    entriesToAdd.forEach(([key, comment]) => {
+      loadedComments[key] = comment;
+      if (typeof comment.number === "number" && comment.number > 0) {
+        displayNumberMap[key] = comment.number;
+      }
+    });
+
+    hasLoadedOlderComments = true;
+    updateOldestCursor();
+    hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
+    saveDisplayNumberMap();
+  } catch (error) {
+    console.error("Load More Comments Error:", error);
+    alert("過去のコメントの読み込みに失敗しました。もう一度試してください。\n\nエラー: " + (error?.message || "不明なエラー"));
+  } finally {
+    isLoadingMore = false;
     renderComments();
   }
 }
-
 function compressImage(file){
-  return new Promise((resolve,reject)=>{
+  return new Promise((resolve, reject) => {
     const img=new Image();
     const canvas=document.createElement("canvas");
     const ctx=canvas.getContext("2d");
-    const objectUrl=URL.createObjectURL(file);
-    img.onerror=()=>{URL.revokeObjectURL(objectUrl);reject(new Error("画像の読み込みに失敗しました。"));};
+    const objectUrl = URL.createObjectURL(file);
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("画像の読み込みに失敗しました。"));
+    };
     img.onload=()=>{
-      let w=img.width,h=img.height,max=1000;
-      if(w>h){if(w>max){h*=max/w;w=max;}}else{if(h>max){w*=max/h;h=max;}}
-      canvas.width=w;canvas.height=h;ctx.drawImage(img,0,0,w,h);
+      let w=img.width; let h=img.height; const max=1000;
+      if(w>h){ if(w>max){ h*=max/w; w=max; } }else{ if(h>max){ w*=max/h; h=max; } }
+      canvas.width=w; canvas.height=h; ctx.drawImage(img,0,0,w,h);
       canvas.toBlob(blob=>{
         URL.revokeObjectURL(objectUrl);
-        if(!blob){reject(new Error("画像の圧縮処理に失敗しました。"));return;}
+        if (!blob) {
+          reject(new Error("画像の圧縮処理に失敗しました。"));
+          return;
+        }
         resolve(blob);
       },"image/jpeg",0.7);
     };
     img.src=objectUrl;
   });
 }
-
 async function uploadImage(file){
   const compressed=await compressImage(file);
   const formData=new FormData();
@@ -439,168 +616,91 @@ async function uploadImage(file){
   if(!data.secure_url) throw new Error("Missing secure_url");
   return data.secure_url;
 }
-
-function findNextNumber(){
-  const entries=Object.entries(loadedComments);
-  const {maxSeen}=buildDisplayNumbers(entries,totalKnownComments);
-  let max=maxSeen;
-  for(const n of Object.values(legacyNumberMap)) if(Number.isInteger(n)) max=Math.max(max,n);
-  return max+1;
-}
-
 document.getElementById("postBtn").onclick=async()=>{
   if(!currentUid) return alert("ログイン処理中です");
-  const postBtn=document.getElementById("postBtn");
+  const postBtn = document.getElementById("postBtn");
   const text=document.getElementById("commentInput").value.trim();
   const file=document.getElementById("imageInput").files[0];
-  if(!text&&!file) return alert("コメントか画像を入れてください");
-  if(text.length>1000) return alert("コメントは1000文字以内にしてね");
-  if(file&&file.size>5*1024*1024) return alert("画像ファイルは5MB以下にしてね 🐰❌");
-
-  postBtn.disabled=true;
+  if(!text && !file){ alert("コメントか画像を入れてください"); return; }
+  if(text.length > 1000){ alert("コメントは1000文字以内にしてね"); return; }
+  if(file && file.size > 5 * 1024 * 1024) return alert("画像ファイルは5MB以下にしてね 🐰❌");
+  postBtn.disabled = true;
   document.getElementById("postStatus").textContent="投稿処理中...";
-  try{
+  try {
     let imageURL="";
     if(file) imageURL=await uploadImage(file);
-    if(imageURL&&(imageURL.length>1000||!isSafeUrl(imageURL))) throw new Error("不正な画像URLです。");
-
-    // 投稿時にスレッド全件を get() すると、Realtime Database の通信待ちで
-    // 「投稿処理中...」のまま止まることがあるため、全件読み込みは行わない。
-    // 現在ロード済みのコメントと保存済み番号から、再利用しない次番号を決める。
-    const {maxSeen}=buildDisplayNumbers(Object.entries(loadedComments),totalKnownComments);
-    let newNumber=Math.max(maxSeen,0)+1;
-    // 過去に削除した番号も再利用しない。
-    for(const n of Object.values(legacyNumberMap)){
-      if(Number.isInteger(n)&&n>0) newNumber=Math.max(newNumber,n+1);
+    if (imageURL && (imageURL.length > 1000 || !isSafeUrl(imageURL))) {
+      throw new Error("Malicious or invalid image URL detected.");
     }
-
-    const savedName=(localStorage.getItem("usakira_name")||defaultName).substring(0,50);
-    let savedIcon=localStorage.getItem("usakira_icon")||defaultIcon;
-    if(!savedIcon.startsWith("http://")&&!savedIcon.startsWith("https://")) savedIcon=defaultIcon;
-
-    const newPostRef=push(commentsRef);
-    const postData={
-      text,
-      image:imageURL,
-      time:Date.now(),
-      userName:savedName,
-      userIcon:savedIcon,
-      userId:currentUid,
-      number:newNumber
+    const savedName = localStorage.getItem("usakira_name") || defaultName;
+    let savedIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+    if (!savedIcon.startsWith("http://") && !savedIcon.startsWith("https://")) {
+      savedIcon = "https://res.cloudinary.com/dfhevulda/image/upload/v12345678/default_usagi.png";
+    }
+    const timestamp = Date.now();
+    const highestLoadedNumber = getHighestLoadedCommentNumber();
+    const newNumber = Math.max(globalCommentCount, highestLoadedNumber) + 1;
+    const newPostRef = push(ref(db, `posts/${threadId}`));
+    const newPostKey = newPostRef.key;
+    const updates = {};
+    updates[`posts/${threadId}/${newPostKey}`] = {
+      text: text,
+      image: imageURL,
+      time: timestamp,
+      userName: savedName.substring(0, 50),
+      userIcon: savedIcon,
+      userId: currentUid,
+      number: newNumber
     };
+    updates[`threads/${threadId}/lastTime`] = timestamp;
+    await update(ref(db), updates);
 
-    // Write ONLY the post. Do not write a counter or thread metadata here,
-    // because those extra paths can be rejected by Realtime Database Rules.
-    await set(newPostRef,postData);
+    // 新規投稿を画面側のキャッシュにも即時追加
+    loadedComments[newPostKey] = {
+      text: text,
+      image: imageURL,
+      time: timestamp,
+      userName: savedName.substring(0, 50),
+      userIcon: savedIcon,
+      userId: currentUid,
+      number: newNumber
+    };
+    globalCommentCount = Math.max(globalCommentCount + 1, newNumber);
+    displayNumberMap[newPostKey] = newNumber;
+    saveDisplayNumberMap();
 
-    loadedComments[newPostRef.key]=postData;
-    legacyNumberMap[newPostRef.key]=newNumber;
-    saveNumberMap();
-    totalKnownComments++;
+    const afterPostEntries = Object.entries(loadedComments)
+      .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
 
-    // Keep the live cache at the newest 50 entries.
-    const visible=sortEntries(Object.entries(loadedComments));
-    if(visible.length>COMMENTS_PER_PAGE){
-      loadedComments=Object.fromEntries(visible.slice(-COMMENTS_PER_PAGE));
+    // 最新50件を超えた場合は表示キャッシュを最新50件に保つ
+    if (afterPostEntries.length > COMMENTS_PER_PAGE) {
+      loadedComments = Object.fromEntries(afterPostEntries.slice(-COMMENTS_PER_PAGE));
     }
-    oldestLoadedKey=sortEntries(Object.entries(loadedComments))[0]?.[0]||null;
-    hasMoreComments=Object.keys(loadedComments).length<totalKnownComments;
+
+    const visibleEntries = Object.entries(loadedComments)
+      .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
+
+    oldestLoadedKey = visibleEntries.length ? visibleEntries[0][0] : null;
+    oldestLoadedTime = visibleEntries.length ? (visibleEntries[0][1].time || null) : null;
+    hasMoreComments = globalCommentCount > visibleEntries.length;
     renderComments();
 
     document.getElementById("commentInput").value="";
     document.getElementById("imageInput").value="";
     document.getElementById("fileName").textContent="";
     document.getElementById("postStatus").textContent="投稿しました！";
-    setTimeout(()=>{document.getElementById("postStatus").textContent="";},2000);
-  }catch(error){
-    console.error("Post Error:",error);
-    alert("投稿に失敗しました。\n\nエラー: "+(error?.message||"不明なエラー"));
-    document.getElementById("postStatus").textContent="投稿に失敗しました";
-  }finally{
-    postBtn.disabled=false;
+    setTimeout(()=>{ document.getElementById("postStatus").textContent=""; },2000);
+  } catch (error) {
+    console.error("Post Error:", error);
+    alert("投稿に失敗しました。");
+  } finally {
+    postBtn.disabled = false;
   }
 };
-
 document.getElementById("imageInput").onchange=e=>{
   const file=e.target.files[0];
   document.getElementById("fileName").textContent=file?file.name:"";
 };
-
-document.getElementById("adminLoginBtn").onclick=()=>{
-  if(!auth.currentUser) return;
-  linkWithPopup(auth.currentUser,googleProvider).then(()=>{
-    alert("管理者アカウントとの統合に成功したよ！ 🐰✨");
-  }).catch(error=>{
-    if(error.code==="auth/credential-already-in-use"||error.code==="auth/account-exists-with-different-credential"){
-      const credential=GoogleAuthProvider.credentialFromError(error);
-      if(credential) signInWithCredential(auth,credential).catch(e=>alert("サインイン失敗: "+e.message));
-    }else alert("ログインエラー: "+error.code);
-  });
-};
-
-document.getElementById("logoutBtn").onclick=async()=>{
-  if(!confirm("ログアウトするぺこ？")) return;
-  try{
-    if(stopAdminListener) stopAdminListener();
-    if(stopThreadListener) stopThreadListener();
-    if(stopCommentsListener) stopCommentsListener();
-    await signOut(auth);
-    currentUid=null;isGlobalAdmin=false;
-    alert("ログアウトしたよ！一覧へ戻ります。🚪");
-    location.href="index.html";
-  }catch(error){
-    console.error("Logout Error:",error);
-    alert("ログアウト中にエラーが発生しました。");
-  }
-};
-
-onAuthStateChanged(auth,async user=>{
-  if(!user){
-    document.getElementById("logoutBtn").style.display="none";
-    document.getElementById("userBadge").style.display="none";
-    document.getElementById("adminLoginBtn").style.display="block";
-    signInAnonymously(auth).catch(e=>console.error("匿名ログイン失敗:",e));
-    return;
-  }
-  currentUid=user.uid;
-  if(stopAdminListener) stopAdminListener();
-  stopAdminListener=onValue(ref(db,"admins/"+currentUid),adminSnap=>{
-    isGlobalAdmin=adminSnap.val()===true;
-    const isGoogleLinked=user.providerData.some(p=>p.providerId==="google.com");
-    if(!isGoogleLinked){
-      document.getElementById("adminLoginBtn").style.display="block";
-      document.getElementById("userBadge").style.display="none";
-      document.getElementById("logoutBtn").style.display="none";
-    }else{
-      const googleProfile=user.providerData.find(p=>p.providerId==="google.com");
-      const name=googleProfile?.displayName||"管理者";
-      const icon=googleProfile?.photoURL||defaultIcon;
-      document.getElementById("adminLoginBtn").style.display="none";
-      document.getElementById("myName").textContent=isGlobalAdmin?name+" (管理人公認) 👑":"統合完了UID: "+currentUid;
-      document.getElementById("myIcon").src=isSafeUrl(icon)?icon:defaultIcon;
-      document.getElementById("userBadge").style.display="flex";
-      document.getElementById("logoutBtn").style.display="block";
-    }
-  });
-
-  if(stopThreadListener) stopThreadListener();
-  stopThreadListener=onValue(ref(db,"threads/"+threadId),snap=>{
-    const t=snap.val();
-    if(t){
-      currentThreadOwnerId=t.ownerId;
-      document.getElementById("mainThreadTitle").textContent=t.title||"";
-      if(t.body&&t.body.trim()!==""){
-        renderTextWithLinks(document.getElementById("mainThreadBody"),t.body);
-        document.getElementById("mainThreadBody").style.display="block";
-      }else document.getElementById("mainThreadBody").style.display="none";
-    }else{
-      document.getElementById("mainThreadTitle").textContent="スレッドが存在しないか削除されました。";
-      document.getElementById("mainThreadBody").style.display="none";
-      document.getElementById("postBtn").disabled=true;
-    }
-  });
-  loadComments();
-});
 </script>
 </body>
 </html>
