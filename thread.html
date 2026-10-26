@@ -83,7 +83,7 @@ body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, update, remove, get, increment, query, orderByKey, limitToLast, endAt } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, update, remove, get, query, orderByKey, limitToLast, endAt } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   authDomain: "keijiban-7c651.firebaseapp.com",
@@ -111,6 +111,15 @@ let currentUid = null;
 let currentThreadOwnerId = null;
 let isGlobalAdmin = false;
 let globalCommentCount = 0;
+let actualCommentCount = 0;
+let maxCommentNumber = 0;
+let displayNumberMap = {};
+const displayNumberStorageKey = `usakira_comment_numbers_${threadId}`;
+try {
+  displayNumberMap = JSON.parse(localStorage.getItem(displayNumberStorageKey) || "{}");
+} catch (e) {
+  displayNumberMap = {};
+}
 let stopAdminListener = null;
 let stopThreadListener = null;
 let stopCommentsListener = null;
@@ -201,16 +210,22 @@ window.openImage = (src) => {
 window.deleteComment = async (commentId) => {
   if (!confirm("このコメントを削除するぺこ？")) return;
   try {
+    // 一度表示したコメントの番号は、削除後も詰め直さない。
+    // 既存コメントには number が保存されていないものがあるため、画面側でも番号を保持する。
+    const deletedNumber = displayNumberMap[commentId];
     await remove(ref(db, `posts/${threadId}/${commentId}`));
 
     // Firebaseの再通知を待たず、画面から即時に削除
     delete loadedComments[commentId];
     latestCommentKeys.delete(commentId);
 
-    if (globalCommentCount > 0) globalCommentCount--;
+    if (actualCommentCount > 0) actualCommentCount--;
 
+    // 現在のコメント数は減らすが、コメント番号の最大値は減らさない。
+    // 削除した番号を後から詰め直さないため、>>90 を削除しても次は >>91 のままにする。
     await update(ref(db), {
-      [`thread-comment-counts/${threadId}`]: globalCommentCount
+      [`thread-comment-counts/${threadId}`]: actualCommentCount,
+      [`thread-comment-max-numbers/${threadId}`]: maxCommentNumber
     });
 
     // 削除しても、画面に残っているコメントの番号を詰め直さない。
@@ -226,7 +241,7 @@ window.deleteComment = async (commentId) => {
       oldestLoadedTime = null;
     }
 
-    hasMoreComments = globalCommentCount > remainingEntries.length;
+    hasMoreComments = actualCommentCount > remainingEntries.length;
     renderComments();
     alert("コメントを削除したよ 🐰🧹");
   } catch (error) {
@@ -286,8 +301,12 @@ onAuthStateChanged(auth, async user => {
   });
   loadComments();
 });
-function getCommentNumber(comment, fallbackNumber){
-  return typeof comment.number === "number" ? comment.number : fallbackNumber;
+function getCommentNumber(comment, key, fallbackNumber){
+  if (typeof comment.number === "number") return comment.number;
+  if (typeof displayNumberMap[key] === "number") return displayNumberMap[key];
+  displayNumberMap[key] = fallbackNumber;
+  try { localStorage.setItem(displayNumberStorageKey, JSON.stringify(displayNumberMap)); } catch (e) {}
+  return fallbackNumber;
 }
 
 function getHighestLoadedCommentNumber(){
@@ -312,12 +331,13 @@ function renderComments(){
 
   // 既存コメントには number がないため、古いコメントだけ表示上の番号を補完する。
   // 新規コメントには保存済みの number を優先する。
-  const firstNumber = Math.max(1, globalCommentCount - chronologicalList.length + 1);
+  // 番号は現在のコメント数ではなく、削除しても減らない最大番号を基準にする。
+  const firstNumber = Math.max(1, maxCommentNumber - chronologicalList.length + 1);
 
   const listWithCorrectNumbers = chronologicalList.map(([key, c], index) => ({
     key,
     c,
-    responseNumber: getCommentNumber(c, firstNumber + index)
+    responseNumber: getCommentNumber(c, key, firstNumber + index)
   }));
 
   // 新しいコメントを上に表示
@@ -460,23 +480,37 @@ function loadComments(){
       const count = countSnap.val();
 
       if (typeof count === "number") {
-        globalCommentCount = count;
+        actualCommentCount = count;
       } else {
         // 旧スレッドでカウンターがまだ存在しない場合だけ一度だけ同期する。
-        // 通常は最新50件の取得だけで済む。
         const postsSnap = await get(commentsRef);
         const actualCount = postsSnap.exists() ? Object.keys(postsSnap.val()).length : 0;
-        globalCommentCount = actualCount;
+        actualCommentCount = actualCount;
         await update(ref(db), {
           [`thread-comment-counts/${threadId}`]: actualCount
         });
       }
+
+      // コメント番号の最大値は削除では減らさない。
+      // 既存スレッドでは最初に現在件数を初期値として使う。
+      const maxSnap = await get(ref(db, `thread-comment-max-numbers/${threadId}`));
+      const savedMax = maxSnap.val();
+      if (typeof savedMax === "number" && savedMax >= 0) {
+        maxCommentNumber = Math.max(savedMax, actualCommentCount);
+      } else {
+        maxCommentNumber = actualCommentCount;
+        await update(ref(db), {
+          [`thread-comment-max-numbers/${threadId}`]: maxCommentNumber
+        });
+      }
+
+      globalCommentCount = maxCommentNumber;
     } catch (error) {
       console.error("Comment Count Error:", error);
       globalCommentCount = Math.max(globalCommentCount, loadedEntries.length);
     }
 
-    hasMoreComments = globalCommentCount > loadedEntries.length;
+    hasMoreComments = actualCommentCount > loadedEntries.length;
     renderComments();
   });
 }
@@ -535,8 +569,9 @@ async function loadMoreComments(){
     });
 
     oldestLoadedKey = entriesToAdd[0][0];
+    oldestLoadedTime = entriesToAdd[0][1].time || null;
 
-    hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
+    hasMoreComments = actualCommentCount > Object.keys(loadedComments).length;
 
   } catch (error) {
     console.error("Load More Comments Error:", error);
@@ -606,7 +641,7 @@ document.getElementById("postBtn").onclick=async()=>{
     }
     const timestamp = Date.now();
     const highestLoadedNumber = getHighestLoadedCommentNumber();
-    const newNumber = Math.max(globalCommentCount, highestLoadedNumber) + 1;
+    const newNumber = Math.max(maxCommentNumber, highestLoadedNumber) + 1;
     const newPostRef = push(ref(db, `posts/${threadId}`));
     const newPostKey = newPostRef.key;
     const updates = {};
@@ -621,9 +656,13 @@ document.getElementById("postBtn").onclick=async()=>{
     };
     updates[`threads/${threadId}/lastTime`] = timestamp;
     updates[`thread-comment-counts/${threadId}`] = increment(1);
+    updates[`thread-comment-max-numbers/${threadId}`] = newNumber;
     await update(ref(db), updates);
 
     // 新規投稿を画面側のキャッシュにも即時追加
+    displayNumberMap[newPostKey] = newNumber;
+    try { localStorage.setItem(displayNumberStorageKey, JSON.stringify(displayNumberMap)); } catch (e) {}
+
     loadedComments[newPostKey] = {
       text: text,
       image: imageURL,
@@ -633,7 +672,9 @@ document.getElementById("postBtn").onclick=async()=>{
       userId: currentUid,
       number: newNumber
     };
-    globalCommentCount = Math.max(globalCommentCount + 1, newNumber);
+    actualCommentCount += 1;
+    maxCommentNumber = newNumber;
+    globalCommentCount = maxCommentNumber;
 
     const afterPostEntries = Object.entries(loadedComments)
       .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
@@ -648,7 +689,7 @@ document.getElementById("postBtn").onclick=async()=>{
 
     oldestLoadedKey = visibleEntries.length ? visibleEntries[0][0] : null;
     oldestLoadedTime = visibleEntries.length ? (visibleEntries[0][1].time || null) : null;
-    hasMoreComments = globalCommentCount > visibleEntries.length;
+    hasMoreComments = actualCommentCount > visibleEntries.length;
     renderComments();
 
     document.getElementById("commentInput").value="";
