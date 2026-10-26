@@ -81,7 +81,7 @@ h1 { margin: 0; font-size: 1.5rem; color: #9d88ff; text-shadow: 0 0 10px rgba(15
 
 <div id="mainContainer">
   <div id="searchBox">
-    <input id="searchInput" type="text" placeholder="🔍 スレッドのタイトルでリアルタイム検索...">
+    <input id="searchInput" type="text" placeholder="🔍 スレッドのタイトルでリアルタイム検索ぺこ...">
   </div>
 
   <div id="createThreadBox">
@@ -124,7 +124,7 @@ let globalCountsData = {};
 
 let stopAdminListener = null;
 let stopThreadsListener = null;
-let stopCountsListener = null;
+let threadCountListeners = new Map();
 
 let userName = localStorage.getItem("usakira_name") || defaultName;
 let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
@@ -155,7 +155,7 @@ document.getElementById("logoutBtn").onclick = async () => {
   try {
     if (stopAdminListener) stopAdminListener();
     if (stopThreadsListener) stopThreadsListener();
-    if (stopCountsListener) stopCountsListener();
+    stopAllThreadCountListeners();
     await signOut(auth);
     currentUid = null;
     isGlobalAdmin = false;
@@ -218,21 +218,6 @@ window.togglePinThread = async (tId, currentStatus) => {
   }
 };
 
-// 👤 プロフィール状態を安全に描画・更新するための共通関数
-function updateProfileBadge(isGoogleLinked) {
-  const nameEl = document.getElementById("myName");
-  const iconEl = document.getElementById("myIcon");
-  const profileInput = document.getElementById("inputProfileName");
-
-  if (profileInput && document.activeElement !== profileInput) {
-    profileInput.value = (userName && userName !== defaultName) ? userName : "";
-  }
-
-  nameEl.textContent = (isGoogleLinked && isGlobalAdmin) ? userName + " (管理人公認) 👑" : userName;
-  iconEl.src = isSafeUrl(userIcon) ? userIcon : defaultIcon;
-  document.getElementById("userBadge").style.display = "flex";
-}
-
 onAuthStateChanged(auth, async user => {
   if (!user) {
     document.getElementById("logoutBtn").style.display = "none";
@@ -254,37 +239,87 @@ onAuthStateChanged(auth, async user => {
       userName = localStorage.getItem("usakira_name") || defaultName;
       userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
       document.getElementById("adminLoginBtn").style.display = "block";
+      document.getElementById("userBadge").style.display = "flex"; // 一般でも変更できるようにbadgeを出す
     } else {
       const googleProfile = user.providerData.find(p => p.providerId === "google.com");
       userName = googleProfile.displayName || "管理者";
       userIcon = googleProfile.photoURL || defaultIcon;
       document.getElementById("adminLoginBtn").style.display = "none";
+      
+      const nameEl = document.getElementById("myName");
+      const iconEl = document.getElementById("myIcon");
+      nameEl.textContent = isGlobalAdmin ? userName + " (管理人公認) 👑" : "統合完了UID: " + currentUid;
+      iconEl.src = isSafeUrl(userIcon) ? userIcon : defaultIcon;
+      document.getElementById("userBadge").style.display = "flex";
     }
     
-    updateProfileBadge(isGoogleLinked);
+    // バッジ内の入力欄の初期値を更新
+    const profileInput = document.getElementById("inputProfileName");
+    if (profileInput) {
+      profileInput.value = (userName && userName !== defaultName) ? userName : "";
+    }
+    document.getElementById("myName").textContent = (isGoogleLinked && isGlobalAdmin) ? userName + " (管理人公認) 👑" : userName;
+    document.getElementById("myIcon").src = isSafeUrl(userIcon) ? userIcon : defaultIcon;
+
     startSync();
   });
 });
 
+function stopAllThreadCountListeners() {
+  threadCountListeners.forEach(stop => {
+    try { stop(); } catch (e) {}
+  });
+  threadCountListeners.clear();
+}
+
+function syncThreadCountListeners() {
+  const currentIds = new Set(globalThreadsData.map(([key]) => key));
+
+  // 消えたスレッドの監視を解除
+  threadCountListeners.forEach((stop, key) => {
+    if (!currentIds.has(key)) {
+      try { stop(); } catch (e) {}
+      threadCountListeners.delete(key);
+      delete globalCountsData[key];
+    }
+  });
+
+  // 各スレッドの posts を直接監視してコメント数を数える。
+  // thread-comment-counts への書き込み権限に依存しないため、
+  // 一般ユーザーの投稿や削除でも一覧の件数が確実に追従する。
+  globalThreadsData.forEach(([threadId]) => {
+    if (threadCountListeners.has(threadId)) return;
+
+    const postsRef = ref(db, `posts/${threadId}`);
+    const stop = onValue(postsRef, snap => {
+      const data = snap.val();
+      globalCountsData[threadId] = data ? Object.keys(data).length : 0;
+      renderThreadsList();
+    }, error => {
+      console.error(`Comment Count Error (${threadId}):`, error);
+      globalCountsData[threadId] = 0;
+      renderThreadsList();
+    });
+
+    threadCountListeners.set(threadId, stop);
+  });
+}
+
 function startSync() {
   if (stopThreadsListener) stopThreadsListener();
-  if (stopCountsListener) stopCountsListener();
-
-  stopCountsListener = onValue(ref(db, "thread-comment-counts"), snap => {
-    globalCountsData = snap.val() || {};
-    renderThreadsList(); 
-  });
+  stopAllThreadCountListeners();
+  globalCountsData = {};
 
   const threadsQuery = query(ref(db, "threads"), orderByChild("lastTime"), limitToLast(50));
   
   stopThreadsListener = onValue(threadsQuery, snap => {
     const data = snap.val();
-    if (!data) {
-      globalThreadsData = [];
-      renderThreadsList();
-      return;
-    }
-    globalThreadsData = Object.entries(data);
+    globalThreadsData = data ? Object.entries(data) : [];
+    syncThreadCountListeners();
+    renderThreadsList();
+  }, error => {
+    console.error("Threads Listener Error:", error);
+    globalThreadsData = [];
     renderThreadsList();
   });
 }
@@ -400,7 +435,7 @@ function renderThreadsList() {
   }
 }
 
-// 🖼️ 画像圧縮ロジック
+// 🖼️ 画像圧縮ロジック（thread.htmlの優秀な関数をここにも完全移植）
 function compressImage(file){
   return new Promise((resolve, reject) => {
     const img=new Image(); 
@@ -431,12 +466,12 @@ function compressImage(file){
   });
 }
 
-// ☁️ Cloudinaryアップロードロジック
+// ☁️ Cloudinaryアップロードロジック（thread.htmlと同じプリセット名を使用）
 async function uploadImage(file){
   const compressed=await compressImage(file);
   const formData=new FormData();
   formData.append("file",compressed);
-  formData.append("upload_preset","usakira_upload");
+  formData.append("upload_preset","usakira_upload"); // 👈 thread.htmlと同じに統一
   
   const res=await fetch("https://api.cloudinary.com/v1_1/dfhevulda/image/upload",{method:"POST",body:formData});
   if(!res.ok) throw new Error(`Upload Failed: Status ${res.status}`);
@@ -461,6 +496,9 @@ document.getElementById("submitThreadBtn").onclick = async () => {
 
   try {
     const timestamp = Date.now();
+    
+    // 🛠️ マルチパス更新（一括書き込み）で、threadsノードとthread-comment-countsノードを同時に作成！
+    // これにより、セキュリティルール（初期値1が必要）を一発で100%安全にクリアできるぺこ！
     const newThreadRef = push(ref(db, "threads"));
     const tId = newThreadRef.key;
 
@@ -475,21 +513,10 @@ document.getElementById("submitThreadBtn").onclick = async () => {
       lastTime: timestamp,
       pinned: false 
     };
-    
-    // 🐰 スレ作成時に1件目の自動レスをpostsに同時書き込みして整合性を確保
-    const firstPostRef = push(ref(db, `posts/${tId}`));
-    const firstPostKey = firstPostRef.key;
-    updates[`posts/${tId}/${firstPostKey}`] = {
-      text: body || "（本文なしスレッドが作成されました）",
-      time: timestamp,
-      userName: userName.substring(0, 50),
-      userIcon: userIcon,
-      userId: currentUid
-    };
-
-    updates[`thread-comment-counts/${tId}`] = 1; 
+    updates[`thread-comment-counts/${tId}`] = 1; // 👈 鉄壁ルール対応の初期値1！
 
     await update(ref(db), updates);
+
     document.getElementById("threadTitleInput").value = "";
     document.getElementById("threadBodyInput").value = "";
     alert("スレッドを立てたよ！ 🚀");
@@ -527,11 +554,10 @@ document.getElementById("btnSaveProfile").onclick = async () => {
   userName = newName;
   userIcon = iconUrl;
 
-  // 保存完了後に安全にバッジを即時再描画
-  const isGoogleLinked = auth.currentUser.providerData.some(p => p.providerId === "google.com");
-  updateProfileBadge(isGoogleLinked);
-
-  alert("変更完了したよ！🐰");
+  // 右上のバッジを即時更新
+  document.getElementById("myName").textContent = userName;
+  document.getElementById("myIcon").src = iconUrl;
+  alert("変更完了したぺこ！🐰");
 };
 </script>
 </body>
