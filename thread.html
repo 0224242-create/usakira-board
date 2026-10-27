@@ -83,7 +83,8 @@ body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, update, remove, get, query, orderByKey, limitToLast, endAt } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, update, remove, get, query, orderByKey, limitToLast, endAt, runTransaction } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
   authDomain: "keijiban-7c651.firebaseapp.com",
@@ -93,10 +94,12 @@ const firebaseConfig={
   appId: "1:587652395561:web:ddf858fdf84df2438491c3",
   databaseURL: "https://keijiban-7c651-default-rtdb.firebaseio.com"
 };
+
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
 const db=getDatabase(app);
 const googleProvider = new GoogleAuthProvider();
+
 const params=new URLSearchParams(location.search);
 const threadId=params.get("id");
 const idRegex = /^[A-Za-z0-9_-]{10,128}$/;
@@ -104,9 +107,11 @@ if (!threadId || !idRegex.test(threadId)) {
   alert("不正なスレッドIDです。トップページに戻ります。");
   location.href = "index.html";
 }
+
 const commentsRef=ref(db,"posts/"+threadId);
 const defaultName="名もなき兎";
 const defaultIcon="usagi.png.jpeg";
+
 let currentUid = null;
 let currentThreadOwnerId = null;
 let isGlobalAdmin = false;
@@ -114,16 +119,17 @@ let globalCommentCount = 0;
 let stopAdminListener = null;
 let stopThreadListener = null;
 let stopCommentsListener = null;
+
 const COMMENTS_PER_PAGE = 50;
 let loadedComments = {};
-let oldestLoadedTime = null;
 let oldestLoadedKey = null;
 let hasMoreComments = false;
-let latestCommentKeys = new Set();
 let isLoadingMore = false;
 let hasLoadedOlderComments = false;
+
 let userName = localStorage.getItem("usakira_name") || defaultName;
 let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
+
 document.getElementById("adminLoginBtn").onclick = () => {
   if (!auth.currentUser) return;
   linkWithPopup(auth.currentUser, googleProvider)
@@ -140,6 +146,7 @@ document.getElementById("adminLoginBtn").onclick = () => {
       }
     });
 };
+
 document.getElementById("logoutBtn").onclick = async () => {
   if (!confirm("ログアウトするぺこ？")) return;
   try {
@@ -156,11 +163,13 @@ document.getElementById("logoutBtn").onclick = async () => {
     alert("ログアウト中にエラーが発生しました。");
   }
 };
+
 function isSafeUrl(urlStr) {
   if (!urlStr) return true;
   if (urlStr.startsWith("javascript:") || urlStr.startsWith("data:")) return false;
   return urlStr.startsWith("http://") || urlStr.startsWith("https://");
 }
+
 function renderTextWithLinks(targetElement, text) {
   targetElement.textContent = "";
   if (!text) return;
@@ -183,51 +192,25 @@ function renderTextWithLinks(targetElement, text) {
     }
   });
 }
-async function refreshCommentCount() {
-  try {
-    const postsSnap = await get(ref(db, `posts/${threadId}`));
-    const currentCount = postsSnap.val() ? Object.keys(postsSnap.val()).length : 0;
-    globalCommentCount = currentCount;
-    await update(ref(db), {
-      [`thread-comment-counts/${threadId}`]: currentCount
-    });
-  } catch (error) {
-    console.error("Counter Sync Error:", error);
-  }
-}
+
 window.openImage = (src) => {
   document.getElementById("modalImg").src=src;
   document.getElementById("imageModal").style.display="flex";
 };
+
 window.deleteComment = async (commentId) => {
   if (!confirm("このコメントを削除するぺこ？")) return;
   try {
     await remove(ref(db, `posts/${threadId}/${commentId}`));
 
-    // Firebaseの再通知を待たず、画面から即時に削除
     delete loadedComments[commentId];
-    latestCommentKeys.delete(commentId);
-
     if (globalCommentCount > 0) globalCommentCount--;
 
     await update(ref(db), {
       [`thread-comment-counts/${threadId}`]: globalCommentCount
     });
 
-    // 削除しても、画面に残っているコメントの番号を詰め直さない。
-    // 新規投稿時は読み込めている最大番号も考慮して重複を防ぐ。
-    const remainingEntries = Object.entries(loadedComments)
-      .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
-
-    if (remainingEntries.length > 0) {
-      oldestLoadedKey = remainingEntries[0][0];
-      oldestLoadedTime = remainingEntries[0][1].time || null;
-    } else {
-      oldestLoadedKey = null;
-      oldestLoadedTime = null;
-    }
-
-    hasMoreComments = globalCommentCount > remainingEntries.length;
+    updateOldestCursor();
     renderComments();
     alert("コメントを削除したよ 🐰🧹");
   } catch (error) {
@@ -235,6 +218,7 @@ window.deleteComment = async (commentId) => {
     alert("削除に失敗しました。権限がありません。");
   }
 };
+
 onAuthStateChanged(auth, async user => {
   if (!user) {
     document.getElementById("logoutBtn").style.display = "none";
@@ -267,6 +251,7 @@ onAuthStateChanged(auth, async user => {
       document.getElementById("logoutBtn").style.display = "block";
     }
   });
+
   if (stopThreadListener) stopThreadListener();
   stopThreadListener = onValue(ref(db, "threads/" + threadId), snap => {
     const t = snap.val();
@@ -285,52 +270,9 @@ onAuthStateChanged(auth, async user => {
       document.getElementById("postBtn").disabled = true;
     }
   });
+
   loadComments();
 });
-const numberMapStorageKey = `usakira_comment_numbers_${threadId}`;
-let displayNumberMap = {};
-let highestAssignedNumber = 0;
-try {
-  displayNumberMap = JSON.parse(localStorage.getItem(numberMapStorageKey) || "{}");
-} catch (_) {
-  displayNumberMap = {};
-}
-
-function saveDisplayNumberMap(){
-  try {
-    localStorage.setItem(numberMapStorageKey, JSON.stringify(displayNumberMap));
-    localStorage.setItem(`${numberMapStorageKey}_max`, String(highestAssignedNumber));
-  } catch (_) {}
-}
-
-try {
-  highestAssignedNumber = Number(localStorage.getItem(`${numberMapStorageKey}_max`) || 0);
-  if (!Number.isFinite(highestAssignedNumber) || highestAssignedNumber < 0) highestAssignedNumber = 0;
-} catch (_) {
-  highestAssignedNumber = 0;
-}
-
-function getCommentNumber(comment, key, fallbackNumber){
-  if (typeof comment?.number === "number" && comment.number > 0) {
-    highestAssignedNumber = Math.max(highestAssignedNumber, comment.number);
-    return comment.number;
-  }
-  if (displayNumberMap[key] > 0) {
-    highestAssignedNumber = Math.max(highestAssignedNumber, displayNumberMap[key]);
-    return displayNumberMap[key];
-  }
-  if (fallbackNumber > 0) {
-    highestAssignedNumber = Math.max(highestAssignedNumber, fallbackNumber);
-  }
-  return fallbackNumber;
-}
-
-function getHighestLoadedCommentNumber(){
-  const values = Object.entries(loadedComments)
-    .map(([key, c]) => getCommentNumber(c, key, 0))
-    .filter(n => Number.isFinite(n) && n > 0);
-  return values.length ? Math.max(...values) : 0;
-}
 
 function sortByFirebaseKey(entries){
   return entries.sort((a, b) => a[0].localeCompare(b[0]));
@@ -345,9 +287,8 @@ function updateOldestCursor(){
   }
 }
 
+// 過去投稿の中に number が割り振られていないコメントがあれば自動補完する機能
 async function ensureLegacyNumbers(){
-  // 旧コメントの番号を「投稿順」に一度だけ確定する。
-  // 表示順とは完全に独立しており、削除・ページングで番号を振り直さない。
   try {
     const snap = await get(commentsRef);
     const data = snap.val();
@@ -355,35 +296,27 @@ async function ensureLegacyNumbers(){
 
     const entries = sortByFirebaseKey(Object.entries(data));
     const updates = {};
-    let changed = false;
+    let maxNumber = 0;
+    let unnumberedCount = 0;
 
-    // まず既存の number を最大値に反映
-    entries.forEach(([key, comment]) => {
-      const existing = comment && typeof comment.number === "number" && comment.number > 0 ? comment.number : 0;
-      const mapped = Number(displayNumberMap[key] || 0);
-      highestAssignedNumber = Math.max(highestAssignedNumber, existing, mapped);
-    });
-
-    // 投稿順（Pushキー順）に、番号がない旧コメントだけを補完。
-    entries.forEach(([key, comment]) => {
-      const existing = comment && typeof comment.number === "number" && comment.number > 0 ? comment.number : 0;
-      const mapped = Number(displayNumberMap[key] || 0);
-      if (existing > 0) {
-        displayNumberMap[key] = existing;
-      } else if (mapped > 0) {
-        // 以前この端末で確定した番号を維持
-        displayNumberMap[key] = mapped;
-      } else {
-        highestAssignedNumber += 1;
-        displayNumberMap[key] = highestAssignedNumber;
-        updates[`posts/${threadId}/${key}/number`] = highestAssignedNumber;
-        changed = true;
+    entries.forEach(([_, comment]) => {
+      if (typeof comment.number === "number" && comment.number > maxNumber) {
+        maxNumber = comment.number;
       }
     });
 
-    saveDisplayNumberMap();
-    if (changed) await update(ref(db), updates);
-    saveDisplayNumberMap();
+    entries.forEach(([key, comment]) => {
+      if (typeof comment.number !== "number") {
+        maxNumber++;
+        updates[`posts/${threadId}/${key}/number`] = maxNumber;
+        unnumberedCount++;
+      }
+    });
+
+    if (unnumberedCount > 0) {
+      updates[`thread-comment-counters/${threadId}`] = maxNumber;
+      await update(ref(db), updates);
+    }
   } catch (error) {
     console.warn("Legacy number migration skipped:", error);
   }
@@ -393,8 +326,6 @@ function renderComments(){
   const commentsContainer = document.getElementById("comments");
   commentsContainer.textContent = "";
 
-  // 表示順は「番号」ではなくFirebase Pushキーだけで決める。
-  // Pushキーは生成順なので、削除・過去ログ読み込みをしても順番が崩れない。
   const chronologicalList = sortByFirebaseKey(Object.entries(loadedComments));
 
   if (chronologicalList.length === 0) {
@@ -405,12 +336,6 @@ function renderComments(){
   const displayList = chronologicalList.slice().reverse();
 
   displayList.forEach(([key, c]) => {
-    const fallbackNumber = displayNumberMap[key] || 0;
-    const responseNumber = getCommentNumber(c, key, fallbackNumber);
-    if (responseNumber > 0 && displayNumberMap[key] !== responseNumber) {
-      displayNumberMap[key] = responseNumber;
-    }
-
     const commentDiv = document.createElement("div");
     commentDiv.classList.add("comment");
 
@@ -419,7 +344,7 @@ function renderComments(){
 
     const numSpan = document.createElement("span");
     numSpan.classList.add("comment-number");
-    numSpan.textContent = responseNumber > 0 ? `>>${responseNumber}` : "";
+    numSpan.textContent = c.number ? `>>${c.number}` : "";
 
     const iconImg = document.createElement("img");
     iconImg.classList.add("icon");
@@ -478,8 +403,6 @@ function renderComments(){
     commentsContainer.appendChild(commentDiv);
   });
 
-  saveDisplayNumberMap();
-
   if (hasMoreComments) {
     const loadMoreContainer = document.createElement("div");
     loadMoreContainer.classList.add("load-more-wrap");
@@ -503,12 +426,9 @@ function loadComments(){
   hasMoreComments = false;
   isLoadingMore = false;
   hasLoadedOlderComments = false;
-  latestCommentKeys = new Set();
 
-  // 番号は投稿順で一度だけ確定し、表示順とは分離する。
   ensureLegacyNumbers().catch(() => {});
 
-  // 表示順・ページングともにPushキーで統一する。
   const latestCommentsQuery = query(
     commentsRef,
     orderByKey(),
@@ -518,10 +438,7 @@ function loadComments(){
   stopCommentsListener = onValue(latestCommentsQuery, async snap => {
     const data = snap.val();
     const entries = data ? sortByFirebaseKey(Object.entries(data)) : [];
-    latestCommentKeys = new Set(entries.map(([key]) => key));
 
-    // 過去ログをまだ読んでいない間だけ、表示キャッシュを最新50件に同期。
-    // 一度でも過去ログを読んだ後は、既に読み込んだ古いコメントを消さない。
     if (!hasLoadedOlderComments) {
       loadedComments = Object.fromEntries(entries);
     } else {
@@ -545,7 +462,7 @@ function loadComments(){
       }
     } catch (error) {
       console.error("Comment Count Error:", error);
-      globalCommentCount = Math.max(globalCommentCount, Object.keys(loadedComments).length);
+      globalCommentCount = Object.keys(loadedComments).length;
     }
 
     hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
@@ -560,7 +477,6 @@ async function loadMoreComments(){
   renderComments();
 
   try {
-    // 現在の最古Pushキーより前を50件取得。番号は一切参照しない。
     const olderCommentsQuery = query(
       commentsRef,
       orderByKey(),
@@ -584,27 +500,23 @@ async function loadMoreComments(){
       return;
     }
 
-    // 取得した中から「現在の最古より古い」最大50件を追加。
     const entriesToAdd = olderEntries.slice(-COMMENTS_PER_PAGE);
     entriesToAdd.forEach(([key, comment]) => {
       loadedComments[key] = comment;
-      if (typeof comment.number === "number" && comment.number > 0) {
-        displayNumberMap[key] = comment.number;
-      }
     });
 
     hasLoadedOlderComments = true;
     updateOldestCursor();
     hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
-    saveDisplayNumberMap();
   } catch (error) {
     console.error("Load More Comments Error:", error);
-    alert("過去のコメントの読み込みに失敗しました。もう一度試してください。\n\nエラー: " + (error?.message || "不明なエラー"));
+    alert("過去のコメントの読み込みに失敗しました。もう一度試してください。");
   } finally {
     isLoadingMore = false;
     renderComments();
   }
 }
+
 function compressImage(file){
   return new Promise((resolve, reject) => {
     const img=new Image();
@@ -631,6 +543,7 @@ function compressImage(file){
     img.src=objectUrl;
   });
 }
+
 async function uploadImage(file){
   const compressed=await compressImage(file);
   const formData=new FormData();
@@ -642,6 +555,7 @@ async function uploadImage(file){
   if(!data.secure_url) throw new Error("Missing secure_url");
   return data.secure_url;
 }
+
 document.getElementById("postBtn").onclick=async()=>{
   if(!currentUid) return alert("ログイン処理中です");
   const postBtn = document.getElementById("postBtn");
@@ -650,27 +564,37 @@ document.getElementById("postBtn").onclick=async()=>{
   if(!text && !file){ alert("コメントか画像を入れてください"); return; }
   if(text.length > 1000){ alert("コメントは1000文字以内にしてね"); return; }
   if(file && file.size > 5 * 1024 * 1024) return alert("画像ファイルは5MB以下にしてね 🐰❌");
+  
   postBtn.disabled = true;
   document.getElementById("postStatus").textContent="投稿処理中...";
+
   try {
     let imageURL="";
     if(file) imageURL=await uploadImage(file);
     if (imageURL && (imageURL.length > 1000 || !isSafeUrl(imageURL))) {
       throw new Error("Malicious or invalid image URL detected.");
     }
+
     const savedName = localStorage.getItem("usakira_name") || defaultName;
     let savedIcon = localStorage.getItem("usakira_icon") || defaultIcon;
     if (!savedIcon.startsWith("http://") && !savedIcon.startsWith("https://")) {
       savedIcon = "https://res.cloudinary.com/dfhevulda/image/upload/v12345678/default_usagi.png";
     }
+
     const timestamp = Date.now();
-    const highestLoadedNumber = getHighestLoadedCommentNumber();
-    // 番号は「投稿順」。表示中の件数ではなく、これまでに確定した最大番号の次を使う。
-    // 同じ端末では削除済み番号も再利用しない。
-    const newNumber = Math.max(highestAssignedNumber, highestLoadedNumber) + 1;
-    highestAssignedNumber = newNumber;
+
+    // 1. カウンターのトランザクション実行（投稿順に確実に1から連続でカウントアップする）
+    const counterRef = ref(db, `thread-comment-counters/${threadId}`);
+    const transactionResult = await runTransaction(counterRef, (currentValue) => {
+      return (currentValue || 0) + 1;
+    });
+
+    const assignedNumber = transactionResult.snapshot.val();
+
+    // 2. 割り当てられた番号を元に新規投稿データを書き込み
     const newPostRef = push(ref(db, `posts/${threadId}`));
     const newPostKey = newPostRef.key;
+
     const updates = {};
     updates[`posts/${threadId}/${newPostKey}`] = {
       text: text,
@@ -679,38 +603,12 @@ document.getElementById("postBtn").onclick=async()=>{
       userName: savedName.substring(0, 50),
       userIcon: savedIcon,
       userId: currentUid,
-      number: newNumber
+      number: assignedNumber
     };
     updates[`threads/${threadId}/lastTime`] = timestamp;
-    // 一覧側のコメント数を維持する。投稿処理と番号処理は別物。
-    updates[`thread-comment-counts/${threadId}`] = Math.max(0, globalCommentCount) + 1;
+    updates[`thread-comment-counts/${threadId}`] = globalCommentCount + 1;
+
     await update(ref(db), updates);
-
-    // 新規投稿を画面側のキャッシュにも即時追加
-    loadedComments[newPostKey] = {
-      text: text,
-      image: imageURL,
-      time: timestamp,
-      userName: savedName.substring(0, 50),
-      userIcon: savedIcon,
-      userId: currentUid,
-      number: newNumber
-    };
-    globalCommentCount = Math.max(globalCommentCount + 1, newNumber);
-    displayNumberMap[newPostKey] = newNumber;
-    saveDisplayNumberMap();
-
-    const afterPostEntries = sortByFirebaseKey(Object.entries(loadedComments));
-
-    // 過去ログをまだ開いていない場合だけ最新50件に戻す。
-    // 過去ログを開いた後は、読み込んだ履歴を勝手に捨てない。
-    if (!hasLoadedOlderComments && afterPostEntries.length > COMMENTS_PER_PAGE) {
-      loadedComments = Object.fromEntries(afterPostEntries.slice(-COMMENTS_PER_PAGE));
-    }
-
-    updateOldestCursor();
-    hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
-    renderComments();
 
     document.getElementById("commentInput").value="";
     document.getElementById("imageInput").value="";
@@ -724,6 +622,7 @@ document.getElementById("postBtn").onclick=async()=>{
     postBtn.disabled = false;
   }
 };
+
 document.getElementById("imageInput").onchange=e=>{
   const file=e.target.files[0];
   document.getElementById("fileName").textContent=file?file.name:"";
