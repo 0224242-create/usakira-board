@@ -83,7 +83,7 @@ body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, update, remove, get, query, orderByKey, limitToLast, endAt, runTransaction } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, update, remove, get, query, orderByKey, limitToLast, endAt } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -287,41 +287,6 @@ function updateOldestCursor(){
   }
 }
 
-// 過去投稿の中に number が割り振られていないコメントがあれば自動補完する機能
-async function ensureLegacyNumbers(){
-  try {
-    const snap = await get(commentsRef);
-    const data = snap.val();
-    if (!data) return;
-
-    const entries = sortByFirebaseKey(Object.entries(data));
-    const updates = {};
-    let maxNumber = 0;
-    let unnumberedCount = 0;
-
-    entries.forEach(([_, comment]) => {
-      if (typeof comment.number === "number" && comment.number > maxNumber) {
-        maxNumber = comment.number;
-      }
-    });
-
-    entries.forEach(([key, comment]) => {
-      if (typeof comment.number !== "number") {
-        maxNumber++;
-        updates[`posts/${threadId}/${key}/number`] = maxNumber;
-        unnumberedCount++;
-      }
-    });
-
-    if (unnumberedCount > 0) {
-      updates[`thread-comment-counters/${threadId}`] = maxNumber;
-      await update(ref(db), updates);
-    }
-  } catch (error) {
-    console.warn("Legacy number migration skipped:", error);
-  }
-}
-
 function renderComments(){
   const commentsContainer = document.getElementById("comments");
   commentsContainer.textContent = "";
@@ -426,8 +391,6 @@ function loadComments(){
   hasMoreComments = false;
   isLoadingMore = false;
   hasLoadedOlderComments = false;
-
-  ensureLegacyNumbers().catch(() => {});
 
   const latestCommentsQuery = query(
     commentsRef,
@@ -583,15 +546,24 @@ document.getElementById("postBtn").onclick=async()=>{
 
     const timestamp = Date.now();
 
-    // 1. カウンターのトランザクション実行（投稿順に確実に1から連続でカウントアップする）
-    const counterRef = ref(db, `thread-comment-counters/${threadId}`);
-    const transactionResult = await runTransaction(counterRef, (currentValue) => {
-      return (currentValue || 0) + 1;
-    });
+    // 既存データから最大番号を取得して+1する (追加のDBパスを不要にする)
+    const postsSnap = await get(commentsRef);
+    let maxNumber = 0;
+    if (postsSnap.exists()) {
+      const posts = postsSnap.val();
+      Object.values(posts).forEach(p => {
+        if (p && typeof p.number === "number" && p.number > maxNumber) {
+          maxNumber = p.number;
+        }
+      });
+      // numberプロパティがない旧コメントの件数も考慮
+      const totalCount = Object.keys(posts).length;
+      if (maxNumber < totalCount) {
+        maxNumber = totalCount;
+      }
+    }
+    const assignedNumber = maxNumber + 1;
 
-    const assignedNumber = transactionResult.snapshot.val();
-
-    // 2. 割り当てられた番号を元に新規投稿データを書き込み
     const newPostRef = push(ref(db, `posts/${threadId}`));
     const newPostKey = newPostRef.key;
 
@@ -606,7 +578,7 @@ document.getElementById("postBtn").onclick=async()=>{
       number: assignedNumber
     };
     updates[`threads/${threadId}/lastTime`] = timestamp;
-    updates[`thread-comment-counts/${threadId}`] = globalCommentCount + 1;
+    updates[`thread-comment-counts/${threadId}`] = assignedNumber;
 
     await update(ref(db), updates);
 
@@ -617,7 +589,7 @@ document.getElementById("postBtn").onclick=async()=>{
     setTimeout(()=>{ document.getElementById("postStatus").textContent=""; },2000);
   } catch (error) {
     console.error("Post Error:", error);
-    alert("投稿に失敗しました。");
+    alert("投稿に失敗しました: " + (error?.message || "不明なエラー"));
   } finally {
     postBtn.disabled = false;
   }
