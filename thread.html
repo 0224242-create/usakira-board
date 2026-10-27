@@ -125,7 +125,6 @@ let loadedComments = {};
 let oldestLoadedKey = null;
 let hasMoreComments = false;
 let isLoadingMore = false;
-let hasLoadedOlderComments = false;
 
 let userName = localStorage.getItem("usakira_name") || defaultName;
 let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
@@ -300,7 +299,7 @@ function renderComments(){
 
   const displayList = chronologicalList.slice().reverse();
 
-  displayList.forEach(([key, c]) => {
+  displayList.forEach(([key, c], index) => {
     const commentDiv = document.createElement("div");
     commentDiv.classList.add("comment");
 
@@ -309,7 +308,13 @@ function renderComments(){
 
     const numSpan = document.createElement("span");
     numSpan.classList.add("comment-number");
-    numSpan.textContent = c.number ? `>>${c.number}` : "";
+
+    // c.numberがあればそれを優先。ない場合は古い順の位置から採番
+    const calculatedNumber = (typeof c.number === "number" && c.number > 0) 
+      ? c.number 
+      : chronologicalList.findIndex(item => item[0] === key) + 1;
+
+    numSpan.textContent = `>>${calculatedNumber}`;
 
     const iconImg = document.createElement("img");
     iconImg.classList.add("icon");
@@ -390,7 +395,6 @@ function loadComments(){
   oldestLoadedKey = null;
   hasMoreComments = false;
   isLoadingMore = false;
-  hasLoadedOlderComments = false;
 
   const latestCommentsQuery = query(
     commentsRef,
@@ -402,13 +406,10 @@ function loadComments(){
     const data = snap.val();
     const entries = data ? sortByFirebaseKey(Object.entries(data)) : [];
 
-    if (!hasLoadedOlderComments) {
-      loadedComments = Object.fromEntries(entries);
-    } else {
-      entries.forEach(([key, comment]) => {
-        loadedComments[key] = comment;
-      });
-    }
+    // 新しい投稿の反映（既存のキャッシュにマージ）
+    entries.forEach(([key, comment]) => {
+      loadedComments[key] = comment;
+    });
 
     updateOldestCursor();
 
@@ -456,19 +457,17 @@ async function loadMoreComments(){
     }
 
     const entries = sortByFirebaseKey(Object.entries(data));
-    const olderEntries = entries.filter(([key]) => key !== oldestLoadedKey && !loadedComments[key]);
+    const olderEntries = entries.filter(([key]) => key !== oldestLoadedKey);
 
     if (olderEntries.length === 0) {
       hasMoreComments = false;
       return;
     }
 
-    const entriesToAdd = olderEntries.slice(-COMMENTS_PER_PAGE);
-    entriesToAdd.forEach(([key, comment]) => {
+    olderEntries.forEach(([key, comment]) => {
       loadedComments[key] = comment;
     });
 
-    hasLoadedOlderComments = true;
     updateOldestCursor();
     hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
   } catch (error) {
@@ -546,7 +545,7 @@ document.getElementById("postBtn").onclick=async()=>{
 
     const timestamp = Date.now();
 
-    // 既存データから最大番号を取得して+1する (追加のDBパスを不要にする)
+    // 最新の最大番号を取得して+1する
     const postsSnap = await get(commentsRef);
     let maxNumber = 0;
     if (postsSnap.exists()) {
@@ -556,7 +555,6 @@ document.getElementById("postBtn").onclick=async()=>{
           maxNumber = p.number;
         }
       });
-      // numberプロパティがない旧コメントの件数も考慮
       const totalCount = Object.keys(posts).length;
       if (maxNumber < totalCount) {
         maxNumber = totalCount;
