@@ -289,6 +289,7 @@ onAuthStateChanged(auth, async user => {
 });
 const numberMapStorageKey = `usakira_comment_numbers_${threadId}`;
 let displayNumberMap = {};
+let highestAssignedNumber = 0;
 try {
   displayNumberMap = JSON.parse(localStorage.getItem(numberMapStorageKey) || "{}");
 } catch (_) {
@@ -298,15 +299,28 @@ try {
 function saveDisplayNumberMap(){
   try {
     localStorage.setItem(numberMapStorageKey, JSON.stringify(displayNumberMap));
+    localStorage.setItem(`${numberMapStorageKey}_max`, String(highestAssignedNumber));
   } catch (_) {}
+}
+
+try {
+  highestAssignedNumber = Number(localStorage.getItem(`${numberMapStorageKey}_max`) || 0);
+  if (!Number.isFinite(highestAssignedNumber) || highestAssignedNumber < 0) highestAssignedNumber = 0;
+} catch (_) {
+  highestAssignedNumber = 0;
 }
 
 function getCommentNumber(comment, key, fallbackNumber){
   if (typeof comment?.number === "number" && comment.number > 0) {
+    highestAssignedNumber = Math.max(highestAssignedNumber, comment.number);
     return comment.number;
   }
   if (displayNumberMap[key] > 0) {
+    highestAssignedNumber = Math.max(highestAssignedNumber, displayNumberMap[key]);
     return displayNumberMap[key];
+  }
+  if (fallbackNumber > 0) {
+    highestAssignedNumber = Math.max(highestAssignedNumber, fallbackNumber);
   }
   return fallbackNumber;
 }
@@ -332,8 +346,8 @@ function updateOldestCursor(){
 }
 
 async function ensureLegacyNumbers(){
-  // numberを持たない旧コメントに、一度だけ恒久的な番号を付与する。
-  // 表示順とは独立した「番号」の初期化なので、削除やページングで番号が詰まらない。
+  // 旧コメントの番号を「投稿順」に一度だけ確定する。
+  // 表示順とは完全に独立しており、削除・ページングで番号を振り直さない。
   try {
     const snap = await get(commentsRef);
     const data = snap.val();
@@ -343,24 +357,33 @@ async function ensureLegacyNumbers(){
     const updates = {};
     let changed = false;
 
-    entries.forEach(([key, comment], index) => {
-      const existing = comment && typeof comment.number === "number" && comment.number > 0
-        ? comment.number
-        : null;
-      if (existing) {
+    // まず既存の number を最大値に反映
+    entries.forEach(([key, comment]) => {
+      const existing = comment && typeof comment.number === "number" && comment.number > 0 ? comment.number : 0;
+      const mapped = Number(displayNumberMap[key] || 0);
+      highestAssignedNumber = Math.max(highestAssignedNumber, existing, mapped);
+    });
+
+    // 投稿順（Pushキー順）に、番号がない旧コメントだけを補完。
+    entries.forEach(([key, comment]) => {
+      const existing = comment && typeof comment.number === "number" && comment.number > 0 ? comment.number : 0;
+      const mapped = Number(displayNumberMap[key] || 0);
+      if (existing > 0) {
         displayNumberMap[key] = existing;
+      } else if (mapped > 0) {
+        // 以前この端末で確定した番号を維持
+        displayNumberMap[key] = mapped;
       } else {
-        const number = index + 1;
-        displayNumberMap[key] = number;
-        updates[`posts/${threadId}/${key}/number`] = number;
+        highestAssignedNumber += 1;
+        displayNumberMap[key] = highestAssignedNumber;
+        updates[`posts/${threadId}/${key}/number`] = highestAssignedNumber;
         changed = true;
       }
     });
 
     saveDisplayNumberMap();
-    if (changed) {
-      await update(ref(db), updates);
-    }
+    if (changed) await update(ref(db), updates);
+    saveDisplayNumberMap();
   } catch (error) {
     console.warn("Legacy number migration skipped:", error);
   }
@@ -481,6 +504,9 @@ function loadComments(){
   isLoadingMore = false;
   hasLoadedOlderComments = false;
   latestCommentKeys = new Set();
+
+  // 番号は投稿順で一度だけ確定し、表示順とは分離する。
+  ensureLegacyNumbers().catch(() => {});
 
   // 表示順・ページングともにPushキーで統一する。
   const latestCommentsQuery = query(
@@ -639,7 +665,10 @@ document.getElementById("postBtn").onclick=async()=>{
     }
     const timestamp = Date.now();
     const highestLoadedNumber = getHighestLoadedCommentNumber();
-    const newNumber = Math.max(globalCommentCount, highestLoadedNumber) + 1;
+    // 番号は「投稿順」。表示中の件数ではなく、これまでに確定した最大番号の次を使う。
+    // 同じ端末では削除済み番号も再利用しない。
+    const newNumber = Math.max(highestAssignedNumber, highestLoadedNumber) + 1;
+    highestAssignedNumber = newNumber;
     const newPostRef = push(ref(db, `posts/${threadId}`));
     const newPostKey = newPostRef.key;
     const updates = {};
@@ -653,6 +682,8 @@ document.getElementById("postBtn").onclick=async()=>{
       number: newNumber
     };
     updates[`threads/${threadId}/lastTime`] = timestamp;
+    // 一覧側のコメント数を維持する。投稿処理と番号処理は別物。
+    updates[`thread-comment-counts/${threadId}`] = Math.max(0, globalCommentCount) + 1;
     await update(ref(db), updates);
 
     // 新規投稿を画面側のキャッシュにも即時追加
@@ -669,20 +700,16 @@ document.getElementById("postBtn").onclick=async()=>{
     displayNumberMap[newPostKey] = newNumber;
     saveDisplayNumberMap();
 
-    const afterPostEntries = Object.entries(loadedComments)
-      .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
+    const afterPostEntries = sortByFirebaseKey(Object.entries(loadedComments));
 
-    // 最新50件を超えた場合は表示キャッシュを最新50件に保つ
-    if (afterPostEntries.length > COMMENTS_PER_PAGE) {
+    // 過去ログをまだ開いていない場合だけ最新50件に戻す。
+    // 過去ログを開いた後は、読み込んだ履歴を勝手に捨てない。
+    if (!hasLoadedOlderComments && afterPostEntries.length > COMMENTS_PER_PAGE) {
       loadedComments = Object.fromEntries(afterPostEntries.slice(-COMMENTS_PER_PAGE));
     }
 
-    const visibleEntries = Object.entries(loadedComments)
-      .sort((a,b) => (a[1].time || 0) - (b[1].time || 0));
-
-    oldestLoadedKey = visibleEntries.length ? visibleEntries[0][0] : null;
-    oldestLoadedTime = visibleEntries.length ? (visibleEntries[0][1].time || null) : null;
-    hasMoreComments = globalCommentCount > visibleEntries.length;
+    updateOldestCursor();
+    hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
     renderComments();
 
     document.getElementById("commentInput").value="";
