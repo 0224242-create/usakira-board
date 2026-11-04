@@ -119,12 +119,14 @@ let globalCommentCount = 0;
 let stopAdminListener = null;
 let stopThreadListener = null;
 let stopCommentsListener = null;
+let stopCountListener = null;
 
 const COMMENTS_PER_PAGE = 50;
 let loadedComments = {};
 let oldestLoadedKey = null;
 let hasMoreComments = false;
 let isLoadingMore = false;
+let hasLoadedOlder = false;
 
 let userName = localStorage.getItem("usakira_name") || defaultName;
 let userIcon = localStorage.getItem("usakira_icon") || defaultIcon;
@@ -152,6 +154,7 @@ document.getElementById("logoutBtn").onclick = async () => {
     if (stopAdminListener) stopAdminListener();
     if (stopThreadListener) stopThreadListener();
     if (stopCommentsListener) stopCommentsListener();
+    if (stopCountListener) stopCountListener();
     await signOut(auth);
     currentUid = null;
     isGlobalAdmin = false;
@@ -292,6 +295,16 @@ function sortByKey(entries){
 
 function sortForDisplay(entries){
   return entries.sort((a, b) => {
+    const numberA = Number(a[1]?.number);
+    const numberB = Number(b[1]?.number);
+    const hasNumberA = Number.isSafeInteger(numberA) && numberA > 0;
+    const hasNumberB = Number.isSafeInteger(numberB) && numberB > 0;
+
+    // 固定連番が両方にあるコメント同士は、その番号で順序を決める。
+    if (hasNumberA && hasNumberB && numberA !== numberB) {
+      return numberB - numberA;
+    }
+
     const timeA = Number(a[1]?.time) || 0;
     const timeB = Number(b[1]?.time) || 0;
     return timeB - timeA || b[0].localeCompare(a[0]);
@@ -336,9 +349,9 @@ function renderComments(){
     if (typeof c.number === "number" && c.number > 0) {
       calculatedNumber = c.number;
     } else {
-      // 旧データにnumberがない場合だけ、現在読み込めている範囲内の仮番号を表示。
-      // 新規投稿は必ず保存済みnumberを持つ。
-      calculatedNumber = Math.max(1, globalCommentCount - displayList.length + displayIndex + 1);
+      // 旧データにnumberがない場合の互換表示。新しい順の表示位置から番号を推定する。
+      // 新規投稿には必ず固定numberを保存する。
+      calculatedNumber = Math.max(1, globalCommentCount - displayIndex);
     }
 
     numSpan.textContent = `>>${calculatedNumber}`;
@@ -417,46 +430,62 @@ function renderComments(){
 
 function loadComments(){
   if (stopCommentsListener) stopCommentsListener();
+  if (stopCountListener) stopCountListener();
 
   loadedComments = {};
   oldestLoadedKey = null;
   hasMoreComments = false;
   isLoadingMore = false;
+  hasLoadedOlder = false;
 
   const latestCommentsQuery = query(
     commentsRef,
     orderByKey(),
-    limitToLast(COMMENTS_PER_PAGE)
+    limitToLast(COMMENTS_PER_PAGE + 1)
   );
 
-  stopCommentsListener = onValue(latestCommentsQuery, async snap => {
+  stopCommentsListener = onValue(latestCommentsQuery, snap => {
     const data = snap.val();
-    const entries = data ? sortByKey(Object.entries(data)) : [];
+    const entries = data
+      ? sortByKey(Object.entries(data).filter(([key, comment]) =>
+          key !== "!sequence" && comment && typeof comment === "object"
+        ))
+      : [];
 
-    entries.forEach(([key, comment]) => {
-      if (key !== "!sequence" && comment && typeof comment === "object") {
+    if (!hasLoadedOlder) {
+      loadedComments = {};
+      entries.slice(-COMMENTS_PER_PAGE).forEach(([key, comment]) => {
         loadedComments[key] = comment;
-      }
-    });
+      });
+    } else {
+      entries.forEach(([key, comment]) => {
+        loadedComments[key] = comment;
+      });
+    }
 
     updateOldestCursor();
+    hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
+    renderComments();
+  });
 
-    try {
-      const countSnap = await get(ref(db, `thread-comment-counts/${threadId}`));
-      const count = countSnap.val();
-      if (typeof count === "number") {
-        globalCommentCount = count;
-      } else {
+  const countRef = ref(db, `thread-comment-counts/${threadId}`);
+  stopCountListener = onValue(countRef, async countSnap => {
+    const count = countSnap.val();
+    if (typeof count === "number" && Number.isFinite(count)) {
+      globalCommentCount = Math.max(0, count);
+    } else {
+      try {
         const postsSnap = await get(commentsRef);
         const actualCount = countRealComments(postsSnap.val());
         globalCommentCount = actualCount;
-        await update(ref(db), { [`thread-comment-counts/${threadId}`]: actualCount });
+        await update(ref(db), {
+          [`thread-comment-counts/${threadId}`]: actualCount
+        });
+      } catch (error) {
+        console.error("Comment Count Error:", error);
+        globalCommentCount = Math.max(globalCommentCount, Object.keys(loadedComments).length);
       }
-    } catch (error) {
-      console.error("Comment Count Error:", error);
-      globalCommentCount = Object.keys(loadedComments).length;
     }
-
     hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
     renderComments();
   });
@@ -499,6 +528,7 @@ async function loadMoreComments(){
       loadedComments[key] = comment;
     });
 
+    hasLoadedOlder = true;
     updateOldestCursor();
     hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
   } catch (error) {
@@ -550,35 +580,50 @@ async function uploadImage(file){
 }
 
 async function getNextCommentNumber(){
-  // 新しいトップレベルパスは作らず、既存の posts/{threadId} の中に
-  // !sequence という予約キーで連番カウンターを置く。
-  // pushキーより前に並ぶため、通常のコメント50件取得には混ざらない。
+  // !sequence は既存の posts/{threadId} 内に置く予約レコード。
+  // Firebaseルールのバリデーションを通すため、通常コメントと同じ必須項目を持たせる。
+  // 件数・表示・ページングでは !sequence をコメントとして数えない。
   const sequenceRef = ref(db, `posts/${threadId}/!sequence`);
   const sequenceSnap = await get(sequenceRef);
-  let initialMaximum = Number(sequenceSnap.val()) || 0;
+  const sequenceValue = sequenceSnap.val();
 
-  // 初回だけ、これまで保存されたnumberの最大値を調べて引き継ぐ。
-  if (!sequenceSnap.exists()) {
+  let initialMaximum = 0;
+  if (sequenceValue && typeof sequenceValue === "object") {
+    initialMaximum = Number(sequenceValue.number) || 0;
+  } else {
     const postsSnap = await get(commentsRef);
-    if (postsSnap.exists()) {
-      Object.entries(postsSnap.val()).forEach(([key, comment]) => {
-        if (key === "!sequence" || !comment || typeof comment !== "object") return;
-        const number = Number(comment.number);
-        if (Number.isSafeInteger(number) && number > initialMaximum) {
-          initialMaximum = number;
-        }
-      });
-    }
+    const posts = postsSnap.val() || {};
+    let maximumSavedNumber = 0;
+    Object.entries(posts).forEach(([key, comment]) => {
+      if (key === "!sequence" || !comment || typeof comment !== "object") return;
+      const number = Number(comment.number);
+      if (Number.isSafeInteger(number) && number > maximumSavedNumber) {
+        maximumSavedNumber = number;
+      }
+    });
+    initialMaximum = Math.max(maximumSavedNumber, countRealComments(posts));
   }
 
-  // transactionにより同時投稿でも番号が重複しない。
   const result = await runTransaction(sequenceRef, current => {
-    const base = current === null ? initialMaximum : (Number(current) || 0);
-    return base + 1;
+    const currentNumber = current && typeof current === "object"
+      ? Number(current.number) || 0
+      : Number(current) || initialMaximum;
+
+    return {
+      time: 0,
+      userId: currentUid,
+      text: "",
+      number: Math.max(currentNumber, initialMaximum) + 1
+    };
   });
 
   if (!result.committed) throw new Error("コメント番号の採番に失敗しました。");
-  return Number(result.snapshot.val());
+
+  const assigned = Number(result.snapshot.val()?.number);
+  if (!Number.isSafeInteger(assigned) || assigned < 1) {
+    throw new Error("コメント番号が正しく取得できませんでした。");
+  }
+  return assigned;
 }
 
 async function incrementActiveCommentCount(){
@@ -661,6 +706,18 @@ document.getElementById("postBtn").onclick=async()=>{
     } catch (countError) {
       console.error("Comment Count Update Error:", countError);
       globalCommentCount = globalCommentCount + 1;
+    }
+    if (hasLoadedOlder) {
+      loadedComments[newPostKey] = {
+        text,
+        image: imageURL,
+        time: timestamp,
+        userName: savedName.substring(0, 50),
+        userIcon: savedIcon,
+        userId: currentUid,
+        number: assignedNumber
+      };
+      updateOldestCursor();
     }
     hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
     renderComments();
