@@ -123,7 +123,6 @@ let stopCommentsListener = null;
 const COMMENTS_PER_PAGE = 50;
 let loadedComments = {};
 let oldestLoadedKey = null;
-let oldestLoadedTime = null;
 let hasMoreComments = false;
 let isLoadingMore = false;
 
@@ -199,6 +198,7 @@ window.openImage = (src) => {
 };
 
 window.deleteComment = async (commentId) => {
+  if (!commentId || commentId === "!sequence") return;
   if (!confirm("このコメントを削除するぺこ？")) return;
   try {
     await remove(ref(db, `posts/${threadId}/${commentId}`));
@@ -206,8 +206,16 @@ window.deleteComment = async (commentId) => {
     delete loadedComments[commentId];
 
     const countRef = ref(db, `thread-comment-counts/${threadId}`);
+    const countSnap = await get(countRef);
+    let remainingCount = 0;
+    if (typeof countSnap.val() !== "number") {
+      const remainingPosts = await get(commentsRef);
+      remainingCount = countRealComments(remainingPosts.val());
+    }
     const countResult = await runTransaction(countRef, current => {
-      return Math.max(0, (Number(current) || 0) - 1);
+      return current === null
+        ? remainingCount
+        : Math.max(0, (Number(current) || 0) - 1);
     });
     globalCommentCount = Number(countResult.snapshot.val()) || 0;
 
@@ -276,47 +284,44 @@ onAuthStateChanged(auth, async user => {
   loadComments();
 });
 
-// 表示・ページングとも投稿日時を基準にする。
-// 同じ時刻の投稿だけFirebaseキーで順序を確定させる。
-function sortByFirebaseKey(entries){
+// Firebaseのpushキーでページングし、画面上は投稿時刻の新しい順に表示する。
+// ページング用のキー順と、画面表示用の時刻順を混ぜない。
+function sortByKey(entries){
+  return entries.sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function sortForDisplay(entries){
   return entries.sort((a, b) => {
     const timeA = Number(a[1]?.time) || 0;
     const timeB = Number(b[1]?.time) || 0;
-    return timeA - timeB || a[0].localeCompare(b[0]);
+    return timeB - timeA || b[0].localeCompare(a[0]);
   });
 }
 
-function compareCommentEntries(a, b){
-  const timeA = Number(a[1]?.time) || 0;
-  const timeB = Number(b[1]?.time) || 0;
-  return timeA - timeB || a[0].localeCompare(b[0]);
+function updateOldestCursor(){
+  const entries = sortByKey(Object.entries(loadedComments));
+  oldestLoadedKey = entries.length ? entries[0][0] : null;
 }
 
-function updateOldestCursor(){
-  const entries = sortByFirebaseKey(Object.entries(loadedComments));
-  if (entries.length > 0) {
-    oldestLoadedKey = entries[0][0];
-    oldestLoadedTime = Number(entries[0][1]?.time) || 0;
-  } else {
-    oldestLoadedKey = null;
-    oldestLoadedTime = null;
-  }
+function countRealComments(data){
+  if (!data || typeof data !== "object") return 0;
+  return Object.keys(data).filter(key => key !== "!sequence").length;
 }
 
 function renderComments(){
   const commentsContainer = document.getElementById("comments");
   commentsContainer.textContent = "";
 
-  const chronologicalList = sortByFirebaseKey(Object.entries(loadedComments));
+  const chronologicalList = sortForDisplay(Object.entries(loadedComments));
 
   if (chronologicalList.length === 0) {
     commentsContainer.textContent = "コメントがまだありません。最初の足跡を残してみよう！";
     return;
   }
 
-  const displayList = chronologicalList.slice().reverse();
+  const displayList = chronologicalList;
 
-  displayList.forEach(([key, c]) => {
+  displayList.forEach(([key, c], displayIndex) => {
     const commentDiv = document.createElement("div");
     commentDiv.classList.add("comment");
 
@@ -331,7 +336,9 @@ function renderComments(){
     if (typeof c.number === "number" && c.number > 0) {
       calculatedNumber = c.number;
     } else {
-      calculatedNumber = chronologicalList.findIndex(item => item[0] === key) + 1;
+      // 旧データにnumberがない場合だけ、現在読み込めている範囲内の仮番号を表示。
+      // 新規投稿は必ず保存済みnumberを持つ。
+      calculatedNumber = Math.max(1, globalCommentCount - displayList.length + displayIndex + 1);
     }
 
     numSpan.textContent = `>>${calculatedNumber}`;
@@ -413,7 +420,6 @@ function loadComments(){
 
   loadedComments = {};
   oldestLoadedKey = null;
-  oldestLoadedTime = null;
   hasMoreComments = false;
   isLoadingMore = false;
 
@@ -425,10 +431,12 @@ function loadComments(){
 
   stopCommentsListener = onValue(latestCommentsQuery, async snap => {
     const data = snap.val();
-    const entries = data ? sortByFirebaseKey(Object.entries(data)) : [];
+    const entries = data ? sortByKey(Object.entries(data)) : [];
 
     entries.forEach(([key, comment]) => {
-      loadedComments[key] = comment;
+      if (key !== "!sequence" && comment && typeof comment === "object") {
+        loadedComments[key] = comment;
+      }
     });
 
     updateOldestCursor();
@@ -440,7 +448,7 @@ function loadComments(){
         globalCommentCount = count;
       } else {
         const postsSnap = await get(commentsRef);
-        const actualCount = postsSnap.exists() ? Object.keys(postsSnap.val()).length : 0;
+        const actualCount = countRealComments(postsSnap.val());
         globalCommentCount = actualCount;
         await update(ref(db), { [`thread-comment-counts/${threadId}`]: actualCount });
       }
@@ -476,9 +484,10 @@ async function loadMoreComments(){
       return;
     }
 
-    const entries = sortByFirebaseKey(Object.entries(data));
-    const olderEntries = entries.filter(([key]) =>
-      key !== oldestLoadedKey && key.localeCompare(oldestLoadedKey) < 0
+    const entries = sortByKey(Object.entries(data));
+    const olderEntries = entries.filter(([key, comment]) =>
+      key !== "!sequence" && key !== oldestLoadedKey &&
+      key.localeCompare(oldestLoadedKey) < 0 && comment && typeof comment === "object"
     );
 
     if (olderEntries.length === 0) {
@@ -541,32 +550,34 @@ async function uploadImage(file){
 }
 
 async function getNextCommentNumber(){
-  const sequenceRef = ref(db, `thread-comment-sequences/${threadId}`);
+  // 新しいトップレベルパスは作らず、既存の posts/{threadId} の中に
+  // !sequence という予約キーで連番カウンターを置く。
+  // pushキーより前に並ぶため、通常のコメント50件取得には混ざらない。
+  const sequenceRef = ref(db, `posts/${threadId}/!sequence`);
   const sequenceSnap = await get(sequenceRef);
   let initialMaximum = Number(sequenceSnap.val()) || 0;
 
+  // 初回だけ、これまで保存されたnumberの最大値を調べて引き継ぐ。
   if (!sequenceSnap.exists()) {
     const postsSnap = await get(commentsRef);
     if (postsSnap.exists()) {
-      Object.values(postsSnap.val()).forEach(comment => {
-        const number = Number(comment?.number);
-        if (Number.isFinite(number) && number > initialMaximum) {
+      Object.entries(postsSnap.val()).forEach(([key, comment]) => {
+        if (key === "!sequence" || !comment || typeof comment !== "object") return;
+        const number = Number(comment.number);
+        if (Number.isSafeInteger(number) && number > initialMaximum) {
           initialMaximum = number;
         }
       });
     }
   }
 
+  // transactionにより同時投稿でも番号が重複しない。
   const result = await runTransaction(sequenceRef, current => {
-    const base = current === null
-      ? initialMaximum
-      : (Number(current) || 0);
+    const base = current === null ? initialMaximum : (Number(current) || 0);
     return base + 1;
   });
 
-  if (!result.committed) {
-    throw new Error("コメント番号の採番に失敗しました。");
-  }
+  if (!result.committed) throw new Error("コメント番号の採番に失敗しました。");
   return Number(result.snapshot.val());
 }
 
@@ -579,9 +590,8 @@ async function incrementActiveCommentCount(){
     initialCount = countSnap.val();
   } else {
     const postsSnap = await get(commentsRef);
-    initialCount = postsSnap.exists()
-      ? Object.keys(postsSnap.val()).length
-      : 0;
+    // 投稿本体はすでに保存済みなので、現在件数から新規投稿分を引いて初期値にする。
+    initialCount = Math.max(0, countRealComments(postsSnap.val()) - 1);
   }
 
   const result = await runTransaction(countRef, current => {
@@ -640,19 +650,27 @@ document.getElementById("postBtn").onclick=async()=>{
 
     await update(ref(db), updates);
 
-    // 一覧表示用の現在件数は、通し番号とは別に管理する。
-    globalCommentCount = await incrementActiveCommentCount();
-    hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
-    renderComments();
-
+    // コメント本体の保存が成功した時点で入力欄をクリアする。
     document.getElementById("commentInput").value="";
     document.getElementById("imageInput").value="";
     document.getElementById("fileName").textContent="";
+
+    // 一覧表示用件数は連番とは独立して更新する。
+    try {
+      globalCommentCount = await incrementActiveCommentCount();
+    } catch (countError) {
+      console.error("Comment Count Update Error:", countError);
+      globalCommentCount = globalCommentCount + 1;
+    }
+    hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
+    renderComments();
+
     document.getElementById("postStatus").textContent="投稿しました！";
     setTimeout(()=>{ document.getElementById("postStatus").textContent=""; },2000);
   } catch (error) {
     console.error("Post Error:", error);
-    alert("投稿に失敗しました: " + (error?.message || "不明なエラー"));
+    document.getElementById("postStatus").textContent = "投稿に失敗しました";
+    alert("投稿に失敗しました: " + (error?.code || error?.message || "不明なエラー"));
   } finally {
     postBtn.disabled = false;
   }
