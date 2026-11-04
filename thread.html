@@ -83,7 +83,7 @@ body{ margin:0; font-family:sans-serif; background: linear-gradient(#120c1f, #1a
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import { getAuth, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-import { getDatabase, ref, onValue, push, update, remove, get, query, orderByKey, limitToLast, endAt } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, update, remove, get, query, orderByKey, limitToLast, endAt, runTransaction } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
 const firebaseConfig={
   apiKey: "AIzaSyDwp6403Wctjo-2vjR373CjfJXDDGUp7do",
@@ -123,6 +123,7 @@ let stopCommentsListener = null;
 const COMMENTS_PER_PAGE = 50;
 let loadedComments = {};
 let oldestLoadedKey = null;
+let oldestLoadedTime = null;
 let hasMoreComments = false;
 let isLoadingMore = false;
 
@@ -203,13 +204,15 @@ window.deleteComment = async (commentId) => {
     await remove(ref(db, `posts/${threadId}/${commentId}`));
 
     delete loadedComments[commentId];
-    if (globalCommentCount > 0) globalCommentCount--;
 
-    await update(ref(db), {
-      [`thread-comment-counts/${threadId}`]: globalCommentCount
+    const countRef = ref(db, `thread-comment-counts/${threadId}`);
+    const countResult = await runTransaction(countRef, current => {
+      return Math.max(0, (Number(current) || 0) - 1);
     });
+    globalCommentCount = Number(countResult.snapshot.val()) || 0;
 
     updateOldestCursor();
+    hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
     renderComments();
     alert("コメントを削除したよ 🐰🧹");
   } catch (error) {
@@ -273,16 +276,30 @@ onAuthStateChanged(auth, async user => {
   loadComments();
 });
 
+// 表示・ページングとも投稿日時を基準にする。
+// 同じ時刻の投稿だけFirebaseキーで順序を確定させる。
 function sortByFirebaseKey(entries){
-  return entries.sort((a, b) => a[0].localeCompare(b[0]));
+  return entries.sort((a, b) => {
+    const timeA = Number(a[1]?.time) || 0;
+    const timeB = Number(b[1]?.time) || 0;
+    return timeA - timeB || a[0].localeCompare(b[0]);
+  });
+}
+
+function compareCommentEntries(a, b){
+  const timeA = Number(a[1]?.time) || 0;
+  const timeB = Number(b[1]?.time) || 0;
+  return timeA - timeB || a[0].localeCompare(b[0]);
 }
 
 function updateOldestCursor(){
   const entries = sortByFirebaseKey(Object.entries(loadedComments));
   if (entries.length > 0) {
     oldestLoadedKey = entries[0][0];
+    oldestLoadedTime = Number(entries[0][1]?.time) || 0;
   } else {
     oldestLoadedKey = null;
+    oldestLoadedTime = null;
   }
 }
 
@@ -396,6 +413,7 @@ function loadComments(){
 
   loadedComments = {};
   oldestLoadedKey = null;
+  oldestLoadedTime = null;
   hasMoreComments = false;
   isLoadingMore = false;
 
@@ -459,7 +477,9 @@ async function loadMoreComments(){
     }
 
     const entries = sortByFirebaseKey(Object.entries(data));
-    const olderEntries = entries.filter(([key]) => key !== oldestLoadedKey);
+    const olderEntries = entries.filter(([key]) =>
+      key !== oldestLoadedKey && key.localeCompare(oldestLoadedKey) < 0
+    );
 
     if (olderEntries.length === 0) {
       hasMoreComments = false;
@@ -520,6 +540,59 @@ async function uploadImage(file){
   return data.secure_url;
 }
 
+async function getNextCommentNumber(){
+  const sequenceRef = ref(db, `thread-comment-sequences/${threadId}`);
+  const sequenceSnap = await get(sequenceRef);
+  let initialMaximum = Number(sequenceSnap.val()) || 0;
+
+  if (!sequenceSnap.exists()) {
+    const postsSnap = await get(commentsRef);
+    if (postsSnap.exists()) {
+      Object.values(postsSnap.val()).forEach(comment => {
+        const number = Number(comment?.number);
+        if (Number.isFinite(number) && number > initialMaximum) {
+          initialMaximum = number;
+        }
+      });
+    }
+  }
+
+  const result = await runTransaction(sequenceRef, current => {
+    const base = current === null
+      ? initialMaximum
+      : (Number(current) || 0);
+    return base + 1;
+  });
+
+  if (!result.committed) {
+    throw new Error("コメント番号の採番に失敗しました。");
+  }
+  return Number(result.snapshot.val());
+}
+
+async function incrementActiveCommentCount(){
+  const countRef = ref(db, `thread-comment-counts/${threadId}`);
+  let initialCount = 0;
+  const countSnap = await get(countRef);
+
+  if (typeof countSnap.val() === "number") {
+    initialCount = countSnap.val();
+  } else {
+    const postsSnap = await get(commentsRef);
+    initialCount = postsSnap.exists()
+      ? Object.keys(postsSnap.val()).length
+      : 0;
+  }
+
+  const result = await runTransaction(countRef, current => {
+    const base = current === null
+      ? initialCount
+      : (Number(current) || 0);
+    return base + 1;
+  });
+  return Number(result.snapshot.val()) || 0;
+}
+
 document.getElementById("postBtn").onclick=async()=>{
   if(!currentUid) return alert("ログイン処理中です");
   const postBtn = document.getElementById("postBtn");
@@ -547,16 +620,8 @@ document.getElementById("postBtn").onclick=async()=>{
 
     const timestamp = Date.now();
 
-    // 全体の総件数を取得して投稿時の絶対通し番号を付与
-    const countSnap = await get(ref(db, `thread-comment-counts/${threadId}`));
-    let currentCount = countSnap.val();
-
-    if (typeof currentCount !== "number") {
-      const postsSnap = await get(commentsRef);
-      currentCount = postsSnap.exists() ? Object.keys(postsSnap.val()).length : 0;
-    }
-
-    const assignedNumber = currentCount + 1;
+    // コメント番号は削除で減らない専用カウンターから採番する。
+    const assignedNumber = await getNextCommentNumber();
 
     const newPostRef = push(ref(db, `posts/${threadId}`));
     const newPostKey = newPostRef.key;
@@ -572,9 +637,13 @@ document.getElementById("postBtn").onclick=async()=>{
       number: assignedNumber
     };
     updates[`threads/${threadId}/lastTime`] = timestamp;
-    updates[`thread-comment-counts/${threadId}`] = assignedNumber;
 
     await update(ref(db), updates);
+
+    // 一覧表示用の現在件数は、通し番号とは別に管理する。
+    globalCommentCount = await incrementActiveCommentCount();
+    hasMoreComments = globalCommentCount > Object.keys(loadedComments).length;
+    renderComments();
 
     document.getElementById("commentInput").value="";
     document.getElementById("imageInput").value="";
